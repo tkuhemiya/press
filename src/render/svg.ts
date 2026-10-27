@@ -1,4 +1,4 @@
-import type { Role } from '../model.ts';
+import type { Attrs, Item } from '../scene/scene.ts';
 
 export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -6,10 +6,6 @@ export function esc(s: string): string {
 
 export function n(v: number): string {
   return String(Math.round(v * 100) / 100);
-}
-
-export function roleAttr(role: Role | undefined): string {
-  return role ? ` data-role="${role}"` : '';
 }
 
 export const HEAD = 9;
@@ -27,12 +23,23 @@ export function arrowhead(x: number, y: number, dx: number, dy: number): string 
   return `M${n(x)},${n(y)}L${n(bx + px * w)},${n(by + py * w)}L${n(notchX)},${n(notchY)}L${n(bx - px * w)},${n(by - py * w)}Z`;
 }
 
-export function textBlock(lines: string[], cx: number, cy: number, lineHeight: number, cls: string): string {
-  const top = cy - ((lines.length - 1) * lineHeight) / 2;
-  return `<text class="${cls}" x="${n(cx)}" y="${n(top)}">${lines.map((l, i) => `<tspan x="${n(cx)}" ${i ? `dy="${lineHeight}"` : 'dy="0.35em"'}>${esc(l)}</tspan>`).join('')}</text>`;
-}
+export const linesItem = (lines: readonly string[], cx: number, cy: number, lineHeight: number, cls: string): Item => ({
+  type: 'lines',
+  cls,
+  x: cx,
+  cy,
+  lines,
+  lineHeight,
+});
 
-export function badge(cls: string, attrs: string, x: number, y: number, label: string): string {
-  const r = label.length > 1 ? 9 : 8;
-  return `<g class="${cls}"${attrs}><circle cx="${n(x)}" cy="${n(y)}" r="${r}"/><text x="${n(x)}" y="${n(y)}" dy="0.35em">${esc(label)}</text></g>`;
+export function badgeItem(cls: string, attrs: Attrs, x: number, y: number, label: string): Item {
+  return {
+    type: 'group',
+    cls,
+    attrs,
+    items: [
+      { type: 'circle', cx: x, cy: y, r: label.length > 1 ? 9 : 8 },
+      { type: 'text', x, y, text: label, dy: '0.35em' },
+    ],
+  };
 }

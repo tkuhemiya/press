@@ -1,6 +1,7 @@
 import type { Diagram, DiagramType, Direction, EdgeIndex, Html, NodeId, Part, Target } from '../model.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
+import type { Scene } from '../scene/scene.ts';
 import { ARCHITECTURE } from './architecture.ts';
 import { CAUSAL_LOOP } from './causal-loop.ts';
 import { DECISION_TREE } from './decision-tree.ts';
@@ -14,6 +15,7 @@ export interface Rendered {
   svg: Html;
   width: number;
   height: number;
+  scene: Scene;
 }
 
 interface Members {

@@ -1,47 +1,82 @@
 import { n } from '../render/svg.ts';
+import type { Item } from '../scene/scene.ts';
 
-export function kindShape(kind: string | undefined, x: number, y: number, w: number, h: number): string {
+export function kindItems(kind: string | undefined, x: number, y: number, w: number, h: number): Item[] {
   if (kind === 'database') {
     const ry = 5;
-    return `<path class="pr-box" d="M${n(x)},${n(y + ry)}A${n(w / 2)},${ry} 0 0 1 ${n(x + w)},${n(y + ry)}V${n(y + h - ry)}A${n(w / 2)},${ry} 0 0 1 ${n(x)},${n(y + h - ry)}Z"/><path class="pr-box-detail" d="M${n(x)},${n(y + ry)}A${n(w / 2)},${ry} 0 0 0 ${n(x + w)},${n(y + ry)}"/>`;
+    return [
+      {
+        type: 'path',
+        cls: 'pr-box',
+        d: `M${n(x)},${n(y + ry)}A${n(w / 2)},${ry} 0 0 1 ${n(x + w)},${n(y + ry)}V${n(y + h - ry)}A${n(w / 2)},${ry} 0 0 1 ${n(x)},${n(y + h - ry)}Z`,
+      },
+      {
+        type: 'path',
+        cls: 'pr-box-detail',
+        d: `M${n(x)},${n(y + ry)}A${n(w / 2)},${ry} 0 0 0 ${n(x + w)},${n(y + ry)}`,
+      },
+    ];
   }
   const cls = kind === 'external' ? 'pr-box pr-external' : 'pr-box';
-  return `<rect class="${cls}" x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="9"/>`;
+  return [{ type: 'rect', cls, x, y, w, h, r: 9 }];
 }
 
 export const GLYPH_W = 22;
 
-export function glyph(kind: string, x: number, y: number): string {
-  const p = (d: string) => `<g class="pr-glyph">${d}</g>`;
+function glyphParts(kind: string, x: number, y: number): Item[] {
   switch (kind) {
     case 'user':
-      return p(
-        `<circle cx="${n(x)}" cy="${n(y - 4)}" r="3.2"/><path d="M${n(x - 5.5)},${n(y + 6.5)}C${n(x - 5.5)},${n(y + 1)} ${n(x + 5.5)},${n(y + 1)} ${n(x + 5.5)},${n(y + 6.5)}"/>`,
-      );
+      return [
+        { type: 'circle', cx: x, cy: y - 4, r: 3.2 },
+        {
+          type: 'path',
+          d: `M${n(x - 5.5)},${n(y + 6.5)}C${n(x - 5.5)},${n(y + 1)} ${n(x + 5.5)},${n(y + 1)} ${n(x + 5.5)},${n(y + 6.5)}`,
+        },
+      ];
     case 'queue':
-      return p(
-        `<rect x="${n(x - 6)}" y="${n(y - 4.5)}" width="12" height="9" rx="2"/><path d="M${n(x - 2)},${n(y - 4.5)}V${n(y + 4.5)}M${n(x + 2)},${n(y - 4.5)}V${n(y + 4.5)}"/>`,
-      );
+      return [
+        { type: 'rect', x: x - 6, y: y - 4.5, w: 12, h: 9, r: 2 },
+        { type: 'path', d: `M${n(x - 2)},${n(y - 4.5)}V${n(y + 4.5)}M${n(x + 2)},${n(y - 4.5)}V${n(y + 4.5)}` },
+      ];
     case 'client':
-      return p(
-        `<rect x="${n(x - 6.5)}" y="${n(y - 5.5)}" width="13" height="9" rx="1.5"/><path d="M${n(x - 3)},${n(y + 6)}H${n(x + 3)}M${n(x)},${n(y + 3.5)}V${n(y + 6)}"/>`,
-      );
+      return [
+        { type: 'rect', x: x - 6.5, y: y - 5.5, w: 13, h: 9, r: 1.5 },
+        { type: 'path', d: `M${n(x - 3)},${n(y + 6)}H${n(x + 3)}M${n(x)},${n(y + 3.5)}V${n(y + 6)}` },
+      ];
     case 'service':
-      return p(
-        `<rect x="${n(x - 6)}" y="${n(y - 6)}" width="12" height="5" rx="1.2"/><rect x="${n(x - 6)}" y="${n(y + 1)}" width="12" height="5" rx="1.2"/><path d="M${n(x - 3.5)},${n(y - 3.5)}h0.01M${n(x - 3.5)},${n(y + 3.5)}h0.01"/>`,
-      );
+      return [
+        { type: 'rect', x: x - 6, y: y - 6, w: 12, h: 5, r: 1.2 },
+        { type: 'rect', x: x - 6, y: y + 1, w: 12, h: 5, r: 1.2 },
+        { type: 'path', d: `M${n(x - 3.5)},${n(y - 3.5)}h0.01M${n(x - 3.5)},${n(y + 3.5)}h0.01` },
+      ];
     case 'cache':
-      return p(
-        `<path d="M${n(x + 1.5)},${n(y - 6.5)}L${n(x - 4)},${n(y + 1)}H${n(x + 0.5)}L${n(x - 1.5)},${n(y + 6.5)}L${n(x + 4)},${n(y - 1)}H${n(x - 0.5)}Z"/>`,
-      );
+      return [
+        {
+          type: 'path',
+          d: `M${n(x + 1.5)},${n(y - 6.5)}L${n(x - 4)},${n(y + 1)}H${n(x + 0.5)}L${n(x - 1.5)},${n(y + 6.5)}L${n(x + 4)},${n(y - 1)}H${n(x - 0.5)}Z`,
+        },
+      ];
     case 'storage':
-      return p(
-        `<ellipse cx="${n(x)}" cy="${n(y - 4)}" rx="6" ry="1.8"/><path d="M${n(x - 6)},${n(y - 4)}L${n(x - 4.5)},${n(y + 5)}Q${n(x)},${n(y + 7.2)} ${n(x + 4.5)},${n(y + 5)}L${n(x + 6)},${n(y - 4)}"/>`,
-      );
+      return [
+        { type: 'ellipse', cx: x, cy: y - 4, rx: 6, ry: 1.8 },
+        {
+          type: 'path',
+          d: `M${n(x - 6)},${n(y - 4)}L${n(x - 4.5)},${n(y + 5)}Q${n(x)},${n(y + 7.2)} ${n(x + 4.5)},${n(y + 5)}L${n(x + 6)},${n(y - 4)}`,
+        },
+      ];
     case 'external':
-      return p(
-        `<path d="M${n(x + 0.5)},${n(y - 6)}H${n(x + 6)}V${n(y - 0.5)}M${n(x + 6)},${n(y - 6)}L${n(x - 0.5)},${n(y + 0.5)}M${n(x - 2)},${n(y - 4.5)}H${n(x - 6)}V${n(y + 6)}H${n(x + 4.5)}V${n(y + 2)}"/>`,
-      );
+      return [
+        {
+          type: 'path',
+          d: `M${n(x + 0.5)},${n(y - 6)}H${n(x + 6)}V${n(y - 0.5)}M${n(x + 6)},${n(y - 6)}L${n(x - 0.5)},${n(y + 0.5)}M${n(x - 2)},${n(y - 4.5)}H${n(x - 6)}V${n(y + 6)}H${n(x + 4.5)}V${n(y + 2)}`,
+        },
+      ];
+    default:
+      return [];
   }
-  return '';
+}
+
+export function glyphItems(kind: string, x: number, y: number): Item[] {
+  const items = glyphParts(kind, x, y);
+  return items.length ? [{ type: 'group', cls: 'pr-glyph', items }] : [];
 }

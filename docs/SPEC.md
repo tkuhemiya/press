@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.4)
+# Press language spec (draft, v0.5)
 
 ## Document
 
@@ -11,6 +11,20 @@ Fence header:
 ````
 
 All header fields are optional. `id` is needed only when prose refers to the diagram. Without `direction`, a type draws in its default direction, or in the other one when that fits the page clearly better; an explicit `direction` is always kept.
+
+### Page hints
+
+*New in v0.5.* A heading may end with `{page=keep}` or `{page=new}`. A section is a heading and everything under it, up to the next heading of any level.
+
+```markdown
+## Where the writes go {page=keep}
+## Appendix: wire formats {page=new}
+```
+
+- `page=keep` keeps the section on one page. Press shrinks its figures as far as print allows to make it fit, and starts a new page if it does not fit in the space left. A section too long for any page flows normally, and `press build` warns that it could not keep it together.
+- `page=new` starts the section on a new page.
+- Hints affect print only. On screen the heading shows without its hint.
+- Any other key or value is an error that names the line and the accepted values. Without a hint, Press lays out print on its own (see Print below).
 
 ## Shared grammar
 
@@ -109,6 +123,7 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 - **Prose references become markers.** A reference prints as the text plus a superscript marker that matches a marker on the node. Step markers are numbers (1, 2, 3); prose reference markers are letters (a, b, c), so the two never collide.
 - **A figure that would print small may print differently.** Press tries it in the other direction (only when the author gave no `direction`) and without its `muted` elements (only when no step or prose reference points at one), and prints whichever layout keeps the text largest. The screen always shows the diagram as written.
 - **Diagrams never split across pages.**
+- **Figures fill the page they are on.** A figure that does not fit in the space left on its page prints smaller, down to 60% of its size, or in its other direction, before it moves to the next page. Figures never move out of reading order, and a heading never ends a page alone.
 
 Small multiples (several frames) are allowed only when the author asks for them explicitly. This is not part of v0.1.
 

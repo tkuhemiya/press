@@ -39,8 +39,8 @@ Press needs Node 26 or later.
 ```sh
 npm install
 node src/cli.ts build docs/examples/checkout.md --out-dir out   # HTML
+node src/cli.ts build doc.md -o doc.pdf                    # PDF, typeset by Typst (needs typst on PATH)
 node src/cli.ts check doc.md                               # problems only
-node src/cli.ts pdf doc.md -o doc.pdf                      # needs Playwright
 ```
 
 Problems are reported with the line and a fix, so an LLM can correct its own source:
@@ -66,7 +66,7 @@ is built by the test suite, so it stays in step with the language.
 ## Develop
 
 ```sh
-npx playwright install chromium   # once, for the browser tests and pdf
+npx playwright install chromium   # once, for the browser tests
 npm test            # parser, rendering, and browser checks
 npm run check       # format check, lint, typecheck
 npm run build:examples

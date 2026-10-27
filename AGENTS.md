@@ -10,12 +10,12 @@ Press is a small Markdown-like language for writing explanations that mix prose 
 
 These were settled deliberately. Don't reopen them without a good reason.
 
-- **HTML first, print as a first-class target.** HTML supports interactivity, LLMs write it fluently, and it shows up wherever people read. Print matters for long-term use, so every visualization must have a good static form. A Typst backend may come later from the same source.
+- **HTML first, print as a first-class target.** HTML supports interactivity, LLMs write it fluently, and it shows up wherever people read. Print matters for long-term use, so every visualization must have a good static form. PDF is typeset by Typst from the same source.
 - **Markdown host, fenced blocks for visualizations.** The fence language tag is the diagram type (` ```state-machine `).
 - **One shared grammar across all diagram types.** Nodes, edges, attributes, groups and comments look the same everywhere. Each type only adds a few keywords.
 - **Meaning, not styling.** Authors write `{role=error}`, never colors or sizes. The visual language belongs to the library.
 - **Explicit attributes:** `{key=value, ...}`.
-- **Layout hints are limited to `direction`.** The layout engine handles everything else.
+- **Layout hints are limited to `direction` on diagrams and `page` on headings.** The layout engine handles everything else.
 - **No raw SVG/HTML escape hatch.** The constraint forces the vocabulary to grow.
 - **Steps live inside the fence.**
 - **Paper is a budget.** Print should compress (annotate a single frame), not expand (one frame per step). See `docs/SPEC.md`.
@@ -33,9 +33,9 @@ These were settled deliberately. Don't reopen them without a good reason.
 ## Code
 
 - Node 26+, TypeScript run directly (erasable syntax only: no enums, namespaces or parameter properties). `npm test`; `npm run check` checks formatting (oxfmt), lints (oxlint, type-aware) and typechecks.
-- `src/model.ts` has one type per diagram. `src/parse/grammar.ts` turns a fence into plain statements, and each type's file in `src/diagrams` builds its model from them (with its own checks) and draws it; `src/diagrams/diagram.ts` registers them. `src/parse/document.ts` reads the Markdown, and `src/render` builds the page (`style.css`, `client.js`).
+- `src/model.ts` has one type per diagram. `src/parse/grammar.ts` turns a fence into plain statements, and each type's file in `src/diagrams` builds its model from them (with its own checks) and draws it; `src/diagrams/diagram.ts` registers them. `src/parse/document.ts` reads the Markdown, and `src/render` builds the page (`style.css`, `client.js`) and the paper (`typst.ts` and `press.typ`).
 - No `as` or `!` (lint errors); brand ids and `Html` in `src/brand.ts` only.
-- Diagram SVG carries meaning as classes and `data-role`, never colours; all styling lives in `style.css`, including print.
+- Diagram SVG carries meaning as classes and `data-role`, never colours; styling lives in `style.css` for the screen and in `src/render/press.typ` for paper. Print has no browser stylesheet.
 - No comments in code; they go stale. Let names, types and tests carry the meaning. The one exception is `src/layout/pele`.
 - `src/layout/pele` is vendored. Keep changes there minimal and note them in the file header.
-- After a visual change, build the examples and look at them on screen and in print (`node src/cli.ts pdf`).
+- After a visual change, build the examples and look at them on screen and in print (`node src/cli.ts build doc.md -o doc.pdf`, which needs `typst` on PATH).

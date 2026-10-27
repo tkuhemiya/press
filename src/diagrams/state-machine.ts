@@ -4,8 +4,8 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from './draw.ts';
-import { n } from '../render/svg.ts';
+import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
+import type { Item } from '../scene/scene.ts';
 
 export const STATE_MACHINE: DiagramDef<'state-machine'> = {
   type: 'state-machine',
@@ -57,7 +57,7 @@ const MIN_W = 68;
 const MAX_LABEL = 190;
 const PSEUDO = 16;
 
-function stateShape(node: Node, domId: string): NodeShape {
+function stateShape(node: Node): NodeShape {
   if (node.id === 'start' || node.id === 'end') {
     return {
       w: PSEUDO,
@@ -66,9 +66,14 @@ function stateShape(node: Node, domId: string): NodeShape {
       draw(b, attrs) {
         const cx = b.x + b.w / 2;
         const cy = b.y + b.h / 2;
-        return node.id === 'start'
-          ? `<g class="pr-node pr-pseudo"${attrs}><circle class="pr-dot" cx="${n(cx)}" cy="${n(cy)}" r="7"/></g>`
-          : `<g class="pr-node pr-pseudo"${attrs}><circle class="pr-ring" cx="${n(cx)}" cy="${n(cy)}" r="7.5"/><circle class="pr-dot" cx="${n(cx)}" cy="${n(cy)}" r="3.8"/></g>`;
+        const items: Item[] =
+          node.id === 'start'
+            ? [{ type: 'circle', cls: 'pr-dot', cx, cy, r: 7 }]
+            : [
+                { type: 'circle', cls: 'pr-ring', cx, cy, r: 7.5 },
+                { type: 'circle', cls: 'pr-dot', cx, cy, r: 3.8 },
+              ];
+        return { type: 'group', cls: 'pr-node pr-pseudo', attrs, items };
       },
     };
   }
@@ -76,12 +81,15 @@ function stateShape(node: Node, domId: string): NodeShape {
   return {
     w: Math.max(MIN_W, Math.ceil(text.w + 2 * PAD_X)),
     h: text.h + 2 * PAD_Y,
-    draw(b, attrs) {
-      let body = `<rect class="pr-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="9"/>`;
-      if (node.role === 'error')
-        body += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="9" fill="url(#${domId}-hatch)"/>`;
-      body += drawText(text, b.x + b.w / 2, b.y + b.h / 2);
-      return `<g class="pr-node"${attrs}>${body}</g>`;
-    },
+    draw: (b, attrs) => ({
+      type: 'group',
+      cls: 'pr-node',
+      attrs,
+      items: [
+        { type: 'rect', cls: 'pr-box', ...b, r: 9 },
+        ...hatchItems(node, b, 9),
+        ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
+      ],
+    }),
   };
 }

@@ -4,9 +4,8 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from './draw.ts';
-import { GLYPH_W, glyph, kindShape } from './kinds.ts';
-import { n } from '../render/svg.ts';
+import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
+import { GLYPH_W, glyphItems, kindItems } from './kinds.ts';
 
 export const ARCHITECTURE: DiagramDef<'architecture'> = {
   type: 'architecture',
@@ -50,7 +49,7 @@ const CAP = 4;
 const MIN_W = 96;
 const MAX_LABEL = 170;
 
-function componentShape(node: Component, domId: string): NodeShape {
+function componentShape(node: Component): NodeShape {
   const { kind } = node;
   const text = measureLabel(node.label, node.note, MAX_LABEL);
   const icon = kind && kind !== 'database' ? GLYPH_W : 0;
@@ -59,14 +58,19 @@ function componentShape(node: Component, domId: string): NodeShape {
     w: Math.max(MIN_W, Math.ceil(text.w + icon + 2 * PAD_X)),
     h: Math.ceil(text.h + 2 * pad),
     draw(b, attrs) {
-      let body = kindShape(kind, b.x, b.y, b.w, b.h);
-      if (node.role === 'error' && kind !== 'database')
-        body += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="9" fill="url(#${domId}-hatch)"/>`;
       const cx = b.x + b.w / 2 + icon / 2;
       const cy = b.y + b.h / 2 + (kind === 'database' ? CAP / 2 : 0);
-      if (icon && kind) body += glyph(kind, cx - text.first / 2 - 15, b.y + pad + 9);
-      body += drawText(text, cx, cy);
-      return `<g class="pr-node pr-component"${attrs}>${body}</g>`;
+      return {
+        type: 'group',
+        cls: 'pr-node pr-component',
+        attrs,
+        items: [
+          ...kindItems(kind, b.x, b.y, b.w, b.h),
+          ...(kind === 'database' ? [] : hatchItems(node, b, 9)),
+          ...(icon && kind ? glyphItems(kind, cx - text.first / 2 - 15, b.y + pad + 9) : []),
+          ...textItems(text, cx, cy),
+        ],
+      };
     },
   };
 }

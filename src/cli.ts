@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { build, formatDiagnostic } from './index.ts';
+import { typstDocument } from './render/typst.ts';
+import { parseReports, settle, unfitSections, type Choices, type Report } from './render/settle.ts';
 
 const USAGE = `Usage:
-  press build <file.md...> [-o out.html | --out-dir dir]   Render to self-contained HTML
-  press check <file.md...>                                  Report problems only
-  press pdf <file.md> [-o out.pdf]                          Print to PDF (needs Playwright)`;
+  press build <file.md> -o out.html | out.pdf               Render to HTML, or typeset to PDF (needs typst)
+  press build <file.md...> --out-dir dir                    Render each file to HTML
+  press check <file.md...>                                  Report problems only`;
+
+const MAX_ROUNDS = 50;
 
 const args = process.argv.slice(2);
 const command = args.shift();
@@ -21,12 +27,17 @@ for (let i = 0; i < args.length; i++) {
   else files.push(args[i]);
 }
 
-if (!command || !['build', 'check', 'pdf'].includes(command) || !files.length) {
+if (!command || !['build', 'check'].includes(command) || !files.length) {
   console.error(USAGE);
   process.exit(command === 'help' || command === '--help' ? 0 : 2);
 }
 if (out && files.length > 1) {
   console.error('-o takes one input file; use --out-dir for several.');
+  process.exit(2);
+}
+const format = out ? /\.(html?|pdf)$/i.exec(out)?.[1]?.toLowerCase() : 'html';
+if (command === 'build' && !format) {
+  console.error(`Cannot tell the output format from \`${out}\`: end it in .html or .pdf.`);
   process.exit(2);
 }
 
@@ -41,31 +52,68 @@ for (const file of files) {
   }
   if (command === 'check') continue;
   const stem = basename(file).replace(/\.(md|markdown|press)$/i, '');
-  if (command === 'build') {
-    const target = out ?? join(outDir ?? '.', `${stem}.html`);
-    if (outDir) mkdirSync(outDir, { recursive: true });
-    writeFileSync(target, result.html);
-    console.error(`wrote ${target}`);
-  } else {
-    const target = resolve(out ?? join(outDir ?? '.', `${stem}.pdf`));
-    await printPdf(result.html, target);
-    console.error(`wrote ${target}`);
+  if (format === 'pdf' && out) {
+    typeset(JSON.stringify(typstDocument(result.document)), resolve(out));
+    console.error(`wrote ${out}`);
+    continue;
   }
+  const target = out ?? join(outDir ?? '.', `${stem}.html`);
+  if (outDir) mkdirSync(outDir, { recursive: true });
+  writeFileSync(target, result.html);
+  console.error(`wrote ${target}`);
 }
 process.exit(failed ? 1 : 0);
 
-async function printPdf(html: string, target: string): Promise<void> {
-  let chromium;
+function typeset(json: string, target: string): void {
+  const dir = mkdtempSync(join(tmpdir(), 'press-'));
+  const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
   try {
-    ({ chromium } = createRequire(import.meta.url)('playwright'));
-  } catch {
-    console.error('press pdf needs Playwright: npm i -D playwright && npx playwright install chromium');
-    process.exit(2);
+    writeFileSync(join(dir, 'doc.json'), json);
+    copyFileSync(here('./render/press.typ'), join(dir, 'press.typ'));
+    const entry = join(dir, 'press.typ');
+    const common = ['--root', dir, '--font-path', here('../assets/fonts/ttf'), '--ignore-system-fonts'];
+    const settled = settleChoices(entry, common);
+    for (const title of unfitSections(settled.reports)) {
+      console.error(`warning: section "${title}" is too long to keep on one page; it flows normally.`);
+    }
+    execFileSync(
+      'typst',
+      ['compile', ...common, '--input', `choices=${JSON.stringify(settled.choices)}`, entry, target],
+      { stdio: 'inherit' },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'load' });
-  await page.evaluate(() => document.fonts.ready);
-  await page.pdf({ path: target, format: 'A4', printBackground: true, preferCSSPageSize: true });
-  await browser.close();
+}
+
+function settleChoices(entry: string, common: string[]): { choices: Choices; reports: Report[] } {
+  let choices: Choices = {};
+  let reports = fitReports(entry, common, choices);
+  for (let round = 1; ; round++) {
+    const next = settle(reports, choices);
+    if (next === 'settled') return { choices, reports };
+    if (round === MAX_ROUNDS) {
+      console.error('warning: the layout did not settle; the last layout is used.');
+      return { choices, reports };
+    }
+    choices = next;
+    reports = fitReports(entry, common, choices);
+  }
+}
+
+function fitReports(entry: string, common: string[], choices: Choices): Report[] {
+  const out = execFileSync(
+    'typst',
+    [
+      'eval',
+      '--in',
+      entry,
+      ...common,
+      '--input',
+      `choices=${JSON.stringify(choices)}`,
+      'query(<press-fit>).map(m => m.value)',
+    ],
+    { encoding: 'utf8' },
+  );
+  return parseReports(out);
 }

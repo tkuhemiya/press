@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDocument, type Diagram, type DiagramType, type Document } from '../src/index.ts';
+import { parseDocument, renderHtml, type Diagram, type DiagramType, type Document } from '../src/index.ts';
 
 const fence = (type: string, body: string, header = '') =>
   `# Doc\n\n\`\`\`${type}${header ? ' ' + header : ''}\n${body}\n\`\`\`\n`;
@@ -794,5 +794,86 @@ describe('tradeoffs caveats', () => {
   it('keeps a cell note as its caveat', () => {
     const d = first(parse('tradeoffs', 'a.x : yes {note="since 4.0"}\nb.x : no'), 'tradeoffs');
     expect(d.cells[0]).toMatchObject({ value: 'yes', note: 'since 4.0' });
+  });
+});
+
+describe('page hints on headings', () => {
+  const headings = (source: string) => {
+    const doc = parseDocument(source);
+    return { doc, errors: doc.diagnostics.map((d) => ({ line: d.line, message: d.message, hint: d.hint })) };
+  };
+
+  it('accepts keep and new without diagnostics, and strips them from the title and heading', () => {
+    const doc = parseDocument('# Guide {page=keep}\n\n## Where the writes go {page=keep}\n\n## Appendix {page=new}\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.title).toBe('Guide');
+    expect(renderHtml(doc)).not.toMatch(/\{page/);
+    expect(renderHtml(doc)).toContain('<h2>Where the writes go</h2>');
+    expect(renderHtml(doc)).toContain('<h2>Appendix</h2>');
+  });
+
+  it('keeps braces that sit in the middle of a heading', () => {
+    const doc = parseDocument('## The {x} problem\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(renderHtml(doc)).toContain('<h2>The {x} problem</h2>');
+  });
+
+  it('strips a hint that follows inline markup', () => {
+    const doc = parseDocument('## Foo *bar* {page=new}\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(renderHtml(doc)).toContain('<h2>Foo <em>bar</em></h2>');
+  });
+
+  it('names an unknown page value, with a fix', () => {
+    const { errors } = headings('# Doc\n\n## Foo {page=together}\n');
+    expect(errors).toEqual([
+      {
+        line: 3,
+        message: 'Unknown page hint `together`.',
+        hint: 'Use `{page=keep}` to keep the section on one page, or `{page=new}` to start it on a new page.',
+      },
+    ]);
+  });
+
+  it('suggests the nearest page value for a near miss', () => {
+    const { errors } = headings('## Foo {page=newe}\n');
+    expect(errors).toEqual([{ line: 1, message: 'Unknown page hint `newe`.', hint: 'Did you mean `{page=new}`?' }]);
+  });
+
+  it('rejects any key other than page', () => {
+    const { errors } = headings('# Doc\n\n## Foo {break=new}\n');
+    expect(errors).toEqual([
+      { line: 3, message: 'Headings take only the `page` hint.', hint: 'Write `{page=new}` or `{page=keep}`.' },
+    ]);
+  });
+
+  it('rejects a heading with two page hints', () => {
+    const { errors } = headings('## Foo {page=keep, page=new}\n');
+    expect(errors).toEqual([
+      {
+        line: 1,
+        message: 'A heading takes one page hint, but this one has 2.',
+        hint: 'Keep one of `{page=keep}` or `{page=new}`.',
+      },
+    ]);
+  });
+
+  it('rejects a page hint with no value', () => {
+    const { errors } = headings('## Foo {page, page=keep}\n');
+    expect(errors.map((e) => e.message)).toEqual([
+      'The `page` hint has no value.',
+      'A heading takes one page hint, but this one has 2.',
+    ]);
+    expect(headings('## Foo {x=1, page}\n').errors.map((e) => e.message)).toEqual([
+      'Headings take only the `page` hint.',
+      'The `page` hint has no value.',
+    ]);
+  });
+
+  it('reports an unclosed brace at the end of a heading', () => {
+    const { errors } = headings('## Foo {page=keep\n');
+    expect(errors).toEqual([
+      { line: 1, message: 'Heading ends in an unclosed `{`.', hint: 'Close the brace, as in `{page=keep}`.' },
+    ]);
   });
 });

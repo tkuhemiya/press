@@ -20,6 +20,7 @@ Add a row when you study a project. Name the problems in words you would search 
 | A letter on the figure that prose can point at | [jemmybutton/byrne-euclid](https://github.com/jemmybutton/byrne-euclid). |
 | A diagram that still reads in grayscale | [enesozturk/dimensional-drawing](https://github.com/enesozturk/dimensional-drawing). |
 | Justified paragraphs | [anomalyco/justice](https://github.com/anomalyco/justice). |
+| Print layout: a figure that fits the space left on its page, page numbers, or a PDF without a browser | [typst/typst](https://github.com/typst/typst), the PDF backend. The template is `src/render/press.typ`; sizes are settled by `src/render/settle.ts`. |
 | A matrix, a slider, or a curve the reader can drag | [koaning/wigglystuff](https://github.com/koaning/wigglystuff). |
 | A chart with axes | [goptics/vizb](https://github.com/goptics/vizb), for `plot`. |
 | A pathway, a cycle, or an anatomy figure | [organui/organui](https://github.com/organui/organui). |
@@ -36,6 +37,12 @@ Add a row when you study a project. Name the problems in words you would search 
 | [lukilabs/beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid) | Mermaid to SVG or ASCII, built on elkjs. | A theme built from two colours, and ASCII output. ASCII is the one to open when a diagram has to stay readable as plain text. |
 | [kitlangton/merman](https://github.com/kitlangton/merman) | An experimental Mermaid renderer for the terminal. | Plain text, ANSI colour, and an OpenTUI widget, for flowcharts, sequences, and state diagrams. Open it with beautiful-mermaid when the target is a terminal. |
 | [blushft/go-diagrams](https://github.com/blushft/go-diagrams) | Architecture diagrams from Go, a port of mingrammer/diagrams. | Node kinds for architecture pictures, including cloud icons. Press drew line glyphs in `src/diagrams/kinds.ts` so every kind shares one look with the rest of the page. A set of vendor logos would also need a licence check. |
+
+## Print
+
+| Project | What it is | What it covers |
+|---|---|---|
+| [typst/typst](https://github.com/typst/typst) | A typesetting system with a scripting language, one static binary. | Book-quality line breaking and hyphenation, `measure` for the height of any content, and page positions through `here()` and `locate()`. Introspection stops after five layout passes, so a chain of decisions that each read page positions does not converge; Press settles them outside Typst, one `typst eval` per round. Spacing inside a `context` block does not reach the content around it. Chromium print (the first PDF path) could not float figures or report page positions. |
 
 ## Rejected
 

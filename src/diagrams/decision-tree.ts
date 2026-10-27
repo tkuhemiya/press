@@ -4,8 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from './draw.ts';
-import { n } from '../render/svg.ts';
+import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
 
 export const DECISION_TREE: DiagramDef<'decision-tree'> = {
   type: 'decision-tree',
@@ -15,7 +14,7 @@ export const DECISION_TREE: DiagramDef<'decision-tree'> = {
     const outcomes = new Set(d.nodes.filter((node) => !d.edges.some((e) => e.from === node.id)).map((node) => node.id));
     return renderGraph(d, context, {
       direction: 'down',
-      shape: (node, domId) => (outcomes.has(node.id) ? outcomeShape(node, domId) : questionShape(node, domId)),
+      shape: (node) => (outcomes.has(node.id) ? outcomeShape(node) : questionShape(node)),
       first: (node) => node.id === d.root,
       svgClass: 'pr-decision-tree',
     });
@@ -128,33 +127,41 @@ const PAD_Y = 11;
 const MIN_W = 80;
 const MAX_LABEL = 170;
 
-function questionShape(node: Node, domId: string): NodeShape {
+function questionShape(node: Node): NodeShape {
   const text = measureLabel(node.label, node.note, MAX_LABEL);
   return {
     w: Math.max(MIN_W, Math.ceil(text.w + 2 * PAD_X)),
     h: text.h + 2 * PAD_Y,
-    draw(b, attrs) {
-      let body = `<rect class="pr-box pr-question" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="6"/>`;
-      if (node.role === 'error')
-        body += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="6" fill="url(#${domId}-hatch)"/>`;
-      body += drawText(text, b.x + b.w / 2, b.y + b.h / 2);
-      return `<g class="pr-node"${attrs}>${body}</g>`;
-    },
+    draw: (b, attrs) => ({
+      type: 'group',
+      cls: 'pr-node',
+      attrs,
+      items: [
+        { type: 'rect', cls: 'pr-box pr-question', ...b, r: 6 },
+        ...hatchItems(node, b, 6),
+        ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
+      ],
+    }),
   };
 }
 
-function outcomeShape(node: Node, domId: string): NodeShape {
+function outcomeShape(node: Node): NodeShape {
   const text = measureLabel(node.label, node.note, MAX_LABEL);
   return {
     w: Math.max(MIN_W, Math.ceil(text.w + 2 * PAD_X + 8)),
     h: text.h + 2 * PAD_Y,
     draw(b, attrs) {
       const r = Math.min(b.h / 2, 18);
-      let body = `<rect class="pr-box pr-outcome" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="${n(r)}"/>`;
-      if (node.role === 'error')
-        body += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="${n(r)}" fill="url(#${domId}-hatch)"/>`;
-      body += drawText(text, b.x + b.w / 2, b.y + b.h / 2);
-      return `<g class="pr-node pr-outcome-node"${attrs}>${body}</g>`;
+      return {
+        type: 'group',
+        cls: 'pr-node pr-outcome-node',
+        attrs,
+        items: [
+          { type: 'rect', cls: 'pr-box pr-outcome', ...b, r },
+          ...hatchItems(node, b, r),
+          ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
+        ],
+      };
     },
   };
 }

@@ -5,9 +5,20 @@ import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, leanBy, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
-import { labelSvg, markers, refMarkers, type Box, nodeTargets, edgeTargets, propTargets, type Anchor } from './draw.ts';
+import {
+  labelItem,
+  markerItems,
+  refMarkers,
+  type Box,
+  nodeTargets,
+  edgeTargets,
+  propTargets,
+  type Anchor,
+} from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
+import { linesItem, n } from '../render/svg.ts';
+import { attr, type Item, type Scene } from '../scene/scene.ts';
+import { paintSvg } from '../scene/svg.ts';
 
 export const ER: DiagramDef<'er'> = {
   type: 'er',
@@ -197,6 +208,23 @@ interface Table {
   box: Box;
 }
 
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface End extends Point {
+  ux: number;
+  uy: number;
+}
+
+const rowBox = (e: Table, k: number): Box => ({
+  x: e.box.x + 3,
+  y: e.box.y + HEAD_H + k * ROW_H + 3,
+  w: e.box.w - 6,
+  h: ROW_H,
+});
+
 function render(d: Er, context: RenderContext): Rendered {
   const { domId } = context;
   const dir = (context.direction ?? d.direction ?? 'right') === 'right' ? 'LR' : 'TB';
@@ -273,7 +301,6 @@ function render(d: Er, context: RenderContext): Rendered {
     const i = key ? e.fields.findIndex((f) => f.name === key) : -1;
     return i < 0 ? e.box.y + HEAD_H / 2 : e.box.y + HEAD_H + i * ROW_H + ROW_H / 2;
   };
-  type End = { x: number; y: number; ux: number; uy: number };
   const sides = ({ from, to, a, b }: (typeof routed)[number]): [End, End] => {
     const aMid = a.box.x + a.box.w / 2;
     const bMid = b.box.x + b.box.w / 2;
@@ -308,9 +335,21 @@ function render(d: Er, context: RenderContext): Rendered {
   }
 
   let maxX = layout.width + MARGIN;
-  const out: string[] = [];
-  const edgeSvgs: string[] = [];
-  const labels: string[] = [];
+  const groups: Item[] = d.groups.map((g, i) => {
+    const c = cnodes[i];
+    const x = MARGIN + c.x - c.w / 2;
+    const y = MARGIN + c.y - c.h / 2;
+    return {
+      type: 'group',
+      cls: 'pr-group',
+      items: [
+        { type: 'rect', x, y, w: c.w, h: c.h, r: 12 },
+        { type: 'text', x: x + 14, y: y + 19, text: g.label },
+      ],
+    };
+  });
+  const edges: Item[] = [];
+  const labels: Item[] = [];
   const anchors = new Map<number, Anchor>();
   for (const { e, from: fromId, to: toId, ends: pair } of placed) {
     const [p, q] = pair;
@@ -318,15 +357,11 @@ function render(d: Er, context: RenderContext): Rendered {
     const c1 = { x: p.x + p.ux * reach, y: p.y + p.uy * reach };
     const c2 = { x: q.x + q.ux * reach, y: q.y + q.uy * reach };
     maxX = Math.max(maxX, c1.x, c2.x);
-    const [from, to] = e.cardinality;
-    let s = `<g class="pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}" data-edge="${e.index}" data-from="${esc(fromId)}" data-to="${esc(toId)}"${roleAttr(e.role)}>`;
-    s += `<path class="pr-line" d="M${n(p.x)},${n(p.y)}C${n(c1.x)},${n(c1.y)} ${n(c2.x)},${n(c2.y)} ${n(q.x)},${n(q.y)}"/>`;
-    s += crowsFoot(p, from) + crowsFoot(q, to);
-    edgeSvgs.push(s + '</g>');
+    edges.push(relation(e, fromId, toId, p, q, c1, c2));
     const mx = 0.125 * p.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * q.x;
     const my = 0.125 * p.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * q.y;
     if (e.label) {
-      labels.push(labelSvg(e, mx, my, onGroup(mx, my)));
+      labels.push(labelItem(e, mx, my, onGroup(mx, my)));
       anchors.set(e.index, { x: mx - labelSize(e)[0] / 2 - 4, y: my, w: labelSize(e)[0] + 8 });
     } else anchors.set(e.index, { x: mx, y: my });
   }
@@ -340,63 +375,97 @@ function render(d: Er, context: RenderContext): Rendered {
 
   const width = Math.ceil(maxX + MARGIN);
   const height = Math.ceil(layout.height + 2 * MARGIN);
-  out.push(
-    `<svg class="pr-svg pr-er" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
-  );
-  out.push(
-    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
-  );
-  d.groups.forEach((g, i) => {
-    const c = cnodes[i];
-    const x = MARGIN + c.x - c.w / 2;
-    const y = MARGIN + c.y - c.h / 2;
-    out.push(
-      `<g class="pr-group"><rect x="${n(x)}" y="${n(y)}" width="${n(c.w)}" height="${n(c.h)}" rx="12"/><text x="${n(x + 14)}" y="${n(y + 19)}">${esc(g.label)}</text></g>`,
-    );
-  });
-  out.push(...edgeSvgs);
-
   const boxes = new Map<string, Box>();
   for (const e of entities) {
-    const { node } = e;
-    const b = e.box;
-    boxes.set(node.id, { x: b.x, y: b.y, w: b.w, h: HEAD_H });
-    let s = `<g class="pr-node pr-entity" data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}>`;
-    s += `<rect class="pr-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8"/>`;
-    if (!e.fields.length)
-      s += `<rect class="pr-entity-head" x="${n(b.x + 0.6)}" y="${n(b.y + 0.6)}" width="${n(b.w - 1.2)}" height="${n(b.h - 1.2)}" rx="7.5"/>`;
-    else
-      s += `<path class="pr-entity-head" d="M${n(b.x + 0.6)},${n(b.y + HEAD_H)}V${n(b.y + 8)}Q${n(b.x + 0.6)},${n(b.y + 0.6)} ${n(b.x + 8)},${n(b.y + 0.6)}H${n(b.x + b.w - 8)}Q${n(b.x + b.w - 0.6)},${n(b.y + 0.6)} ${n(b.x + b.w - 0.6)},${n(b.y + 8)}V${n(b.y + HEAD_H)}Z"/>`;
-    if (e.fields.length) s += `<path class="pr-entity-rule" d="M${n(b.x)},${n(b.y + HEAD_H)}H${n(b.x + b.w)}"/>`;
-    s += textBlock([node.label], b.x + b.w / 2, b.y + HEAD_H / 2, 18, 'pr-label pr-entity-name');
-    out.push(s + '</g>');
-    e.fields.forEach((f, k) => {
-      const id = `${node.id}.${f.name}`;
-      const ry = b.y + HEAD_H + k * ROW_H + 3;
-      const row = { x: b.x + 3, y: ry, w: b.w - 6, h: ROW_H };
-      boxes.set(id, row);
-      const cy = ry + ROW_H / 2;
-      const key = f.primary;
-      let r = `<g class="pr-node pr-field${key ? ' pr-key' : ''}" data-node="${esc(id)}" data-in="${esc(node.id)}" id="${domId}-node-${esc(id)}"${roleAttr(f.role)}>`;
-      r += `<rect class="pr-box pr-field-box" x="${n(row.x)}" y="${n(row.y)}" width="${n(row.w)}" height="${n(row.h)}" rx="4"/>`;
-      if (key) r += keyGlyph(b.x + PAD_X + 5, cy);
-      r += `<text class="pr-field-name" x="${n(b.x + PAD_X + KEY_W)}" y="${n(cy)}" dy="0.35em">${esc(f.name)}</text>`;
-      r += `<text class="pr-field-type" x="${n(b.x + b.w - PAD_X)}" y="${n(cy)}" dy="0.35em">${esc(typeText(f))}</text>`;
-      out.push(r + '</g>');
-    });
+    boxes.set(e.node.id, { x: e.box.x, y: e.box.y, w: e.box.w, h: HEAD_H });
+    e.fields.forEach((f, k) => boxes.set(`${e.node.id}.${f.name}`, rowBox(e, k)));
   }
-  out.push(...labels);
   const fields = d.nodes.flatMap((node) => node.fields.map((f) => ({ node: node.id, key: f.name })));
-  out.push(
-    ...markers(
-      d,
-      boxes,
-      anchors,
-      refMarkers(context, [...nodeTargets(d.nodes), ...propTargets(fields), ...edgeTargets(d.edges)]),
-    ),
-  );
-  out.push('</svg>');
-  return { svg: trusted(out.join('')), width, height };
+  const scene: Scene = {
+    id: domId,
+    cls: 'pr-er',
+    width,
+    height,
+    hatch: true,
+    items: [
+      ...groups,
+      ...edges,
+      ...entities.flatMap((e) => entityItems(e, domId)),
+      ...labels,
+      ...markerItems(
+        d,
+        boxes,
+        anchors,
+        refMarkers(context, [...nodeTargets(d.nodes), ...propTargets(fields), ...edgeTargets(d.edges)]),
+      ),
+    ],
+  };
+  return { svg: trusted(paintSvg(scene)), width, height, scene };
+}
+
+function relation(e: Reference, fromId: NodeId, toId: NodeId, p: End, q: End, c1: Point, c2: Point): Item {
+  const [from, to] = e.cardinality;
+  return {
+    type: 'group',
+    cls: `pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}`,
+    attrs: [['data-edge', String(e.index)], ['data-from', fromId], ['data-to', toId], ...attr('data-role', e.role)],
+    items: [
+      {
+        type: 'path',
+        cls: 'pr-line',
+        d: `M${n(p.x)},${n(p.y)}C${n(c1.x)},${n(c1.y)} ${n(c2.x)},${n(c2.y)} ${n(q.x)},${n(q.y)}`,
+      },
+      ...crowsFoot(p, from),
+      ...crowsFoot(q, to),
+    ],
+  };
+}
+
+function entityItems(e: Table, domId: string): Item[] {
+  const { node } = e;
+  const b = e.box;
+  const head: Item = e.fields.length
+    ? {
+        type: 'path',
+        cls: 'pr-entity-head',
+        d: `M${n(b.x + 0.6)},${n(b.y + HEAD_H)}V${n(b.y + 8)}Q${n(b.x + 0.6)},${n(b.y + 0.6)} ${n(b.x + 8)},${n(b.y + 0.6)}H${n(b.x + b.w - 8)}Q${n(b.x + b.w - 0.6)},${n(b.y + 0.6)} ${n(b.x + b.w - 0.6)},${n(b.y + 8)}V${n(b.y + HEAD_H)}Z`,
+      }
+    : { type: 'rect', cls: 'pr-entity-head', x: b.x + 0.6, y: b.y + 0.6, w: b.w - 1.2, h: b.h - 1.2, r: 7.5 };
+  const rule: Item[] = e.fields.length
+    ? [{ type: 'path', cls: 'pr-entity-rule', d: `M${n(b.x)},${n(b.y + HEAD_H)}H${n(b.x + b.w)}` }]
+    : [];
+  const entity: Item = {
+    type: 'group',
+    cls: 'pr-node pr-entity',
+    attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
+    items: [
+      { type: 'rect', cls: 'pr-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 8 },
+      head,
+      ...rule,
+      linesItem([node.label], b.x + b.w / 2, b.y + HEAD_H / 2, 18, 'pr-label pr-entity-name'),
+    ],
+  };
+  return [entity, ...e.fields.map((f, k) => fieldItem(e, f, k, domId))];
+}
+
+function fieldItem(e: Table, f: Field, k: number, domId: string): Item {
+  const { node } = e;
+  const b = e.box;
+  const row = rowBox(e, k);
+  const id = `${node.id}.${f.name}`;
+  const cy = row.y + ROW_H / 2;
+  const key = f.primary;
+  return {
+    type: 'group',
+    cls: `pr-node pr-field${key ? ' pr-key' : ''}`,
+    attrs: [['data-node', id], ['data-in', node.id], ['id', `${domId}-node-${id}`], ...attr('data-role', f.role)],
+    items: [
+      { type: 'rect', cls: 'pr-box pr-field-box', x: row.x, y: row.y, w: row.w, h: row.h, r: 4 },
+      ...(key ? [keyGlyph(b.x + PAD_X + 5, cy)] : []),
+      { type: 'text', cls: 'pr-field-name', x: b.x + PAD_X + KEY_W, y: cy, text: f.name, dy: '0.35em' },
+      { type: 'text', cls: 'pr-field-type', x: b.x + b.w - PAD_X, y: cy, text: typeText(f), dy: '0.35em' },
+    ],
+  };
 }
 
 function ends(e: Reference): [{ entity: NodeId; field?: NodeId }, { entity: NodeId; field?: NodeId }] {
@@ -412,21 +481,32 @@ function typeText(f: Field): string {
   return [f.type ?? '', f.unique ? 'unique' : '', f.nullable ? 'null' : ''].filter(Boolean).join(' · ');
 }
 
-function keyGlyph(x: number, y: number): string {
-  return `<g class="pr-glyph pr-key-glyph"><circle cx="${n(x - 2)}" cy="${n(y)}" r="2.6"/><path d="M${n(x + 0.6)},${n(y)}H${n(x + 6)}M${n(x + 4)},${n(y)}v2.4"/></g>`;
+function keyGlyph(x: number, y: number): Item {
+  return {
+    type: 'group',
+    cls: 'pr-glyph pr-key-glyph',
+    items: [
+      { type: 'circle', cx: x - 2, cy: y, r: 2.6 },
+      { type: 'path', d: `M${n(x + 0.6)},${n(y)}H${n(x + 6)}M${n(x + 4)},${n(y)}v2.4` },
+    ],
+  };
 }
 
-function crowsFoot(e: { x: number; y: number; ux: number; uy: number }, end: string): string {
-  const pt = (d: number, w: number) => `${n(e.x + e.ux * d - e.uy * w)},${n(e.y + e.uy * d + e.ux * w)}`;
-  const bar = (d: number) => `M${pt(d, -7)}L${pt(d, 7)}`;
+function crowsFoot(e: End, end: string): Item[] {
+  const at = (d: number, w: number): Point => ({ x: e.x + e.ux * d - e.uy * w, y: e.y + e.uy * d + e.ux * w });
+  const str = (d: number, w: number): string => {
+    const p = at(d, w);
+    return `${n(p.x)},${n(p.y)}`;
+  };
+  const bar = (d: number) => `M${str(d, -7)}L${str(d, 7)}`;
   const many = end === 'N' || end === '1..N';
   const zero = end === 'N' || end === '0..1';
-  let s = many ? `M${pt(0, -7)}L${pt(13, 0)}L${pt(0, 7)}` : bar(9);
+  let s = many ? `M${str(0, -7)}L${str(13, 0)}L${str(0, 7)}` : bar(9);
   if (!zero) s += bar(many ? 17 : 15);
-  let out = `<path class="pr-crow" d="${s}"/>`;
+  const items: Item[] = [{ type: 'path', cls: 'pr-crow', d: s }];
   if (zero) {
-    const [cx, cy] = pt(22, 0).split(',');
-    out += `<circle class="pr-crow-ring" cx="${cx}" cy="${cy}" r="4.2"/>`;
+    const ring = at(22, 0);
+    items.push({ type: 'circle', cls: 'pr-crow-ring', cx: ring.x, cy: ring.y, r: 4.2 });
   }
-  return out;
+  return items;
 }

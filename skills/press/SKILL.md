@@ -17,7 +17,7 @@ The language is in `docs/SPEC.md`. This file is how to write it well.
 4. Write the fence. Set `id` and `title` when prose will refer to the diagram.
 5. Add `steps:` when order matters. Link a node from prose with `[text](#id.node)`, an edge with `[text](#id.from->to)`.
 6. Run `press check doc.md`. Fix every error and every warning. Each message names the line and states a fix you can apply as written.
-7. Build it and look: `press build doc.md --out-dir out`, then open the HTML, and `press pdf doc.md -o doc.pdf` for paper. The checker cannot see raw ids used as labels, text shrunk too small, or a figure that says something other than you meant. If you cannot open a browser, say so to the user rather than skipping this step silently.
+7. Build it and look: `press build doc.md --out-dir out`, then open the HTML, and `press build doc.md -o doc.pdf` for paper. The checker cannot see raw ids used as labels, text shrunk too small, or a figure that says something other than you meant. If you cannot open a browser, say so to the user rather than skipping this step silently.
 
 ## Choose a type
 
@@ -44,6 +44,7 @@ If two types fit, pick the one whose edges mean what you want to say. A sequence
 - **Steps tell the story.** Use three to six steps. Each caption says why the move happens. Step through the path that matters. Leave the other edges out of `steps:`.
 - **Prose and the diagram work together.** Point at a node from the text with `[the failed state](#order.failed)`. Point at an edge with `[the retry](#order.failed->submitted)`, and at a sequence phase or a causal loop by its id. On screen, the reader hovers the link and Press highlights what it names. On paper, the reference is a lettered marker.
 - **`direction` is the only layout hint.** Leave it out unless you have a reason. Press picks the direction that fits the page. Put it in the fence header, as in `` ```architecture direction=down ``. Do not add extra nodes, or reorder lines, to push the layout around.
+- **Page hints are rare.** On paper, Press already keeps a heading with the content under it, so hints are rarely needed. Add `{page=keep}` to a heading only when its section must be read on one page, such as a figure and the explanation that depends on it: `## Where the writes go {page=keep}`. Add `{page=new}` only to start a new major part of the document: `## Appendix: wire formats {page=new}`. Any other value is an error. The hint shows on paper only, so the heading reads the same on screen.
 
 ## The shared grammar
 

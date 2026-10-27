@@ -4,9 +4,11 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
-import { markers, refMarkers, type Box, nodeTargets, propTargets } from './draw.ts';
+import { hatchItems, markerItems, refMarkers, type Box, nodeTargets, propTargets } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
+import { linesItem, n } from '../render/svg.ts';
+import { attr, type Item, type Scene } from '../scene/scene.ts';
+import { paintSvg } from '../scene/svg.ts';
 
 export const TRADEOFFS: DiagramDef<'tradeoffs'> = {
   type: 'tradeoffs',
@@ -118,17 +120,33 @@ const MARK = 10;
 const NOTE_FONT = 11.5;
 const NOTE_LINE = 15;
 
-interface Item {
+interface Member {
   node: Node;
   lines: string[];
   option: boolean;
   group?: GroupId;
 }
 
+const band = (label: string, b: Box): Item => ({
+  type: 'group',
+  cls: 'pr-group pr-band',
+  items: [
+    { type: 'rect', x: b.x, y: b.y, w: b.w, h: b.h, r: 6 },
+    { type: 'text', x: b.x + 10, y: b.y + 17, text: label },
+  ],
+});
+
+const nodeGroup = (domId: string, node: Node, cls: string, items: Item[]): Item => ({
+  type: 'group',
+  cls,
+  attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
+  items,
+});
+
 function render(d: Tradeoffs, context: RenderContext): Rendered {
   const { domId } = context;
-  const item = (node: Node, max: number, bold: boolean, option: boolean): Item => {
-    const it: Item = { node, lines: wrap(node.label, FONT, max, bold ? 'sans600' : 'sans500'), option };
+  const member = (node: Node, max: number, bold: boolean, option: boolean): Member => {
+    const it: Member = { node, lines: wrap(node.label, FONT, max, bold ? 'sans600' : 'sans500'), option };
     if (!option && node.group !== undefined) it.group = node.group;
     return it;
   };
@@ -136,12 +154,13 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
   const cell = (o: NodeId, c: NodeId): Cell | undefined => d.cells.find((p) => p.option === o && p.criterion === c);
 
   const cols = across
-    ? d.options.map((node) => item(node, MAX_HEAD, true, true))
-    : d.criteria.map((node) => item(node, MAX_HEAD, true, false));
+    ? d.options.map((node) => member(node, MAX_HEAD, true, true))
+    : d.criteria.map((node) => member(node, MAX_HEAD, true, false));
   const rows = across
-    ? d.criteria.map((node) => item(node, MAX_ROW_HEAD, false, false))
-    : d.options.map((node) => item(node, MAX_ROW_HEAD, false, true));
-  const at = (r: Item, c: Item): Cell | undefined => (across ? cell(c.node.id, r.node.id) : cell(r.node.id, c.node.id));
+    ? d.criteria.map((node) => member(node, MAX_ROW_HEAD, false, false))
+    : d.options.map((node) => member(node, MAX_ROW_HEAD, false, true));
+  const at = (r: Member, c: Member): Cell | undefined =>
+    across ? cell(c.node.id, r.node.id) : cell(r.node.id, c.node.id);
   const valueLines = (p: Cell | undefined): string[] => (p?.value ? wrap(p.value, CELL_FONT, MAX_CELL) : ['—']);
   const noteLines = (p: Cell | undefined): string[] => (p?.note ? wrap(p.note, NOTE_FONT, MAX_CELL) : []);
   const cellH = (p: Cell | undefined): number => valueLines(p).length * LINE + noteLines(p).length * NOTE_LINE;
@@ -186,19 +205,13 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
   const width = Math.ceil(x + MARGIN);
   const tableBottom = y;
 
-  const out: string[] = [];
+  const items: Item[] = [];
   const boxes = new Map<string, Box>();
-  out.push(
-    `<svg class="pr-svg pr-tradeoffs" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
-  );
-  out.push(
-    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
-  );
 
   for (const b of bandRows) {
     const last = rows.findLastIndex((r) => r.group === b.group);
-    out.push(
-      `<g class="pr-group pr-band"><rect x="${MARGIN}" y="${n(b.y)}" width="${n(x - MARGIN)}" height="${n(rowY[last] + rowH[last] - b.y)}" rx="6"/><text x="${n(MARGIN + 10)}" y="${n(b.y + 17)}">${esc(d.categories[b.group].label)}</text></g>`,
+    items.push(
+      band(d.categories[b.group].label, { x: MARGIN, y: b.y, w: x - MARGIN, h: rowY[last] + rowH[last] - b.y }),
     );
   }
   if (bandAbove) {
@@ -207,31 +220,38 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       let j = i;
       while (j + 1 < cols.length && cols[j + 1].group === g) j++;
       if (g !== undefined)
-        out.push(
-          `<g class="pr-group pr-band"><rect x="${n(colX[i])}" y="${MARGIN}" width="${n(colX[j] + colW[j] - colX[i])}" height="${n(tableBottom - MARGIN)}" rx="6"/><text x="${n(colX[i] + 10)}" y="${MARGIN + 17}">${esc(d.categories[g].label)}</text></g>`,
+        items.push(
+          band(d.categories[g].label, {
+            x: colX[i],
+            y: MARGIN,
+            w: colX[j] + colW[j] - colX[i],
+            h: tableBottom - MARGIN,
+          }),
         );
       i = j + 1;
     }
   }
 
   const rules = [top + headH, ...rowY.slice(1)].map((ry) => `M${MARGIN},${n(ry)}H${n(x)}`).join('');
-  out.push(`<path class="pr-rule" d="${rules}"/>`);
+  items.push({ type: 'path', cls: 'pr-rule', d: rules });
 
   cols.forEach((c, i) => {
-    const node = c.node;
     const box = { x: colX[i], y: top, w: colW[i], h: tableBottom - top };
-    boxes.set(node.id, { x: colX[i], y: top, w: colW[i], h: headH });
-    const kind = c.option ? 'pr-option' : 'pr-criterion';
-    out.push(
-      `<g class="pr-node pr-col ${kind}" data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}><rect class="pr-box pr-line-box" x="${n(box.x)}" y="${n(box.y)}" width="${n(box.w)}" height="${n(box.h)}" rx="8"/>${textBlock(c.lines, colX[i] + colW[i] / 2, top + headH / 2, LINE, 'pr-label pr-head')}</g>`,
+    boxes.set(c.node.id, { x: colX[i], y: top, w: colW[i], h: headH });
+    items.push(
+      nodeGroup(domId, c.node, `pr-node pr-col ${c.option ? 'pr-option' : 'pr-criterion'}`, [
+        { type: 'rect', cls: 'pr-box pr-line-box', x: box.x, y: box.y, w: box.w, h: box.h, r: 8 },
+        linesItem(c.lines, colX[i] + colW[i] / 2, top + headH / 2, LINE, 'pr-label pr-head'),
+      ]),
     );
   });
   rows.forEach((r, i) => {
-    const node = r.node;
-    boxes.set(node.id, { x: MARGIN, y: rowY[i], w: headW, h: rowH[i] });
-    const kind = r.option ? 'pr-option' : 'pr-criterion';
-    out.push(
-      `<g class="pr-node pr-row ${kind}" data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}><rect class="pr-box pr-line-box" x="${MARGIN}" y="${n(rowY[i])}" width="${n(x - MARGIN)}" height="${n(rowH[i])}" rx="6"/>${textBlock(r.lines, MARGIN + PAD_X, rowY[i] + rowH[i] / 2, LINE, 'pr-label pr-start pr-row-head')}</g>`,
+    boxes.set(r.node.id, { x: MARGIN, y: rowY[i], w: headW, h: rowH[i] });
+    items.push(
+      nodeGroup(domId, r.node, `pr-node pr-row ${r.option ? 'pr-option' : 'pr-criterion'}`, [
+        { type: 'rect', cls: 'pr-box pr-line-box', x: MARGIN, y: rowY[i], w: x - MARGIN, h: rowH[i], r: 6 },
+        linesItem(r.lines, MARGIN + PAD_X, rowY[i] + rowH[i] / 2, LINE, 'pr-label pr-start pr-row-head'),
+      ]),
     );
   });
 
@@ -246,36 +266,54 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       const notes = noteLines(p);
       const cx = colX[ci] + colW[ci] / 2;
       const cy = rowY[ri] + rowH[ri] / 2 - (notes.length * NOTE_LINE) / 2;
-      let s = `<g class="pr-node pr-cell${p ? '' : ' pr-missing'}" data-node="${esc(id)}" data-in="${esc(o)} ${esc(k)}" id="${domId}-node-${esc(id)}"${roleAttr(p?.role)}>`;
-      s += `<rect class="pr-box pr-cell-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="5"/>`;
-      if (p?.role === 'error')
-        s += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="5" fill="url(#${domId}-hatch)"/>`;
+      const cellItems: Item[] = [
+        { type: 'rect', cls: 'pr-box pr-cell-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 5 },
+        ...hatchItems({ role: p?.role }, b, 5),
+      ];
       const mark = p?.role === 'happy' ? 'pr-good' : notes.length && !p?.role ? 'pr-caveat' : undefined;
       const textX = mark ? cx + MARK / 2 + 2 : cx;
       if (mark)
-        s += `<circle class="${mark}" cx="${n(textX - lineW(lines, CELL_FONT) / 2 - MARK / 2 - 2)}" cy="${n(cy - ((lines.length - 1) * LINE) / 2)}" r="3.6"/>`;
-      s += textBlock(lines, textX, cy, LINE, 'pr-value');
+        cellItems.push({
+          type: 'circle',
+          cls: mark,
+          cx: textX - lineW(lines, CELL_FONT) / 2 - MARK / 2 - 2,
+          cy: cy - ((lines.length - 1) * LINE) / 2,
+          r: 3.6,
+        });
+      cellItems.push(linesItem(lines, textX, cy, LINE, 'pr-value'));
       if (notes.length)
-        s += textBlock(
-          notes,
-          cx,
-          cy + ((lines.length + 1) * LINE) / 2 - 2 + ((notes.length - 1) * NOTE_LINE) / 2,
-          NOTE_LINE,
-          'pr-note pr-cell-note',
+        cellItems.push(
+          linesItem(
+            notes,
+            cx,
+            cy + ((lines.length + 1) * LINE) / 2 - 2 + ((notes.length - 1) * NOTE_LINE) / 2,
+            NOTE_LINE,
+            'pr-note pr-cell-note',
+          ),
         );
-      out.push(s + '</g>');
+      items.push({
+        type: 'group',
+        cls: `pr-node pr-cell${p ? '' : ' pr-missing'}`,
+        attrs: [
+          ['data-node', id],
+          ['data-in', `${o} ${k}`],
+          ['id', `${domId}-node-${id}`],
+          ...attr('data-role', p?.role),
+        ],
+        items: cellItems,
+      });
     });
   });
 
   const cells = d.cells.map((c) => ({ node: c.option, key: c.criterion }));
-  out.push(
-    ...markers(
+  items.push(
+    ...markerItems(
       d,
       boxes,
       new Map(),
       refMarkers(context, [...nodeTargets([...d.options, ...d.criteria]), ...propTargets(cells)]),
     ),
   );
-  out.push('</svg>');
-  return { svg: trusted(out.join('')), width, height };
+  const scene: Scene = { id: domId, cls: 'pr-tradeoffs', width, height, hatch: true, items };
+  return { svg: trusted(paintSvg(scene)), width, height, scene };
 }

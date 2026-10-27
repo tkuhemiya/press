@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { targetName, type Direction, type NodeId } from '../model.ts';
+import { targetName, type Direction } from '../model.ts';
 import { renderDocument, type Document, type Figure } from '../parse/document.ts';
 import { view, type RenderContext, type Rendered, type View } from '../diagrams/diagram.ts';
 import { trusted } from '../brand.ts';
@@ -132,12 +132,8 @@ function figure(f: Figure): string {
   });
   let out = `<figure class="pr-figure" id="${figId}" data-type="${d.type}" data-anchor="${esc(anchor)}"${steps.length ? ' data-steps tabindex="0"' : ''} aria-label="${esc(label)}">\n`;
   if (d.title) out += `<figcaption class="pr-title">${esc(d.title)}</figcaption>\n`;
-  const paper = printVariant(v, f, drawn);
-  const svg = (r: Rendered, cls = '') =>
-    r.svg
-      .replace('role="img"', `role="img" aria-label="${esc(label)}"`)
-      .replace(/^<svg class="([^"]*)"/, `<svg class="$1${cls}"`);
-  out += `<div class="pr-body"><div class="pr-canvas">${paper ? svg(drawn, ' pr-screen-only') + svg(paper, ' pr-print-only') : svg(drawn)}</div>`;
+  const svg = drawn.svg.replace('role="img"', `role="img" aria-label="${esc(label)}"`);
+  out += `<div class="pr-body"><div class="pr-canvas">${svg}</div>`;
   if (steps.length)
     out += `<ol class="pr-legend">${steps.map((s, i) => `<li><b>${i + 1}</b><span>${s.html}</span></li>`).join('')}</ol>`;
   out += `</div>\n`;
@@ -163,34 +159,4 @@ function screenLayout(v: View, f: Figure): Rendered {
     if (screenScale(r) > screenScale(best) * 1.25) best = r;
   }
   return best;
-}
-
-const PAGE_W = ((210 - 34) / 25.4) * 96;
-const PAGE_H = ((297 - 38) / 25.4) * 96 * 0.62;
-const printScale = (r: Rendered): number => Math.min(1, PAGE_W / r.width, PAGE_H / r.height);
-
-function printVariant(v: View, f: Figure, drawn: Rendered): Rendered | undefined {
-  const scale = printScale(drawn);
-  if (scale >= 0.85) return undefined;
-  const directions: (Direction | undefined)[] = v.turnable() ? DIRECTIONS : [undefined];
-  const pinned = (id: NodeId) =>
-    f.refs.some(
-      (r) => (r.target.type === 'node' && r.target.id === id) || (r.target.type === 'prop' && r.target.node === id),
-    );
-  const onEdges = f.refs.some((r) => r.target.type === 'edge' || r.target.type === 'edges');
-  const lean = onEdges ? undefined : v.withoutMuted(pinned);
-  let best: { r: Rendered; scale: number } | undefined;
-  for (const base of lean ? [v, view(lean)] : [v]) {
-    for (const direction of directions) {
-      let r: Rendered;
-      try {
-        r = draw(base, f, `${f.domId}-paper`, direction);
-      } catch {
-        continue;
-      }
-      const s = printScale(r) * (base === v ? 1 : 0.85);
-      if (!best || s > best.scale) best = { r, scale: s };
-    }
-  }
-  return best && best.scale > scale * 1.15 ? best.r : undefined;
 }
