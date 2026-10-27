@@ -75,6 +75,40 @@ a <-> b`
   });
 });
 
+describe('architecture', () => {
+  it('reads kinds, and moves a declared node into the group that lists it', () => {
+    const doc = parse(
+      'architecture',
+      `web: client "Storefront"
+api: service "Orders API"
+group "VPC" {
+  api
+  db: database "Postgres"
+}
+web -> api : HTTPS
+api --> db`
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = doc.diagrams[0];
+    expect(d.nodes.map((n) => [n.id, n.kind, n.group])).toEqual([
+      ['web', 'client', -1],
+      ['api', 'service', 0],
+      ['db', 'database', 0],
+    ]);
+  });
+
+  it('warns when a node is listed in two groups', () => {
+    const doc = parse('architecture', 'group "A" {\n  x\n}\ngroup "B" {\n  x\n}');
+    expect(doc.diagnostics).toMatchObject([{ severity: 'warning', line: 8, message: expect.stringContaining('already in group "A"') }]);
+    expect(doc.diagrams[0].nodes[0].group).toBe(1);
+  });
+
+  it('suggests a known kind', () => {
+    const doc = parse('architecture', 'db: databse "Postgres"');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`database`') });
+  });
+});
+
 describe('diagnostics name the line and suggest a fix', () => {
   const cases: [string, string, string, RegExp, RegExp][] = [
     ['uppercase id', 'state-machine', 'Draft -> paid', /uppercase/, /draft: "Draft"/],

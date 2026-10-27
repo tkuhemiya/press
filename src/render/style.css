@@ -106,6 +106,9 @@ th { font-weight: 600; }
 .pr-head { fill: var(--edge); transition: fill 0.35s var(--ease); }
 .pr-elabel { font-size: 12.5px; fill: var(--ink-2); text-anchor: middle; paint-order: stroke; stroke: var(--fig-bg); stroke-width: 5px; stroke-linejoin: round; transition: fill 0.35s var(--ease); }
 .pr-elabel.pr-left { text-anchor: start; }
+.pr-elabel-plate { fill: var(--fig-bg); }
+.pr-on-group .pr-elabel-plate { fill: var(--group-fill); }
+.pr-on-group .pr-elabel { stroke: var(--group-fill); }
 .pr-group rect { fill: var(--group-fill); stroke: var(--group-line); stroke-width: 1; }
 .pr-group text { font-weight: 600; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; fill: var(--ink-3); }
 .pr-hatch { stroke: var(--error); stroke-width: 1.4; opacity: 0.16; }

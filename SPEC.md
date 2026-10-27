@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.1)
+# Press language spec (draft, v0.2)
 
 ## Document
 
@@ -28,6 +28,7 @@ group "Name" { ... }           nesting
 ```
 
 - Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`.
+- A node belongs to the group it is declared in. A bare node line inside a group (`api` alone) moves an existing node into that group, so members can be listed after they are declared.
 - A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are `[a-z0-9_-]+`. Labels are quoted strings.
 - Values containing spaces are quoted: `{note="retried up to 3 times"}`.
@@ -119,8 +120,111 @@ api --> queue : order.created
 api --> client : 201 Created
 ```
 
+## Diagram types in v0.2
+
+### `architecture`
+
+Components, the boundaries around them, and the connections between them. Edges are connections; the label says what travels on them (a protocol, a payload). `-->` is an async or fire-and-forget connection. Groups are boundaries: a network, a trust zone, a deployment. `direction` defaults to `right`.
+
+Node kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Each draws with its own shape or icon. A node without a kind draws as a plain component box.
+
+```architecture id=checkout title="Checkout"
+user: user "Shopper"
+web: client "Storefront"
+stripe: external "Stripe"
+
+group "VPC" {
+  api: service "Orders API"
+  db: database "Postgres"
+  events: queue "order-events"
+}
+
+user -> web
+web -> api : HTTPS
+api -> db : SQL
+api --> events : order.created
+api -> stripe : charge {role=focus}
+
+steps:
+  web -> api       "The storefront posts the order"
+  api -> stripe    "The API charges the card before anything is stored"
+  api -> db        "Only a paid order is written"
+```
+
+### `causal-loop`
+
+Variables and the causal links between them, for feedback. In this type **the edge label is the polarity**: `+` (the two move the same way) or `-` (they move in opposite ways). Every edge needs one, and any other label is an error. `<->` is not allowed: a mutual influence is two edges, often with different polarities. `-->` marks a weak or uncertain link.
+
+Keyword: `loop`, reserved.
+
+- `{delay=yes}` on an edge marks a delay, drawn with the standard ‖ mark.
+- `loop "Name": a -> b -> a` names a feedback loop. The chain must close (it ends where it starts) and each segment must be an edge in the diagram. **Press works out the loop's type from the edge polarities**: an even number of `-` makes it reinforcing (R), an odd number balancing (B). Loops are numbered in order (R1, R2, B1) and marked inside the diagram with their name.
+- `direction` has no meaning here; the parser ignores it with a warning.
+
+Node kinds: none. A declaration gives only a label.
+
+```causal-loop id=growth title="Word of mouth"
+customers: "Customers"
+referrals: "Referrals"
+saturation: "Market saturation"
+
+customers -> referrals : +
+referrals -> customers : +
+customers -> saturation : +
+saturation -> referrals : -
+price -> customers : - {delay=yes}
+
+loop "Word of mouth": customers -> referrals -> customers
+loop "Saturation": customers -> saturation -> referrals -> customers
+```
+
+### `timeline`
+
+Events in order. This type adds one line form, the event, with the time first so the source reads as a timeline:
+
+```
+<when> id: "Label" {attrs}
+```
+
+`<when>` is one of:
+
+| Form | Example |
+|---|---|
+| year | `2019` |
+| month | `2019-03` |
+| day | `2019-03-14` |
+| clock time | `14:02`, `14:02:30` |
+| date and time | `2019-03-14T14:02` |
+
+- Spacing follows real time. Calendar forms (the first three and date-and-time) may be mixed in one fence; clock times may not be mixed with calendar forms.
+- Events are expected in chronological order. An event earlier than the one above it is a warning, since it is usually a typo.
+- `{until=<when>}` makes an event a span that lasts until that time: a deploy freeze, an outage. `until` takes the same form as the event's own time and may not be earlier.
+- A group becomes a span covering its members: an era, an impact window.
+- Edges join events, for cause: `deploy -> alerts : caused`.
+- **Undated timelines.** If no event has a `<when>`, events are ordinary node declarations (`id: "Label"`) and are spaced evenly in source order. A fence is either dated or undated; mixing the two is an error, and `until` needs a dated timeline.
+- `direction=right` (the default) runs time left to right; `direction=down` runs it top to bottom, for many events or long labels.
+- In a timeline, a line that starts with a `<when>` is an event, so ids cannot themselves be dates.
+
+Node kinds: none.
+
+```timeline id=incident title="Outage, 14 March"
+14:02 deploy: "v2.3 rolls out"
+14:09 alerts: "Error rate hits 8%" {role=error}
+14:12 freeze: "Deploys frozen" {until=14:40, role=muted}
+14:15 rollback: "Rollback starts"
+14:21 recovered: "Errors back to baseline" {role=happy}
+
+group "Impact window" {
+  alerts
+  rollback
+  recovered
+}
+
+deploy -> alerts : caused
+```
+
 ## Node kinds
 
 Each diagram type has a fixed list of node kinds, and each kind has a designed shape or icon. The list is closed so that every kind looks good. A kind the renderer doesn't know draws as a plain box, and the parser emits a warning naming the known kinds. To add a kind, add it to the spec.
 
-`architecture` kinds (v0.2): `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`.
+`architecture` kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. `sequence` uses the same names (in v0.2, a subset: `user`, `service`, `database`, `queue`, `external`).

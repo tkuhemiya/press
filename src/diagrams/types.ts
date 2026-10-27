@@ -13,4 +13,5 @@ export interface TypeSpec {
 export const TYPE_SPECS: Record<DiagramType, TypeSpec> = {
   'state-machine': { reserved: ['start', 'end'], kinds: [], directional: true },
   sequence: { reserved: [], kinds: ['user', 'service', 'database', 'queue', 'external'], directional: false },
+  architecture: { reserved: [], kinds: ['client', 'service', 'database', 'queue', 'cache', 'storage', 'external', 'user'], directional: true },
 };

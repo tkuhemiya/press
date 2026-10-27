@@ -133,7 +133,13 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
         continue;
       }
       if (reservedSteps(first, line)) continue;
-      applyAttrs(ensureNode(first, line), attrs, line);
+      const node = ensureNode(first, line);
+      // Listed inside a group: the node is a member, wherever it was declared.
+      if (groupStack.length) {
+        if (node.group >= 0 && node.group !== currentGroup()) warn(line, `\`${first}\` is already in group "${diagram.groups[node.group].label}"; it moves to "${diagram.groups[currentGroup()].label}".`, 'A node belongs to one group. List it in only one.');
+        node.group = currentGroup();
+      }
+      applyAttrs(node, attrs, line);
       continue;
     }
 

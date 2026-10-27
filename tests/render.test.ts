@@ -93,4 +93,24 @@ waiting -> end
     const order = [...html.matchAll(/class="pr-node pr-participant" data-node="(\w+)"/g)].map((m) => m[1]);
     expect(order).toEqual(['a', 'x', 'b', 'c']);
   });
+
+  it('draws architecture components with their kind, inside their boundary', () => {
+    const src = readFileSync(new URL('../examples/photo-uploads.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-architecture"');
+    for (const kind of ['user', 'client', 'service', 'database', 'cache', 'queue', 'storage', 'external'])
+      expect(svg).toMatch(new RegExp(`class="pr-node pr-component"[^>]*data-kind="${kind}"`));
+    expect(count(svg, /class="pr-glyph"/g)).toBe(8);
+    expect(count(svg, /class="pr-group"/g)).toBe(1);
+    expect(count(svg, /class="pr-step-marker"/g)).toBe(6);
+    expect(svg).toMatch(/class="pr-edge-label pr-on-group"[^>]*>.*?resize/);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('puts an opaque plate under every edge label', () => {
+    const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
+    expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);
+  });
 });
