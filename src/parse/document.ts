@@ -1,15 +1,15 @@
-// Parses a Press document: CommonMark with diagram fences and prose references.
 import MarkdownIt from 'markdown-it';
 import type { Token } from 'markdown-it';
 import { DIAGRAM_TYPES, type Diagnostic, type Diagram, type DiagramType } from '../model.ts';
 import { parseFence } from './fence.ts';
+import { buildMigrated, isMigrated } from '../next/bridge.ts';
+import { trusted } from '../next/brand.ts';
 import { closest, list } from './suggest.ts';
 
 export interface ProseRef {
   diagram: string;
   node: string;
   line: number;
-  // The print marker shared by every reference to this node: a, b, c…
   marker: string;
 }
 
@@ -27,7 +27,6 @@ const REF = /^#([a-z0-9_]+(?:-[a-z0-9_]+)*)\.(.+)$/;
 export type Markdown = InstanceType<typeof MarkdownIt>;
 
 export function createMarkdown(): Markdown {
-  // No raw HTML: the vocabulary grows instead of being escaped.
   return new MarkdownIt({ html: false, linkify: false, typographer: true });
 }
 
@@ -47,19 +46,33 @@ export function parseDocument(source: string): PressDocument {
     const line = (t.map?.[0] ?? 0) + 1;
     if (!(DIAGRAM_TYPES as readonly string[]).includes(lang)) {
       const near = closest(lang, DIAGRAM_TYPES);
-      if (near && lang && near !== lang) diagnostics.push({ severity: 'warning', line, message: `\`${lang}\` is not a Press diagram type, so this fence renders as code.`, hint: `Did you mean \`${near}\`? Diagram types: ${list(DIAGRAM_TYPES)}.` });
+      if (near && lang && near !== lang)
+        diagnostics.push({
+          severity: 'warning',
+          line,
+          message: `\`${lang}\` is not a Press diagram type, so this fence renders as code.`,
+          hint: `Did you mean \`${near}\`? Diagram types: ${list(DIAGRAM_TYPES)}.`,
+        });
       continue;
     }
-    const diagram = parseFence({ type: lang as DiagramType, info: t.info.trim(), body: t.content, line }, diagnostics);
+    const input = { info: t.info.trim(), body: t.content, line };
+    const diagram = isMigrated(lang)
+      ? buildMigrated(lang, input, diagnostics, (text) => trusted(md.renderInline(text)))
+      : parseFence({ type: lang as DiagramType, ...input }, diagnostics);
     t.meta = { diagram };
     diagrams.push(diagram);
     if (diagram.id) {
-      if (byId.has(diagram.id)) diagnostics.push({ severity: 'error', line, message: `Diagram id \`${diagram.id}\` is already used on line ${byId.get(diagram.id)!.line}.`, hint: 'Give each diagram its own id.' });
+      if (byId.has(diagram.id))
+        diagnostics.push({
+          severity: 'error',
+          line,
+          message: `Diagram id \`${diagram.id}\` is already used on line ${byId.get(diagram.id)!.line}.`,
+          hint: 'Give each diagram its own id.',
+        });
       else byId.set(diagram.id, diagram);
     }
   }
 
-  // Prose references, in reading order.
   const refs: ProseRef[] = [];
   const markers = new Map<string, Map<string, string>>();
   for (const block of tokens) {
@@ -79,15 +92,23 @@ export function parseDocument(source: string): PressDocument {
           severity: 'error',
           line,
           message: `Reference \`${href}\` names diagram \`${diagramId}\`, which does not exist.`,
-          hint: near ? `Did you mean \`#${near}.${nodeId}\`?` : byId.size ? `Diagrams with ids: ${list(byId.keys())}.` : 'Give the diagram an id in its fence header: ```state-machine id=order```.',
+          hint: near
+            ? `Did you mean \`#${near}.${nodeId}\`?`
+            : byId.size
+              ? `Diagrams with ids: ${list(byId.keys())}.`
+              : 'Give the diagram an id in its fence header: ```state-machine id=order```.',
         });
         continue;
       }
-      // A reference names a node, or a property as `node.key`.
       const ids = [...diagram.nodes.map((n) => n.id), ...diagram.props.map((p) => `${p.node}.${p.key}`)];
       if (!ids.includes(nodeId)) {
         const near = closest(nodeId, ids);
-        diagnostics.push({ severity: 'error', line, message: `Reference \`${href}\` names \`${nodeId}\`, which is not in diagram \`${diagramId}\`.`, hint: near ? `Did you mean \`#${diagramId}.${near}\`?` : `Nodes in \`${diagramId}\`: ${list(ids)}.` });
+        diagnostics.push({
+          severity: 'error',
+          line,
+          message: `Reference \`${href}\` names \`${nodeId}\`, which is not in diagram \`${diagramId}\`.`,
+          hint: near ? `Did you mean \`#${diagramId}.${near}\`?` : `Nodes in \`${diagramId}\`: ${list(ids)}.`,
+        });
         continue;
       }
       let perDiagram = markers.get(diagramId);
@@ -100,10 +121,11 @@ export function parseDocument(source: string): PressDocument {
   }
 
   diagnostics.sort((a, b) => a.line - b.line);
-  return title === undefined ? { tokens, diagrams, refs, diagnostics, md } : { tokens, diagrams, refs, title, diagnostics, md };
+  return title === undefined
+    ? { tokens, diagrams, refs, diagnostics, md }
+    : { tokens, diagrams, refs, title, diagnostics, md };
 }
 
-// a…z, then aa, ab…
 function letter(n: number): string {
   let s = '';
   n++;

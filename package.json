@@ -3,16 +3,16 @@
   "version": "0.3.0",
   "description": "A Markdown-like language for explanations that mix prose and diagrams.",
   "license": "MIT",
-  "type": "module",
   "bin": {
     "press": "./src/cli.ts"
   },
-  "engines": {
-    "node": ">=26"
-  },
+  "type": "module",
   "scripts": {
-    "build:examples": "node src/cli.ts build examples/*.md --out-dir examples/out",
+    "build:examples": "node src/cli.ts build docs/examples/*.md --out-dir docs/examples/out",
     "typecheck": "tsc",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "check": "oxfmt --check && oxlint && tsc",
     "test": "vitest run"
   },
   "dependencies": {
@@ -21,7 +21,14 @@
   "devDependencies": {
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.5",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
+    "playwright": "^1.64.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=26"
   }
 }

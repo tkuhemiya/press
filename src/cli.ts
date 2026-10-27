@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-// press build <file.md...> [-o out.html | --out-dir dir]
-// press check <file.md...>
-// press pdf <file.md> [-o out.pdf]      (needs Playwright with Chromium)
+
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';

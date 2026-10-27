@@ -1,17 +1,14 @@
-// Renders a parsed Press document to one self-contained HTML page.
 import { readFileSync } from 'node:fs';
 import type { Diagram, DiagramType } from '../model.ts';
 import type { PressDocument } from '../parse/document.ts';
-import { renderArchitecture } from '../diagrams/architecture.ts';
 import { renderCausalLoop } from '../diagrams/causal-loop.ts';
-import { renderDecisionTree } from '../diagrams/decision-tree.ts';
 import { renderEr } from '../diagrams/er.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
-import { renderStateMachine } from '../diagrams/state-machine.ts';
-import { renderTimeline } from '../diagrams/timeline.ts';
 import { renderTradeoffs } from '../diagrams/tradeoffs.ts';
 import { esc, type Rendered } from './svg.ts';
 import { TYPE_SPECS } from '../diagrams/types.ts';
+import { renderAny, withoutMutedAny } from '../next/diagram.ts';
+import { isMigrated, isMigratedDiagram, legacy, type Migrated } from '../next/bridge.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
 
@@ -29,13 +26,12 @@ let fontCss: string | undefined;
 function fonts(): string {
   fontCss ??= FONTS.map(
     ([family, weight, style, file]) =>
-      `@font-face{font-family:"${family}";font-weight:${weight};font-style:${style};font-display:swap;src:url(data:font/woff2;base64,${asset(`../../assets/fonts/${file}`).toString('base64')}) format("woff2")}`
+      `@font-face{font-family:"${family}";font-weight:${weight};font-style:${style};font-display:swap;src:url(data:font/woff2;base64,${asset(`../../assets/fonts/${file}`).toString('base64')}) format("woff2")}`,
   ).join('\n');
   return fontCss;
 }
 
 export interface HtmlOptions {
-  // Leave the fonts out of the page and rely on installed ones; for tests and snapshots.
   embedFonts?: boolean;
 }
 
@@ -51,13 +47,16 @@ export function renderHtml(doc: PressDocument, options: HtmlOptions = {}): strin
     if (!diagram) return defaultFence(tokens, idx, opts, env, self);
     return figure(doc, diagram, figureIds.get(diagram)!);
   };
-  const defaultLink = md.renderer.rules.link_open ?? ((tokens, idx, opts, _env, self) => self.renderToken(tokens, idx, opts));
+  const defaultLink =
+    md.renderer.rules.link_open ?? ((tokens, idx, opts, _env, self) => self.renderToken(tokens, idx, opts));
   md.renderer.rules.link_open = (tokens, idx, opts, env, self) => {
     const ref = tokens[idx].meta?.ref as { diagram: string; node: string; marker: string } | undefined;
     if (!ref) return defaultLink(tokens, idx, opts, env, self);
     const diagram = byId.get(ref.diagram)!;
     const figId = figureIds.get(diagram)!;
-    const role = (diagram.nodes.find((x) => x.id === ref.node) ?? diagram.props.find((p) => `${p.node}.${p.key}` === ref.node))?.role;
+    const role = (
+      diagram.nodes.find((x) => x.id === ref.node) ?? diagram.props.find((p) => `${p.node}.${p.key}` === ref.node)
+    )?.role;
     return `<a class="pr-ref" href="#${figId}-node-${esc(ref.node)}" data-figure="${figId}" data-node="${esc(ref.node)}" data-marker="${esc(ref.marker)}"${role ? ` data-role="${role}"` : ''}>`;
   };
 
@@ -87,17 +86,34 @@ ${js}
 `;
 }
 
-const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, domId: string) => Rendered> = {
-  'state-machine': renderStateMachine,
+const RENDERERS: Record<
+  Exclude<DiagramType, Migrated>,
+  (d: Diagram, markers: Map<string, string>, domId: string) => Rendered
+> = {
   sequence: renderSequence,
-  architecture: renderArchitecture,
   'causal-loop': renderCausalLoop,
-  timeline: renderTimeline,
-  'decision-tree': renderDecisionTree,
   er: renderEr,
   tradeoffs: renderTradeoffs,
 };
-const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline', 'decision-tree': 'Decision tree', er: 'Entity-relationship', tradeoffs: 'Tradeoffs' };
+const TYPE_NAMES: Record<DiagramType, string> = {
+  'state-machine': 'State machine',
+  sequence: 'Sequence',
+  architecture: 'Architecture',
+  'causal-loop': 'Causal loop',
+  timeline: 'Timeline',
+  'decision-tree': 'Decision tree',
+  er: 'Entity-relationship',
+  tradeoffs: 'Tradeoffs',
+};
+
+function draw(d: Diagram, markers: Map<string, string>, domId: string): Rendered {
+  if (!d.typed) {
+    if (isMigrated(d.type)) throw new Error(`The ${d.type} has no model to draw from.`);
+    return RENDERERS[d.type](d, markers, domId);
+  }
+  const typed = d.direction === undefined ? d.typed : { ...d.typed, direction: d.direction };
+  return renderAny(typed, { domId, marker: (t) => markers.get(t.type === 'node' ? t.id : `${t.node}.${t.key}`) });
+}
 
 function figure(doc: PressDocument, d: Diagram, figId: string): string {
   const markers = new Map<string, string>();
@@ -111,21 +127,28 @@ function figure(doc: PressDocument, d: Diagram, figId: string): string {
   const label = d.title ?? `${TYPE_NAMES[d.type]} diagram`;
   const anchor = d.id ?? figId.replace(/^press-/, '');
   const steps = d.steps.map((s) => {
-    const html = doc.md.renderInline(s.caption);
+    const html = d.typed ? s.caption : doc.md.renderInline(s.caption);
     if (s.target.type === 'node') return { node: s.target.id, caption: s.caption, html };
     const e = d.edges[s.target.index];
-    // An edge between fields lights the fields themselves.
-    return { edge: e.index, from: e.fromKey ? `${e.from}.${e.fromKey}` : e.from, to: e.toKey ? `${e.to}.${e.toKey}` : e.to, caption: s.caption, html };
+    return {
+      edge: e.index,
+      from: e.fromKey ? `${e.from}.${e.fromKey}` : e.from,
+      to: e.toKey ? `${e.to}.${e.toKey}` : e.to,
+      caption: s.caption,
+      html,
+    };
   });
   if (d.type === 'decision-tree') steps.forEach((step, i) => Object.assign(step, { trail: treeTrail(d, i) }));
   let out = `<figure class="pr-figure" id="${figId}" data-type="${d.type}" data-anchor="${esc(anchor)}"${steps.length ? ' data-steps tabindex="0"' : ''} aria-label="${esc(label)}">\n`;
   if (d.title) out += `<figcaption class="pr-title">${esc(d.title)}</figcaption>\n`;
-  // On paper the figure may take a different layout that keeps its text larger; on screen it is
-  // always drawn as written.
   const paper = printVariant(d, drawn, markers, figId);
-  const svg = (r: Rendered, cls = '') => r.svg.replace('role="img"', `role="img" aria-label="${esc(label)}"`).replace(/^<svg class="([^"]*)"/, `<svg class="$1${cls}"`);
+  const svg = (r: Rendered, cls = '') =>
+    r.svg
+      .replace('role="img"', `role="img" aria-label="${esc(label)}"`)
+      .replace(/^<svg class="([^"]*)"/, `<svg class="$1${cls}"`);
   out += `<div class="pr-body"><div class="pr-canvas">${paper ? svg(drawn, ' pr-screen-only') + svg(paper, ' pr-print-only') : svg(drawn)}</div>`;
-  if (steps.length) out += `<ol class="pr-legend">${steps.map((s, i) => `<li><b>${i + 1}</b><span>${s.html}</span></li>`).join('')}</ol>`;
+  if (steps.length)
+    out += `<ol class="pr-legend">${steps.map((s, i) => `<li><b>${i + 1}</b><span>${s.html}</span></li>`).join('')}</ol>`;
   out += `</div>\n`;
   if (steps.length) {
     out += `<script type="application/json" class="pr-steps">${JSON.stringify(steps).replace(/</g, '\\u003c')}</script>\n`;
@@ -134,50 +157,40 @@ function figure(doc: PressDocument, d: Diagram, figId: string): string {
   return out + `</figure>\n`;
 }
 
-// A figure's drawing room on screen: the figure's width inside its padding, and a height
-// beyond which a reader has to scroll to see it whole.
 const SCREEN_W = 870;
 const SCREEN_H = 1000;
 const screenScale = (r: Rendered): number => Math.min(1, SCREEN_W / r.width, SCREEN_H / r.height);
 
-// When the author gives no direction, the layout takes whichever direction fits the figure,
-// keeping the type's own default unless the other is clearly larger.
 function screenLayout(d: Diagram, markers: Map<string, string>, figId: string): Rendered {
-  const drawn = RENDERERS[d.type](d, markers, figId);
+  const drawn = draw(d, markers, figId);
   if (d.direction !== undefined || !TYPE_SPECS[d.type].directional || screenScale(drawn) >= 0.9) return drawn;
   let best = drawn;
   for (const direction of ['right', 'down'] as const) {
-    const r = RENDERERS[d.type]({ ...d, direction }, markers, figId);
+    const r = draw({ ...d, direction }, markers, figId);
     if (screenScale(r) > screenScale(best) * 1.25) best = r;
   }
   return best;
 }
 
-// The space a figure has on an A4 page, in CSS pixels: the text width, and the share of the
-// page height the print stylesheet allows a diagram.
 const PAGE_W = ((210 - 34) / 25.4) * 96;
 const PAGE_H = ((297 - 38) / 25.4) * 96 * 0.62;
 const printScale = (r: Rendered): number => Math.min(1, PAGE_W / r.width, PAGE_H / r.height);
 
-// Paper is a budget. When a figure would print small, try it the other way round (unless the
-// author chose a direction) and without its muted elements (unless a step or reference points
-// at one), and print whichever keeps the text largest. Returns nothing when the drawing as
-// written is good enough.
 function printVariant(d: Diagram, drawn: Rendered, markers: Map<string, string>, figId: string): Rendered | undefined {
   const scale = printScale(drawn);
   if (scale >= 0.85) return undefined;
-  const directions: Diagram['direction'][] = d.direction === undefined && TYPE_SPECS[d.type].directional ? ['right', 'down'] : [d.direction];
+  const directions: Diagram['direction'][] =
+    d.direction === undefined && TYPE_SPECS[d.type].directional ? ['right', 'down'] : [d.direction];
   const lean = withoutMuted(d, markers);
   let best: { r: Rendered; scale: number } | undefined;
   for (const base of lean ? [d, lean] : [d]) {
     for (const direction of directions) {
       let r: Rendered;
       try {
-        r = RENDERERS[d.type]({ ...base, direction }, markers, `${figId}-paper`);
+        r = draw({ ...base, direction }, markers, `${figId}-paper`);
       } catch {
         continue;
       }
-      // Dropping context must buy a clearly larger figure to be worth it.
       const s = printScale(r) * (base === d ? 1 : 0.85);
       if (!best || s > best.scale) best = { r, scale: s };
     }
@@ -185,9 +198,11 @@ function printVariant(d: Diagram, drawn: Rendered, markers: Map<string, string>,
   return best && best.scale > scale * 1.15 ? best.r : undefined;
 }
 
-// The diagram with its muted nodes and edges left out, or nothing when that would break a
-// step or a reference, or there is nothing muted.
 function withoutMuted(d: Diagram, markers: Map<string, string>): Diagram | undefined {
+  if (d.typed) {
+    const lean = withoutMutedAny(d.typed, (id) => [...markers.keys()].some((m) => m.split('.')[0] === id));
+    return lean && isMigratedDiagram(lean) ? legacy(lean) : undefined;
+  }
   if (d.loops.length || d.type === 'tradeoffs') return undefined;
   const drop = new Set(d.nodes.filter((node) => node.role === 'muted').map((node) => node.id));
   const keep = d.edges.filter((e) => e.role !== 'muted' && !drop.has(e.from) && !drop.has(e.to));
@@ -200,7 +215,6 @@ function withoutMuted(d: Diagram, markers: Map<string, string>): Diagram | undef
   for (const id of markers.keys()) if (drop.has(id.split('.')[0])) return undefined;
   const index = new Map(keep.map((e, i) => [e.index, i]));
   const nodes = d.nodes.filter((node) => !drop.has(node.id));
-  // Groups left with no members go too.
   const used = new Set<number>();
   for (const node of nodes) for (let g = node.group; g >= 0; g = d.groups[g].parent) used.add(g);
   const groupIndex = new Map([...used].sort((a, b) => a - b).map((g, i) => [g, i]));
@@ -211,20 +225,21 @@ function withoutMuted(d: Diagram, markers: Map<string, string>): Diagram | undef
     edges: keep.map((e, i) => ({ ...e, index: i })),
     groups: [...groupIndex.keys()].map((g) => ({ ...d.groups[g], parent: group(d.groups[g].parent) })),
     props: d.props.filter((p) => !drop.has(p.node)),
-    steps: d.steps.map((s) => (s.target.type === 'edge' ? { ...s, target: { type: 'edge' as const, index: index.get(s.target.index)! } } : s)),
+    steps: d.steps.map((s) =>
+      s.target.type === 'edge' ? { ...s, target: { type: 'edge' as const, index: index.get(s.target.index)! } } : s,
+    ),
   };
 }
 
-// In a decision tree a walkthrough follows one path at a time, so the steps that stay lit as
-// visited are the earlier ones on the way to this step, not those down a sibling branch.
 function treeTrail(d: Diagram, i: number): number[] {
   const step = d.steps[i].target;
   const here = step.type === 'node' ? step.id : d.edges[step.index].from;
   const above = new Set([here]);
-  for (let grew = true; grew; ) {
+  for (let grew = true; grew;) {
     grew = false;
     for (const e of d.edges) if (above.has(e.to) && !above.has(e.from)) grew = !!above.add(e.from);
   }
-  const reached = (t: (typeof d.steps)[number]['target']) => (t.type === 'node' ? above.has(t.id) : above.has(d.edges[t.index].to));
+  const reached = (t: (typeof d.steps)[number]['target']) =>
+    t.type === 'node' ? above.has(t.id) : above.has(d.edges[t.index].to);
   return d.steps.slice(0, i).flatMap((s, k) => (reached(s.target) ? [k] : []));
 }

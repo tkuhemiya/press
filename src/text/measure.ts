@@ -1,5 +1,3 @@
-// Label widths without a DOM, from the advance tables in metrics.ts. Kerning is ignored, which
-// errs a little wide; layout leaves padding for it.
 import { ADVANCES, CHARS } from './metrics.ts';
 
 export type Face = 'sans400' | 'sans500' | 'sans600' | 'mono400';
@@ -7,10 +5,16 @@ export type Face = 'sans400' | 'sans500' | 'sans600' | 'mono400';
 const index = new Map<string, number>();
 for (let i = 0; i < CHARS.length; i++) index.set(CHARS[i], i);
 
-// Characters outside the table: wide scripts take a full em, the rest an average letter.
 function fallback(ch: string): number {
   const c = ch.codePointAt(0) ?? 0;
-  if ((c >= 0x1100 && c <= 0x115f) || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) || (c >= 0xff00 && c <= 0xff60) || c >= 0x1f000) return 1000;
+  if (
+    (c >= 0x1100 && c <= 0x115f) ||
+    (c >= 0x2e80 && c <= 0xa4cf) ||
+    (c >= 0xac00 && c <= 0xd7a3) ||
+    (c >= 0xff00 && c <= 0xff60) ||
+    c >= 0x1f000
+  )
+    return 1000;
   return 600;
 }
 
@@ -24,8 +28,6 @@ export function textWidth(text: string, size: number, face: Face = 'sans400'): n
   return (units * size) / 1000;
 }
 
-// Breaks text into lines no wider than maxWidth, at spaces. A single word wider than the
-// limit keeps a line of its own.
 export function wrap(text: string, size: number, maxWidth: number, face: Face = 'sans400'): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];

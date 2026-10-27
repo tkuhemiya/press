@@ -1,5 +1,3 @@
-// Lays out and draws a sequence diagram: participants left to right in order of first use,
-// messages top to bottom. The layout is simple enough not to need a graph engine.
 import type { Diagram, DiagramEdge, DiagramNode } from '../model.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock, type Rendered } from '../render/svg.ts';
@@ -42,7 +40,6 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   const labelLines = (e: DiagramEdge): string[] => (e.label ? wrap(e.label, LABEL_FONT, MAX_LABEL) : []);
   const labelW = (e: DiagramEdge): number => Math.max(0, ...labelLines(e).map((l) => textWidth(l, LABEL_FONT)));
 
-  // Gaps between neighbouring lifelines: room for the headers, then for every message label.
   const gaps = cols.slice(1).map((c, i) => (cols[i].w + c.w) / 2 + GAP);
   const need = (lo: number, hi: number, width: number): void => {
     let have = 0;
@@ -63,7 +60,6 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     } else need(Math.min(a, b), Math.max(a, b), labelW(e) + 36);
   }
 
-  // Groups: nesting depth decides how far out each box sits.
   const depthBelow = d.groups.map(() => 0);
   d.groups.forEach((_, g) => {
     let depth = 0;
@@ -79,13 +75,11 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   const last = cols[cols.length - 1];
   const width = Math.ceil((last ? last.x + last.w / 2 + Math.max(outerPad, rightOverflow) : 0) + MARGIN);
 
-  const headerTop = MARGIN + (d.groups.length ? GROUP_TITLE + (Math.max(...depthBelow)) * 18 : 0);
-  // A note under a participant's name makes every header taller, so the lifelines start level.
+  const headerTop = MARGIN + (d.groups.length ? GROUP_TITLE + Math.max(...depthBelow) * 18 : 0);
   const noteH = Math.max(0, ...cols.map((c) => c.note.length)) * NOTE_LINE;
   const headH = HEADER_H + (noteH ? noteH - 4 : 0);
   const headerBottom = headerTop + headH;
 
-  // Rows.
   let y = headerBottom + 18;
   const rows = d.edges.map((e) => {
     const lines = labelLines(e);
@@ -100,9 +94,10 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   const height = Math.ceil(bottom + MARGIN + (d.groups.length ? GROUP_PAD : 0));
 
   const out: string[] = [];
-  out.push(`<svg class="pr-svg pr-sequence" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`);
+  out.push(
+    `<svg class="pr-svg pr-sequence" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
+  );
 
-  // Group boxes, outermost first.
   const groupOrder = d.groups.map((_, i) => i).sort((a, b) => depthBelow[b] - depthBelow[a]);
   for (const g of groupOrder) {
     const members = cols.filter((c) => inGroup(d, c.node, g));
@@ -111,10 +106,11 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     const gx = Math.min(...members.map((c) => c.x - c.w / 2)) - pad;
     const gr = Math.max(...members.map((c) => c.x + c.w / 2)) + pad;
     const gy = headerTop - GROUP_TITLE - depthBelow[g] * 18;
-    out.push(`<g class="pr-group"><rect x="${n(gx)}" y="${n(gy)}" width="${n(gr - gx)}" height="${n(bottom + GROUP_PAD - gy + depthBelow[g] * 4)}" rx="12"/><text x="${n(gx + 12)}" y="${n(gy + 17)}">${esc(d.groups[g].label)}</text></g>`);
+    out.push(
+      `<g class="pr-group"><rect x="${n(gx)}" y="${n(gy)}" width="${n(gr - gx)}" height="${n(bottom + GROUP_PAD - gy + depthBelow[g] * 4)}" rx="12"/><text x="${n(gx + 12)}" y="${n(gy + 17)}">${esc(d.groups[g].label)}</text></g>`,
+    );
   }
 
-  // Participants: header and lifeline.
   for (const c of cols) {
     const left = c.x - c.w / 2;
     const attrs = ` data-node="${esc(c.node.id)}" id="${domId}-node-${esc(c.node.id)}"${roleAttr(c.node.role)}${c.node.kind ? ` data-kind="${c.node.kind}"` : ''}`;
@@ -126,11 +122,11 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     const labelY = headerTop + HEADER_H / 2 - (c.note.length ? 3 : 0);
     if (glyphW) s += glyph(c.node.kind!, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, labelY);
     s += `<text class="pr-label" x="${n(tx)}" y="${n(labelY)}" dy="0.35em">${esc(c.node.label)}</text>`;
-    if (c.note.length) s += textBlock(c.note, c.x, labelY + 17 + ((c.note.length - 1) * NOTE_LINE) / 2, NOTE_LINE, 'pr-note');
+    if (c.note.length)
+      s += textBlock(c.note, c.x, labelY + 17 + ((c.note.length - 1) * NOTE_LINE) / 2, NOTE_LINE, 'pr-note');
     out.push(s + '</g>');
   }
 
-  // Messages.
   const labels: string[] = [];
   const anchors = new Map<number, { x: number; y: number }>();
   d.edges.forEach((e, i) => {
@@ -145,7 +141,10 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
       const y1 = y0 + SELF_H;
       s += `<path class="pr-line" d="M${n(x0)},${n(y0)}H${n(x0 + SELF_W - 8)}Q${n(x0 + SELF_W)},${n(y0)} ${n(x0 + SELF_W)},${n(y0 + 8)}V${n(y1 - 8)}Q${n(x0 + SELF_W)},${n(y1)} ${n(x0 + SELF_W - 8)},${n(y1)}H${n(x0 + HEAD - 1)}"/>`;
       s += `<path class="pr-head" d="${arrowhead(x0 + 1, y1, -1, 0)}"/>`;
-      if (row.lines.length) labels.push(`<g class="pr-edge-label" data-edge="${e.index}"${roleAttr(e.role)}>${leftBlock(row.lines, x0 + SELF_W + 10, (y0 + y1) / 2)}</g>`);
+      if (row.lines.length)
+        labels.push(
+          `<g class="pr-edge-label" data-edge="${e.index}"${roleAttr(e.role)}>${leftBlock(row.lines, x0 + SELF_W + 10, (y0 + y1) / 2)}</g>`,
+        );
       anchors.set(e.index, { x: x0 - 14, y: (y0 + y1) / 2 });
     } else {
       const dir = Math.sign(b.x - a.x);
@@ -157,7 +156,9 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
       const cx = (a.x + b.x) / 2;
       if (row.lines.length) {
         const ly = row.y - 7 - ((row.lines.length - 1) * LABEL_LINE) / 2 - LABEL_LINE / 2 + 3;
-        labels.push(`<g class="pr-edge-label" data-edge="${e.index}"${roleAttr(e.role)}>${textBlock(row.lines, cx, ly, LABEL_LINE, 'pr-elabel')}</g>`);
+        labels.push(
+          `<g class="pr-edge-label" data-edge="${e.index}"${roleAttr(e.role)}>${textBlock(row.lines, cx, ly, LABEL_LINE, 'pr-elabel')}</g>`,
+        );
         const w = Math.max(...row.lines.map((l) => textWidth(l, LABEL_FONT)));
         anchors.set(e.index, { x: cx - w / 2 - 12, y: ly });
       } else anchors.set(e.index, { x: cx, y: row.y - 12 });
@@ -166,7 +167,6 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   });
   out.push(...labels);
 
-  // Print markers.
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {
     let mx: number;
@@ -201,7 +201,6 @@ function inGroup(d: Diagram, node: DiagramNode, g: number): boolean {
   return false;
 }
 
-// Order of first use, except that the members of a group sit together, where its first member would.
 function participantOrder(d: Diagram): DiagramNode[] {
   const first = new Map(d.nodes.map((node, i) => [node.id, i]));
   const items = (g: number): { at: number; nodes: DiagramNode[] }[] => {
@@ -224,7 +223,6 @@ function leftBlock(lines: string[], x: number, cy: number): string {
   return `<text class="pr-elabel pr-left" x="${n(x)}" y="${n(top)}">${lines.map((l, i) => `<tspan x="${n(x)}" ${i ? `dy="${LABEL_LINE}"` : 'dy="0.35em"'}>${esc(l)}</tspan>`).join('')}</text>`;
 }
 
-// Every kind but database has a glyph; a database's cylinder already says what it is.
 function hasGlyph(node: DiagramNode): boolean {
   return node.kind !== undefined && node.kind !== 'database';
 }

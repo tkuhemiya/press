@@ -7,7 +7,7 @@ description: Use when the user asks for Press, a Press document, or a Press fenc
 
 Press is Markdown with diagram fences. You write what exists, how it connects, and what matters. Press does the layout, the typography, and the colour. The reader gets prose and diagrams together, a walkthrough on screen, and one frame on paper.
 
-The language is in `SPEC.md`. This file is how to write it well.
+The language is in `docs/SPEC.md`. This file is how to write it well.
 
 ## Write in this order
 

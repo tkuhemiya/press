@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { build } from '../src/index.ts';
 import { textWidth } from '../src/text/measure.ts';
 
-const checkout = readFileSync(new URL('../examples/checkout.md', import.meta.url), 'utf8');
+const checkout = readFileSync(new URL('../docs/examples/checkout.md', import.meta.url), 'utf8');
 const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
 
 describe('html', () => {
@@ -32,11 +32,15 @@ describe('html', () => {
   it('prints steps as one numbered marker each, with a legend', () => {
     expect(count(html, /class="pr-step-marker"/g)).toBe(12);
     expect(count(html, /<ol class="pr-legend">/g)).toBe(2);
-    expect(html).toContain('<li><b>2</b><span>Pressing <strong>Pay</strong> submits the order and freezes the cart.</span></li>');
+    expect(html).toContain(
+      '<li><b>2</b><span>Pressing <strong>Pay</strong> submits the order and freezes the cart.</span></li>',
+    );
   });
 
   it('marks prose references with letters on the node and in the text', () => {
-    expect(html).toContain('<a class="pr-ref" href="#press-order-node-failed" data-figure="press-order" data-node="failed" data-marker="a">');
+    expect(html).toContain(
+      '<a class="pr-ref" href="#press-order-node-failed" data-figure="press-order" data-node="failed" data-marker="a">',
+    );
     expect(count(html, /class="pr-ref-marker"/g)).toBe(5);
   });
 
@@ -82,20 +86,24 @@ waiting -> end
 
   it('sizes sequence columns to fit their labels', () => {
     const long = 'a fairly long message label';
-    const { html } = build(`\`\`\`sequence\na -> b : ${long}\nb -> b : think hard about it\n\`\`\``, { embedFonts: false });
+    const { html } = build(`\`\`\`sequence\na -> b : ${long}\nb -> b : think hard about it\n\`\`\``, {
+      embedFonts: false,
+    });
     const xs = [...html.matchAll(/<line class="pr-lifeline" x1="([\d.]+)"/g)].map((m) => Number(m[1]));
     expect(xs[1] - xs[0]).toBeGreaterThan(textWidth(long, 12.5) + 30);
     expect(html).not.toMatch(/NaN|Infinity/);
   });
 
   it('keeps grouped participants together', () => {
-    const { html } = build('```sequence\na -> x\ngroup "Back end" {\n  b\n  c\n}\nx -> c\nx -> b\n```', { embedFonts: false });
+    const { html } = build('```sequence\na -> x\ngroup "Back end" {\n  b\n  c\n}\nx -> c\nx -> b\n```', {
+      embedFonts: false,
+    });
     const order = [...html.matchAll(/class="pr-node pr-participant" data-node="(\w+)"/g)].map((m) => m[1]);
     expect(order).toEqual(['a', 'x', 'b', 'c']);
   });
 
   it('draws architecture components with their kind, inside their boundary', () => {
-    const src = readFileSync(new URL('../examples/photo-uploads.md', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../docs/examples/photo-uploads.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
     const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
@@ -110,7 +118,7 @@ waiting -> end
   });
 
   it('draws a timeline: events on an axis, spans, a band and a cause arc', () => {
-    const src = readFileSync(new URL('../examples/incident.md', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../docs/examples/incident.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
     const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
@@ -125,15 +133,19 @@ waiting -> end
   });
 
   it('never runs a timeline stem through another card', () => {
-    // A dense cluster: every card is wider than the gap to the next event.
     const body = Array.from({ length: 8 }, (_, i) => `14:0${i} e${i}: "A rather long event label ${i}"`).join('\n');
     const page = build('```timeline\n' + body + '\n```', { embedFonts: false }).html;
     const html = page.slice(page.indexOf('<svg'), page.indexOf('</svg>'));
-    const cards = [...html.matchAll(/<rect class="pr-box" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
-    const stems = [...html.matchAll(/<path class="pr-stem" d="M([\d.]+),([\d.]+)V([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    const cards = [
+      ...html.matchAll(/<rect class="pr-box" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g),
+    ].map((m) => m.slice(1).map(Number));
+    const stems = [...html.matchAll(/<path class="pr-stem" d="M([\d.]+),([\d.]+)V([\d.]+)"/g)].map((m) =>
+      m.slice(1).map(Number),
+    );
     expect(cards).toHaveLength(8);
     for (const [sx, y0, y1] of stems)
-      for (const [x, y, w, h] of cards) expect(sx > x && sx < x + w && Math.min(y0, y1) < y && Math.max(y0, y1) > y + h).toBe(false);
+      for (const [x, y, w, h] of cards)
+        expect(sx > x && sx < x + w && Math.min(y0, y1) < y && Math.max(y0, y1) > y + h).toBe(false);
   });
 
   it('formats calendar times and ticks', () => {
@@ -144,7 +156,7 @@ waiting -> end
   });
 
   it('draws a causal loop: signed links, a delay mark and a mark for each loop', () => {
-    const src = readFileSync(new URL('../examples/word-of-mouth.md', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../docs/examples/word-of-mouth.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
     const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
@@ -159,17 +171,23 @@ waiting -> end
   });
 
   it('lays a causal loop out the same way every time, without overlapping variables', () => {
-    const src = '```causal-loop\na -> b : +\nb -> c : +\nc -> a : -\nc -> d : +\nd -> b : -\nloop "L": a -> b -> c -> a\n```';
+    const src =
+      '```causal-loop\na -> b : +\nb -> c : +\nc -> a : -\nc -> d : +\nd -> b : -\nloop "L": a -> b -> c -> a\n```';
     const first = build(src, { embedFonts: false }).html;
     expect(build(src, { embedFonts: false }).html).toBe(first);
-    const boxes = [...first.matchAll(/<rect class="pr-box pr-variable" x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    const boxes = [
+      ...first.matchAll(
+        /<rect class="pr-box pr-variable" x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/g,
+      ),
+    ].map((m) => m.slice(1).map(Number));
     expect(boxes).toHaveLength(4);
     for (const [i, [x, y, w, h]] of boxes.entries())
-      for (const [x2, y2, w2, h2] of boxes.slice(i + 1)) expect(x < x2 + w2 && x2 < x + w && y < y2 + h2 && y2 < y + h).toBe(false);
+      for (const [x2, y2, w2, h2] of boxes.slice(i + 1))
+        expect(x < x2 + w2 && x2 < x + w && y < y2 + h2 && y2 < y + h).toBe(false);
   });
 
   it('draws a decision tree: questions as boxes, outcomes as pills, answers on the edges', () => {
-    const src = readFileSync(new URL('../examples/caching.md', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../docs/examples/caching.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
     const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
@@ -181,7 +199,7 @@ waiting -> end
   });
 
   it('draws a tradeoffs table: a chosen column, marked cells, a category band', () => {
-    const src = readFileSync(new URL('../examples/sessions.md', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../docs/examples/sessions.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
     const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
@@ -202,8 +220,8 @@ waiting -> end
     expect(html).toMatch(/pr-missing" data-node="b\.y"[\s\S]*?>—</);
   });
 
-  it('draws an er diagram: entities of fields, crow\'s feet from the written cardinality', () => {
-    const src = readFileSync(new URL('../examples/orders-schema.md', import.meta.url), 'utf8');
+  it("draws an er diagram: entities of fields, crow's feet from the written cardinality", () => {
+    const src = readFileSync(new URL('../docs/examples/orders-schema.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
     const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
@@ -213,14 +231,16 @@ waiting -> end
     expect(count(svg, /class="pr-node pr-field pr-key"/g)).toBe(4);
     expect(svg).toMatch(/data-node="orders\.coupon_id" data-in="orders"/);
     expect(svg).toContain('uuid · null');
-    // N:1, N:0..1 and 1..N:1: rings for each zero end (N, N, 0..1).
     expect(count(svg, /class="pr-crow-ring"/g)).toBe(3);
     expect(count(svg, /class="pr-step-marker"/g)).toBe(3);
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
   it('lights the fields of a reference in the walkthrough', () => {
-    const { html } = build('```er\na.id : uuid {key=yes}\nb.a_id : uuid\nb.a_id -> a.id {card=N:1}\n\nsteps:\n  b.a_id -> a.id "x"\n```', { embedFonts: false });
+    const { html } = build(
+      '```er\na.id : uuid {key=yes}\nb.a_id : uuid\nb.a_id -> a.id {card=N:1}\n\nsteps:\n  b.a_id -> a.id "x"\n```',
+      { embedFonts: false },
+    );
     expect(html).toContain('"from":"b.a_id","to":"a.id"');
   });
 
@@ -241,8 +261,10 @@ describe('the Press skill', () => {
 });
 
 describe('print layout', () => {
-  // Wide enough for the screen, too wide for paper: six components in a row.
-  const row = '```architecture id=row\n' + Array.from({ length: 5 }, (_, i) => `c${i}: service "Component ${i}"\nc${i} -> c${i + 1}`).join('\n') + '\n```';
+  const row =
+    '```architecture id=row\n' +
+    Array.from({ length: 5 }, (_, i) => `c${i}: service "Component ${i}"\nc${i} -> c${i + 1}`).join('\n') +
+    '\n```';
 
   it('gives a figure too wide for paper a second layout, and leaves a narrow one alone', () => {
     const wide = build(row, { embedFonts: false }).html;
@@ -253,20 +275,39 @@ describe('print layout', () => {
   });
 
   it('turns a figure on screen too when it fits better, unless the author chose a direction', () => {
-    const chain = (header: string) => '```architecture' + header + '\n' + Array.from({ length: 9 }, (_, i) => `n${i}: service "A component with a long name ${i}"\nn${i} -> n${i + 1}`).join('\n') + '\n```';
+    const chain = (header: string) =>
+      '```architecture' +
+      header +
+      '\n' +
+      Array.from(
+        { length: 9 },
+        (_, i) => `n${i}: service "A component with a long name ${i}"\nn${i} -> n${i + 1}`,
+      ).join('\n') +
+      '\n```';
     const width = (html: string) => Number(/<svg class="pr-svg[^"]*"[^>]*width="(\d+)"/.exec(html)![1]);
     expect(width(build(chain(''), { embedFonts: false }).html)).toBeLessThan(900);
     expect(width(build(chain(' direction=right'), { embedFonts: false }).html)).toBeGreaterThan(1500);
   });
 
-  it('keeps the author\'s direction on paper', () => {
-    expect(build(row.replace('id=row', 'id=row direction=right'), { embedFonts: false }).html).not.toContain('pr-print-only"');
+  it("keeps the author's direction on paper", () => {
+    expect(build(row.replace('id=row', 'id=row direction=right'), { embedFonts: false }).html).not.toContain(
+      'pr-print-only"',
+    );
   });
 
   it('drops muted elements on paper only when nothing points at them', () => {
-    // Half the chain is context: without it the figure prints far larger.
-    const chain = (prefix: string, role = '') => Array.from({ length: 6 }, (_, i) => `${prefix}${i} -> ${prefix}${i + 1}${role}`).join('\n');
-    const src = (extra = '') => '```architecture direction=right\n' + chain('a') + '\na6 -> m0 {role=muted}\n' + chain('m', ' {role=muted}') + '\n' + Array.from({ length: 7 }, (_, i) => `m${i} {role=muted}`).join('\n') + '\n' + extra + '```';
+    const chain = (prefix: string, role = '') =>
+      Array.from({ length: 6 }, (_, i) => `${prefix}${i} -> ${prefix}${i + 1}${role}`).join('\n');
+    const src = (extra = '') =>
+      '```architecture direction=right\n' +
+      chain('a') +
+      '\na6 -> m0 {role=muted}\n' +
+      chain('m', ' {role=muted}') +
+      '\n' +
+      Array.from({ length: 7 }, (_, i) => `m${i} {role=muted}`).join('\n') +
+      '\n' +
+      extra +
+      '```';
     const paper = (html: string) => html.split('pr-print-only"')[1]?.split('</svg>')[0];
     expect(paper(build(src(), { embedFonts: false }).html)).toBeDefined();
     expect(paper(build(src(), { embedFonts: false }).html)).not.toContain('data-node="m3"');
@@ -276,15 +317,19 @@ describe('print layout', () => {
 
 describe('walkthrough on a decision tree', () => {
   it('keeps only the steps on the way to the current one as visited', () => {
-    const src = readFileSync(new URL('../examples/caching.md', import.meta.url), 'utf8');
-    const json = build(src, { embedFonts: false }).html.match(/<script type="application\/json" class="pr-steps">(.*?)<\/script>/)![1];
+    const src = readFileSync(new URL('../docs/examples/caching.md', import.meta.url), 'utf8');
+    const json = build(src, { embedFonts: false }).html.match(
+      /<script type="application\/json" class="pr-steps">(.*?)<\/script>/,
+    )![1];
     expect(JSON.parse(json).map((s: { trail: number[] }) => s.trail)).toEqual([[], [0], [0, 1], [0, 1]]);
   });
 });
 
 describe('notes', () => {
   it('prints a note under a sequence participant', () => {
-    const { html } = build('```sequence\napi: service "API" {note="stateless"}\napi -> db : q\n```', { embedFonts: false });
+    const { html } = build('```sequence\napi: service "API" {note="stateless"}\napi -> db : q\n```', {
+      embedFonts: false,
+    });
     expect(html).toMatch(/class="pr-note"[^>]*>.*stateless/);
   });
 });

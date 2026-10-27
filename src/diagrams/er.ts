@@ -1,9 +1,3 @@
-// Lays out and draws an entity-relationship diagram: entities as tables of fields, references
-// as curves from field to field, with crow's-foot marks for the cardinality written on each.
-//
-// Placement is pele's compound layered layout, so groups (schemas) and reading order behave
-// as in other graph types. Edges are drawn here rather than routed, because they attach to a
-// field's row, not to the middle of its entity.
 import type { Diagram, DiagramEdge, Property } from '../model.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
 import { labelSvg, markers, type Box } from './graph.ts';
@@ -24,7 +18,7 @@ const GROUP_PAD = 16;
 const GROUP_TITLE = 30;
 const LABEL_FONT = 12.5;
 const LABEL_LINE = 16;
-// How far a reference runs straight out of its field before it bends, to leave room for its marks.
+
 const LEAD = 30;
 
 interface Entity {
@@ -38,18 +32,19 @@ interface Entity {
 
 export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: string): Rendered {
   const dir = (d.direction ?? 'right') === 'right' ? 'LR' : 'TB';
-  // Fields in source order, keys first.
   const entities: Entity[] = d.nodes.map((node) => {
     const own = d.props.filter((p) => p.node === node.id);
     const fields = [...own.filter((p) => p.attrs.key === 'yes'), ...own.filter((p) => p.attrs.key !== 'yes')];
-    const fieldW = Math.max(0, ...fields.map((f) => KEY_W + textWidth(f.key, FIELD_FONT, 'sans500') + GAP + textWidth(typeText(f), TYPE_FONT)));
+    const fieldW = Math.max(
+      0,
+      ...fields.map((f) => KEY_W + textWidth(f.key, FIELD_FONT, 'sans500') + GAP + textWidth(typeText(f), TYPE_FONT)),
+    );
     const w = Math.ceil(Math.max(MIN_W, textWidth(node.label, FONT, 'sans600') + 2 * PAD_X, fieldW + 2 * PAD_X));
     const h = HEAD_H + fields.length * ROW_H + (fields.length ? 6 : 0);
     return { id: node.id, label: node.label, fields, w, h, box: { x: 0, y: 0, w, h } };
   });
   const byId = new Map(entities.map((e) => [e.id, e]));
 
-  // Layout: groups first, then entities, as in graph.ts.
   const cnodes: CNode[] = d.groups.map((g) => {
     const c = cnode(0, 0);
     c.isGroup = true;
@@ -65,7 +60,9 @@ export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: str
     c.seq = i;
     cnodes.push(c);
   });
-  d.groups.forEach((_, g) => (cnodes[g].seq = Math.min(Infinity, ...d.nodes.map((node, i) => (node.group === g ? i : Infinity)))));
+  d.groups.forEach(
+    (_, g) => (cnodes[g].seq = Math.min(Infinity, ...d.nodes.map((node, i) => (node.group === g ? i : Infinity)))),
+  );
   const index = (id: string) => base + entities.findIndex((e) => e.id === id);
   const labelSize = (e: DiagramEdge): [number, number] => {
     if (!e.label) return [0, 0];
@@ -75,22 +72,33 @@ export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: str
   const routed = d.edges.filter((e) => e.from !== e.to);
   const cedges: CEdge[] = routed.map((e) => {
     const [labelW, labelH] = labelSize(e);
-    // Room for the crow's feet at both ends as well as the label.
-    return { src: index(e.from), dst: index(e.to), minlen: 1, labelW: labelW + 2 * LEAD, labelH, route: [], labelX: 0, labelY: 0 };
+    return {
+      src: index(e.from),
+      dst: index(e.to),
+      minlen: 1,
+      labelW: labelW + 2 * LEAD,
+      labelH,
+      route: [],
+      labelX: 0,
+      labelY: 0,
+    };
   });
-  const layout = compoundLayout(cnodes, cedges, dir, { nodeSep: 36, edgeSep: 16, rankSep: 60, portSep: 20, headRoom: 0 });
+  const layout = compoundLayout(cnodes, cedges, dir, {
+    nodeSep: 36,
+    edgeSep: 16,
+    rankSep: 60,
+    portSep: 20,
+    headRoom: 0,
+  });
   entities.forEach((e, i) => {
     const c = cnodes[base + i];
     e.box = { x: MARGIN + c.x - e.w / 2, y: MARGIN + c.y - e.h / 2, w: e.w, h: e.h };
   });
 
-  // Where a reference meets an entity: the side facing the other end, at its field's row.
   const rowY = (e: Entity, key?: string): number => {
     const i = key ? e.fields.findIndex((f) => f.key === key) : -1;
     return i < 0 ? e.box.y + HEAD_H / 2 : e.box.y + HEAD_H + i * ROW_H + ROW_H / 2;
   };
-  // Side by side, ends face each other. Stacked, a field's reference leaves to the right
-  // (its row is horizontal), and an entity's from the top or bottom facing the other.
   type End = { x: number; y: number; ux: number; uy: number };
   const sides = (e: DiagramEdge): [End, End] => {
     const a = byId.get(e.from)!;
@@ -112,13 +120,13 @@ export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: str
       { x: bRight ? b.box.x + b.box.w : b.box.x, y: rowY(b, e.toKey), ux: bRight ? 1 : -1, uy: 0 },
     ];
   };
-  // Ends that land on the same spot spread out along the side.
   const placed = new Map<DiagramEdge, [End, End]>(routed.map((e) => [e, sides(e)]));
   const spots = new Map<string, End[]>();
-  for (const pair of placed.values()) for (const end of pair) {
-    const k = `${Math.round(end.x)},${Math.round(end.y)},${end.ux},${end.uy}`;
-    spots.set(k, [...(spots.get(k) ?? []), end]);
-  }
+  for (const pair of placed.values())
+    for (const end of pair) {
+      const k = `${Math.round(end.x)},${Math.round(end.y)},${end.ux},${end.uy}`;
+      spots.set(k, [...(spots.get(k) ?? []), end]);
+    }
   for (const group of spots.values()) {
     group.forEach((end, i) => {
       const off = (i - (group.length - 1) / 2) * 22;
@@ -143,7 +151,6 @@ export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: str
     s += `<path class="pr-line" d="M${n(p.x)},${n(p.y)}C${n(c1.x)},${n(c1.y)} ${n(c2.x)},${n(c2.y)} ${n(q.x)},${n(q.y)}"/>`;
     s += crowsFoot(p, from) + crowsFoot(q, to);
     edgeSvgs.push(s + '</g>');
-    // The label sits at the curve's middle.
     const mx = 0.125 * p.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * q.x;
     const my = 0.125 * p.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * q.y;
     if (e.label) {
@@ -161,18 +168,22 @@ export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: str
 
   const width = Math.ceil(maxX + MARGIN);
   const height = Math.ceil(layout.height + 2 * MARGIN);
-  out.push(`<svg class="pr-svg pr-er" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`);
-  out.push(`<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`);
+  out.push(
+    `<svg class="pr-svg pr-er" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
+  );
+  out.push(
+    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
+  );
   d.groups.forEach((g, i) => {
     const c = cnodes[i];
     const x = MARGIN + c.x - c.w / 2;
     const y = MARGIN + c.y - c.h / 2;
-    out.push(`<g class="pr-group"><rect x="${n(x)}" y="${n(y)}" width="${n(c.w)}" height="${n(c.h)}" rx="12"/><text x="${n(x + 14)}" y="${n(y + 19)}">${esc(g.label)}</text></g>`);
+    out.push(
+      `<g class="pr-group"><rect x="${n(x)}" y="${n(y)}" width="${n(c.w)}" height="${n(c.h)}" rx="12"/><text x="${n(x + 14)}" y="${n(y + 19)}">${esc(g.label)}</text></g>`,
+    );
   });
   out.push(...edgeSvgs);
 
-  // Entities: a frame and header, then each field as its own node so steps and references can
-  // point at it.
   const boxes = new Map<string, Box>();
   entities.forEach((e, i) => {
     const node = d.nodes[i];
@@ -180,8 +191,10 @@ export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: str
     boxes.set(e.id, { x: b.x, y: b.y, w: b.w, h: HEAD_H });
     let s = `<g class="pr-node pr-entity" data-node="${esc(e.id)}" id="${domId}-node-${esc(e.id)}"${roleAttr(node.role)}>`;
     s += `<rect class="pr-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8"/>`;
-    if (!e.fields.length) s += `<rect class="pr-entity-head" x="${n(b.x + 0.6)}" y="${n(b.y + 0.6)}" width="${n(b.w - 1.2)}" height="${n(b.h - 1.2)}" rx="7.5"/>`;
-    else s += `<path class="pr-entity-head" d="M${n(b.x + 0.6)},${n(b.y + HEAD_H)}V${n(b.y + 8)}Q${n(b.x + 0.6)},${n(b.y + 0.6)} ${n(b.x + 8)},${n(b.y + 0.6)}H${n(b.x + b.w - 8)}Q${n(b.x + b.w - 0.6)},${n(b.y + 0.6)} ${n(b.x + b.w - 0.6)},${n(b.y + 8)}V${n(b.y + HEAD_H)}Z"/>`;
+    if (!e.fields.length)
+      s += `<rect class="pr-entity-head" x="${n(b.x + 0.6)}" y="${n(b.y + 0.6)}" width="${n(b.w - 1.2)}" height="${n(b.h - 1.2)}" rx="7.5"/>`;
+    else
+      s += `<path class="pr-entity-head" d="M${n(b.x + 0.6)},${n(b.y + HEAD_H)}V${n(b.y + 8)}Q${n(b.x + 0.6)},${n(b.y + 0.6)} ${n(b.x + 8)},${n(b.y + 0.6)}H${n(b.x + b.w - 8)}Q${n(b.x + b.w - 0.6)},${n(b.y + 0.6)} ${n(b.x + b.w - 0.6)},${n(b.y + 8)}V${n(b.y + HEAD_H)}Z"/>`;
     if (e.fields.length) s += `<path class="pr-entity-rule" d="M${n(b.x)},${n(b.y + HEAD_H)}H${n(b.x + b.w)}"/>`;
     s += textBlock([e.label], b.x + b.w / 2, b.y + HEAD_H / 2, 18, 'pr-label pr-entity-name');
     out.push(s + '</g>');
@@ -206,20 +219,17 @@ export function renderEr(d: Diagram, refMarkers: Map<string, string>, domId: str
   return { svg: out.join(''), width, height };
 }
 
-// A field's type, with `unique` and `null` after it in words: "text · unique".
 function typeText(f: Property): string {
-  return [f.value ?? '', f.attrs.unique === 'yes' ? 'unique' : '', f.attrs.null === 'yes' ? 'null' : ''].filter(Boolean).join(' · ');
+  return [f.value ?? '', f.attrs.unique === 'yes' ? 'unique' : '', f.attrs.null === 'yes' ? 'null' : '']
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function keyGlyph(x: number, y: number): string {
   return `<g class="pr-glyph pr-key-glyph"><circle cx="${n(x - 2)}" cy="${n(y)}" r="2.6"/><path d="M${n(x + 0.6)},${n(y)}H${n(x + 6)}M${n(x + 4)},${n(y)}v2.4"/></g>`;
 }
 
-// Crow's-foot marks for one end of a reference, on the entity's side at (x, y), the line
-// leaving along (ux, uy). The mark nearest the entity is the most there can be (a bar for
-// one, a foot for many); the one further out is the fewest (a bar for one, a ring for zero).
 function crowsFoot(e: { x: number; y: number; ux: number; uy: number }, end: string): string {
-  // A point d out along the line and w across it.
   const pt = (d: number, w: number) => `${n(e.x + e.ux * d - e.uy * w)},${n(e.y + e.uy * d + e.ux * w)}`;
   const bar = (d: number) => `M${pt(d, -7)}L${pt(d, 7)}`;
   const many = end === 'N' || end === '1..N';

@@ -1,36 +1,23 @@
-// Checks the rendered page in Chromium: the walkthrough, prose references and the print
-// rules in SPEC.md. Skipped when Playwright is not installed.
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createRequire } from 'node:module';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { chromium, type Browser, type Page } from 'playwright';
 import { build } from '../src/index.ts';
 
-function loadPlaywright(): any {
-  for (const base of [import.meta.url, '/opt/node-tools/node_modules/']) {
-    try {
-      return createRequire(base)('playwright');
-    } catch {}
-  }
-  return undefined;
-}
-const playwright = loadPlaywright();
-
-// A4 with the print stylesheet's margins, in CSS pixels.
 const PAGE_W = ((210 - 34) / 25.4) * 96;
 const PAGE_H = ((297 - 38) / 25.4) * 96;
 
-describe.skipIf(!playwright)('in the browser', () => {
-  const html = build(readFileSync(new URL('../examples/checkout.md', import.meta.url), 'utf8')).html;
+describe('in the browser', () => {
+  const html = build(readFileSync(new URL('../docs/examples/checkout.md', import.meta.url), 'utf8')).html;
   const file = join(mkdtempSync(join(tmpdir(), 'press-')), 'checkout.html');
   writeFileSync(file, html);
-  let browser: any;
-  let page: any;
+  let browser: Browser;
+  let page: Page;
 
   beforeAll(async () => {
-    browser = await playwright.chromium.launch();
+    browser = await chromium.launch();
   });
   afterAll(async () => {
     await browser?.close();
@@ -49,9 +36,15 @@ describe.skipIf(!playwright)('in the browser', () => {
     expect(await page.$eval(`${fig} .pr-count`, (el: Element) => el.textContent)).toBe('');
     await page.click(`${fig} [data-act="next"]`);
     expect(await page.$eval(`${fig} .pr-count`, (el: Element) => el.textContent)).toBe('1 / 6');
-    expect(await page.$$eval(`${fig} .pr-node.is-current`, (els: Element[]) => els.map((e) => (e as HTMLElement).dataset.node))).toEqual(['draft']);
+    expect(
+      await page.$$eval(`${fig} .pr-node.is-current`, (els: Element[]) =>
+        els.map((e) => (e as HTMLElement).dataset.node),
+      ),
+    ).toEqual(['draft']);
     await page.keyboard.press('ArrowRight');
-    expect(await page.$eval(`${fig} .pr-edge.is-current`, (el: HTMLElement) => [el.dataset.from, el.dataset.to])).toEqual(['draft', 'submitted']);
+    expect(
+      await page.$eval(`${fig} .pr-edge.is-current`, (el: HTMLElement) => [el.dataset.from, el.dataset.to]),
+    ).toEqual(['draft', 'submitted']);
     expect(await page.$eval(`${fig} .pr-caption`, (el: Element) => el.textContent)).toContain('Pay submits the order');
     await page.keyboard.press('Escape');
     expect(await page.$eval(fig, (el: Element) => el.classList.contains('pr-walking'))).toBe(false);
@@ -66,12 +59,15 @@ describe.skipIf(!playwright)('in the browser', () => {
   it('points at a node when a prose reference is hovered', async () => {
     await open();
     await page.hover('a.pr-ref[data-node="cancelled"]');
-    expect(await page.$$eval('#press-order .is-pointed', (els: Element[]) => els.map((e) => (e as HTMLElement).dataset.node))).toEqual(['cancelled']);
+    expect(
+      await page.$$eval('#press-order .is-pointed', (els: Element[]) =>
+        els.map((e) => (e as HTMLElement).dataset.node),
+      ),
+    ).toEqual(['cancelled']);
   });
 
   describe('print', () => {
     beforeAll(async () => {
-      // Leave a walkthrough mid-way: it must not show on paper.
       await open('#order/2');
       await page.setViewportSize({ width: Math.floor(PAGE_W), height: Math.floor(PAGE_H) });
       await page.emulateMedia({ media: 'print' });
@@ -79,7 +75,11 @@ describe.skipIf(!playwright)('in the browser', () => {
 
     it('keeps each diagram to one frame that fits on a page', async () => {
       const figures = await page.$$eval('.pr-figure', (els: Element[]) =>
-        els.map((el) => ({ svgs: el.querySelectorAll('svg.pr-svg').length, height: el.getBoundingClientRect().height, breakInside: getComputedStyle(el).breakInside }))
+        els.map((el) => ({
+          svgs: el.querySelectorAll('svg.pr-svg').length,
+          height: el.getBoundingClientRect().height,
+          breakInside: getComputedStyle(el).breakInside,
+        })),
       );
       expect(figures).toHaveLength(2);
       for (const f of figures) {
@@ -92,7 +92,12 @@ describe.skipIf(!playwright)('in the browser', () => {
     it('shows step markers and the legend, hides the controls', async () => {
       expect(await page.$eval('.pr-walk', (el: Element) => getComputedStyle(el).display)).toBe('none');
       expect(await page.$eval('.pr-legend', (el: Element) => getComputedStyle(el).display)).toBe('block');
-      expect(await page.$$eval('#press-order .pr-step-marker', (els: Element[]) => els.filter((e) => getComputedStyle(e).display !== 'none').length)).toBe(6);
+      expect(
+        await page.$$eval(
+          '#press-order .pr-step-marker',
+          (els: Element[]) => els.filter((e) => getComputedStyle(e).display !== 'none').length,
+        ),
+      ).toBe(6);
       expect(await page.$eval('a.pr-ref', (el: Element) => getComputedStyle(el, '::after').content)).toBe('"a"');
     });
 
@@ -101,7 +106,9 @@ describe.skipIf(!playwright)('in the browser', () => {
       const current = '#press-order .pr-edge[data-from="draft"][data-to="submitted"] .pr-line';
       const plain = '#press-order .pr-edge[data-from="start"] .pr-line';
       expect(await stroke(current)).toBe(await stroke(plain));
-      expect(await page.$eval('#press-order .pr-node[data-node="paid"]', (el: Element) => getComputedStyle(el).opacity)).toBe('1');
+      expect(
+        await page.$eval('#press-order .pr-node[data-node="paid"]', (el: Element) => getComputedStyle(el).opacity),
+      ).toBe('1');
     });
 
     it('prints to PDF with no figure split across pages', async () => {
@@ -112,15 +119,13 @@ describe.skipIf(!playwright)('in the browser', () => {
   });
 });
 
-// Every example, whatever its diagram types: the walkthrough steps, and each figure prints as
-// one frame that fits on a page.
-const EXAMPLES = new URL('../examples/', import.meta.url);
+const EXAMPLES = new URL('../docs/examples/', import.meta.url);
 const examples = readdirSync(EXAMPLES).filter((f) => f.endsWith('.md'));
 
-describe.skipIf(!playwright)('every example in the browser', () => {
-  let browser: any;
+describe('every example in the browser', () => {
+  let browser: Browser;
   beforeAll(async () => {
-    browser = await playwright.chromium.launch();
+    browser = await chromium.launch();
   });
   afterAll(async () => {
     await browser?.close();
@@ -135,7 +140,7 @@ describe.skipIf(!playwright)('every example in the browser', () => {
 
     for (const fig of await page.$$('.pr-figure[data-steps]')) {
       const total = JSON.parse(await fig.$eval('.pr-steps', (el: Element) => el.textContent)).length;
-      await (await fig.$('[data-act="next"]')).click();
+      await (await fig.waitForSelector('[data-act="next"]')).click();
       expect(await fig.$eval('.pr-count', (el: Element) => el.textContent)).toBe(`1 / ${total}`);
       expect(await fig.$$('.is-current')).not.toHaveLength(0);
     }
@@ -145,10 +150,9 @@ describe.skipIf(!playwright)('every example in the browser', () => {
     const figures = await page.$$eval('.pr-figure', (els: Element[]) =>
       els.map((el) => ({
         height: el.getBoundingClientRect().height,
-        // Only the drawing that prints: a figure may carry a second layout for paper.
         markers: [...el.querySelectorAll('.pr-step-marker')].filter((m) => m.closest('svg')!.checkVisibility()).length,
         steps: el.querySelectorAll('.pr-legend li').length,
-      }))
+      })),
     );
     expect(figures.length).toBeGreaterThan(0);
     for (const f of figures) {
