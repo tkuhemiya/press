@@ -2,9 +2,13 @@ import type { Diagram, DiagramType, Html, NodeId, NodeTarget, PropTarget } from 
 import type { Fence, Grammar } from './grammar.ts';
 import type { Reporter } from './diagnostics.ts';
 import { ARCHITECTURE } from './architecture.ts';
+import { CAUSAL_LOOP } from './causal-loop.ts';
 import { DECISION_TREE } from './decision-tree.ts';
+import { ER } from './er.ts';
+import { SEQUENCE } from './sequence.ts';
 import { STATE_MACHINE } from './state-machine.ts';
 import { TIMELINE } from './timeline.ts';
+import { TRADEOFFS } from './tradeoffs.ts';
 
 export interface Rendered {
   svg: Html;
@@ -28,17 +32,19 @@ export interface DiagramDef<T extends DiagramType> {
 
 export type Registry = { [T in DiagramType]: DiagramDef<T> };
 
-export const DIAGRAMS: Partial<Registry> = {
+export const DIAGRAMS: Registry = {
   'state-machine': STATE_MACHINE,
+  sequence: SEQUENCE,
   architecture: ARCHITECTURE,
+  'causal-loop': CAUSAL_LOOP,
   timeline: TIMELINE,
   'decision-tree': DECISION_TREE,
+  er: ER,
+  tradeoffs: TRADEOFFS,
 };
 
 export function definition<T extends DiagramType>(type: T): DiagramDef<T> {
-  const def: DiagramDef<T> | undefined = DIAGRAMS[type];
-  if (!def) throw new Error(`${type} is not on the new model yet`);
-  return def;
+  return DIAGRAMS[type];
 }
 
 export function render<T extends DiagramType>(diagram: Diagram<T> & { type: T }, context: RenderContext): Rendered {

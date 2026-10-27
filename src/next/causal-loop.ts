@@ -1,7 +1,153 @@
-import type { Diagram, DiagramEdge } from '../model.ts';
-import { drawText, edgeSvg, markers, measureText, type Box } from './graph.ts';
-import { arrowhead, esc, HEAD, n, roleAttr, type Rendered } from '../render/svg.ts';
+import type { CausalLoop, Link, Loop, NodeId, Polarity } from './model.ts';
+import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
+import type { Fence } from './grammar.ts';
+import type { Reporter } from './diagnostics.ts';
+import { GRAMMARS } from './grammars.ts';
+import { buildGraph, header, lean, resolveSteps, toNode } from './graph.ts';
+import { trusted } from './brand.ts';
+import { closest, list } from './diagnostics.ts';
+import { drawText, edgeSvg, markers, measureLabel, refMarkers, type Box } from '../diagrams/graph.ts';
+import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 import { textWidth } from '../text/measure.ts';
+
+export const CAUSAL_LOOP: DiagramDef<'causal-loop'> = {
+  type: 'causal-loop',
+  name: 'Causal loop',
+  grammar: GRAMMARS['causal-loop'],
+  build,
+  render,
+  withoutMuted(d, pinned) {
+    if (d.loops.length) return undefined;
+    const kept = lean(d, pinned);
+    return kept && { ...d, ...kept };
+  },
+};
+
+function build(fence: Fence, report: Reporter): CausalLoop {
+  const { error } = report;
+  const delay = (attrs: ReadonlyMap<string, string>, line: number): void => {
+    const value = attrs.get('delay');
+    if (value !== undefined && value !== 'yes')
+      error(
+        line,
+        `\`delay=${value}\` is not understood.`,
+        'Mark a delay with `{delay=yes}`; leave the attribute out when there is none.',
+      );
+  };
+  for (const s of fence.statements) if (s.type !== 'chain' && s.type !== 'loop') delay(s.attrs, s.line);
+  const graph = buildGraph(fence, report, {
+    label: (id) => id.replace(/_/g, ' '),
+    empty: 'Add at least one edge, e.g. `a -> b : label`.',
+    chain(s) {
+      const ids = s.ends.map((e) => e.node);
+      const pair = `${ids[0]} -> ${ids[1]}`;
+      if (s.arrows.includes('<->')) {
+        error(
+          s.line,
+          '`<->` is not allowed in a causal loop: a mutual influence is two edges, often with different polarities.',
+          `Write each direction on its own line: \`${ids[0]} -> ${ids[1]} : +\` and \`${ids[1]} -> ${ids[0]} : -\`.`,
+        );
+        return false;
+      }
+      const self = ids.findIndex((id, i) => i > 0 && id === ids[i - 1]);
+      if (self > 0) {
+        error(
+          s.line,
+          `\`${ids[self]}\` cannot influence itself directly in a causal loop.`,
+          'Name what carries the effect and route the link through it: `stock -> outflow : +` and `outflow -> stock : -`.',
+        );
+        return false;
+      }
+      const { label } = s;
+      if (label === undefined) {
+        error(
+          s.line,
+          'Every edge in a causal loop needs a polarity.',
+          `Add \`: +\` if the two move the same way, \`: -\` if they move in opposite ways: \`${pair} : +\`.${ids.length > 2 ? ' A polarity is a label, so give each edge of a chain its own line.' : ''}`,
+        );
+        return false;
+      }
+      if (label !== '+' && label !== '-') {
+        const near = /^(positive|pos|same|s|plus|up|increase)$/i.test(label)
+          ? '+'
+          : /^(negative|neg|opposite|o|minus|down|decrease|−)$/i.test(label)
+            ? '-'
+            : undefined;
+        error(
+          s.line,
+          `\`${label}\` is not a polarity. In a causal loop the edge label is \`+\` or \`-\`.`,
+          near
+            ? `Write \`${pair} : ${near}\`.`
+            : 'Use `+` (same direction) or `-` (opposite direction), and put any explanation in the prose.',
+        );
+        return false;
+      }
+      delay(s.attrs, s.line);
+      return true;
+    },
+  });
+  const nodes = graph.nodes.map(toNode);
+  const edges = graph.edges.flatMap((e, i): Link[] => {
+    const polarity: Polarity | undefined = e.label === '+' || e.label === '-' ? e.label : undefined;
+    if (!polarity || e.arrow === '<->') return [];
+    return [{ ...e, arrow: e.arrow, polarity, delay: graph.sources[i]?.attrs.get('delay') === 'yes' }];
+  });
+  const loops: Loop[] = [];
+  for (const s of fence.statements) {
+    if (s.type !== 'loop') continue;
+    const ids = s.ends;
+    const first = ids[0];
+    const last = ids[ids.length - 1];
+    if (first !== last) {
+      error(
+        s.line,
+        `Loop "${s.name}" does not close: it starts at \`${first}\` and ends at \`${last}\`.`,
+        `End the chain where it starts: \`${[...ids, first].join(' -> ')}\`.`,
+      );
+      continue;
+    }
+    const known = new Set(nodes.map((node) => node.id));
+    const path: Link['index'][] = [];
+    let ok = true;
+    for (let i = 0; ok && i + 1 < ids.length; i++) {
+      const from = ids[i];
+      const to = ids[i + 1];
+      const missing = [from, to].find((id) => !known.has(id));
+      if (missing !== undefined) {
+        const near = closest(missing, known);
+        error(
+          s.line,
+          `Loop "${s.name}" names \`${missing}\`, which is not in the diagram.`,
+          near ? `Did you mean \`${near}\`?` : `Nodes: ${list(known)}.`,
+        );
+        ok = false;
+        break;
+      }
+      const e = edges.find((x) => x.from === from && x.to === to);
+      if (!e) {
+        const out = edges.filter((x) => x.from === from).map((x) => `\`${x.from} -> ${x.to}\``);
+        error(
+          s.line,
+          `Loop "${s.name}" uses \`${from} -> ${to}\`, which is not an edge in the diagram.`,
+          out.length
+            ? `Edges from \`${from}\`: ${out.join(', ')}. Add the edge, or follow one that exists.`
+            : `Add the edge with its polarity: \`${from} -> ${to} : +\`.`,
+        );
+        ok = false;
+        break;
+      }
+      path.push(e.index);
+    }
+    const [head, ...rest] = path;
+    if (!ok || head === undefined) continue;
+    const negatives = path.filter((i) => edges[i]?.polarity === '-').length;
+    const reinforcing = negatives % 2 === 0;
+    const label = `${reinforcing ? 'R' : 'B'}${loops.filter((l) => l.reinforcing === reinforcing).length + 1}`;
+    loops.push({ name: s.name, label, reinforcing, edges: [head, ...rest], line: s.line });
+  }
+  const steps = resolveSteps(fence.steps, nodes, edges, report);
+  return { ...header(fence, 'causal-loop'), nodes, edges, groups: graph.groups, steps, loops };
+}
 
 const MARGIN = 20;
 const PAD_X = 14;
@@ -19,11 +165,14 @@ interface P {
   y: number;
 }
 
-export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, domId: string): Rendered {
-  const texts = d.nodes.map((node) => measureText(node, MAX_LABEL));
+function render(d: CausalLoop, context: RenderContext): Rendered {
+  const { domId } = context;
+  const texts = d.nodes.map((node) => measureLabel(node.label, node.note, MAX_LABEL));
   const size = texts.map((t) => ({ w: Math.ceil(t.w + 2 * PAD_X), h: Math.ceil(t.h + 2 * PAD_Y) }));
-  const pos = layout(d, size);
+  const members = d.loops.map((l) => l.edges.flatMap((i) => d.edges[i]?.from ?? []));
+  const pos = layout(d, members, size);
   const at = new Map(d.nodes.map((node, i) => [node.id, i]));
+  const place = (id: NodeId): P => pos[at.get(id) ?? -1] ?? { x: 0, y: 0 };
 
   const minX = Math.min(...pos.map((p, i) => p.x - size[i].w / 2));
   const minY = Math.min(...pos.map((p, i) => p.y - size[i].h / 2));
@@ -40,8 +189,8 @@ export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, do
   );
 
   const centre = mean(pos);
-  const loopCentre = d.loops.map((l) => mean(l.nodes.map((id) => pos[at.get(id)!])));
-  const twoWay = (e: DiagramEdge) => d.edges.some((o) => o.from === e.to && o.to === e.from);
+  const loopCentre = members.map((ids) => mean(ids.map(place)));
+  const twoWay = (e: Link) => d.edges.some((o) => o.from === e.to && o.to === e.from);
 
   const out: string[] = [];
   const marks: string[] = [];
@@ -56,8 +205,11 @@ export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, do
   const edgeSvgs: string[] = [];
   const obstacles: P[] = [];
   for (const e of d.edges) {
-    const a = pos[at.get(e.from)!];
-    const b = pos[at.get(e.to)!];
+    const a = place(e.from);
+    const b = place(e.to);
+    const boxA = boxes.get(e.from);
+    const boxB = boxes.get(e.to);
+    if (!boxA || !boxB) continue;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const len = Math.hypot(dx, dy) || 1;
@@ -69,15 +221,15 @@ export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, do
       side = 1;
       bow = Math.min(0.62, 130 / len);
     } else {
-      const k = d.loops.findIndex((l) => l.nodes.length > 2 && l.edges.includes(e.index));
+      const k = d.loops.findIndex((l) => l.edges.length > 2 && l.edges.includes(e.index));
       const from = k >= 0 ? loopCentre[k] : centre;
       const away = (mid.x - from.x) * left.x + (mid.y - from.y) * left.y;
       side = away >= 0 ? 1 : -1;
       bow = k >= 0 ? 0.3 : 0.16;
     }
     const c = { x: mid.x + left.x * side * bow * len, y: mid.y + left.y * side * bow * len };
-    const s = toBoundary(a, c, boxes.get(e.from)!, 3);
-    const tip = toBoundary(b, c, boxes.get(e.to)!, 3);
+    const s = toBoundary(a, c, boxA, 3);
+    const tip = toBoundary(b, c, boxB, 3);
     const tx = tip.x - c.x;
     const ty = tip.y - c.y;
     const tl = Math.hypot(tx, ty) || 1;
@@ -95,7 +247,7 @@ export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, do
     for (let t = 0; t <= 1; t += 0.04) obstacles.push(q(t));
     obstacles.push(sign);
     let extra = '';
-    if (e.attrs.delay === 'yes') {
+    if (e.delay) {
       const m = q(0.5);
       const ux = (tip.x - s.x) / (Math.hypot(tip.x - s.x, tip.y - s.y) || 1);
       const uy = (tip.y - s.y) / (Math.hypot(tip.x - s.x, tip.y - s.y) || 1);
@@ -110,14 +262,14 @@ export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, do
     );
     edgeSvgs.push(extra ? svg.replace(/<\/g>$/, `${extra}</g>`) : svg);
     marks.push(
-      `<g class="pr-edge-label pr-polarity-mark" data-edge="${e.index}"${roleAttr(e.role)}><text class="pr-polarity" x="${n(sign.x)}" y="${n(sign.y)}" dy="0.35em">${e.label === '-' ? '−' : '+'}</text></g>`,
+      `<g class="pr-edge-label pr-polarity-mark" data-edge="${e.index}"${roleAttr(e.role)}><text class="pr-polarity" x="${n(sign.x)}" y="${n(sign.y)}" dy="0.35em">${e.polarity === '-' ? '−' : '+'}</text></g>`,
     );
     anchors.set(e.index, { x: q(0.5).x, y: q(0.5).y });
   }
 
   const taken: Box[] = [...boxes.values()];
   const loopSvgs = d.loops.map((l, k) => {
-    const pts = l.nodes.map((id) => pos[at.get(id)!]);
+    const pts = members[k].map(place);
     const nameW = textWidth(l.name, 11) + 6;
     const mw = Math.max(2 * LOOP_R + 6, nameW);
     const mh = 2 * LOOP_R + 20;
@@ -146,11 +298,11 @@ export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, do
     const tdy = Math.cos(a1);
     grow(p.x - mw / 2, p.y - LOOP_R - 3);
     grow(p.x + mw / 2, p.y - LOOP_R - 3 + mh);
-    return `<g class="pr-loop" data-loop="${esc(l.label)}" data-kind="${l.kind}"><path class="pr-loop-arc" d="M${n(px(a0))},${n(py(a0))}A${LOOP_R},${LOOP_R} 0 1 ${sweep} ${n(px(a1))},${n(py(a1))}"/><path class="pr-loop-head" d="${arrowhead(px(a1) + tdx * 3, py(a1) + tdy * 3, tdx, tdy)}"/><text class="pr-loop-label" x="${n(p.x)}" y="${n(p.y)}" dy="0.35em">${esc(l.label)}</text><text class="pr-loop-name" x="${n(p.x)}" y="${n(p.y + LOOP_R + 14)}">${esc(l.name)}</text></g>`;
+    return `<g class="pr-loop" data-loop="${esc(l.label)}" data-kind="${l.reinforcing ? 'R' : 'B'}"><path class="pr-loop-arc" d="M${n(px(a0))},${n(py(a0))}A${LOOP_R},${LOOP_R} 0 1 ${sweep} ${n(px(a1))},${n(py(a1))}"/><path class="pr-loop-head" d="${arrowhead(px(a1) + tdx * 3, py(a1) + tdy * 3, tdx, tdy)}"/><text class="pr-loop-label" x="${n(p.x)}" y="${n(p.y)}" dy="0.35em">${esc(l.label)}</text><text class="pr-loop-name" x="${n(p.x)}" y="${n(p.y + LOOP_R + 14)}">${esc(l.name)}</text></g>`;
   });
 
   const nodeSvgs = d.nodes.map((node, i) => {
-    const b = boxes.get(node.id)!;
+    const b = boxes.get(node.id) ?? { x: 0, y: 0, w: 0, h: 0 };
     grow(b.x, b.y);
     grow(b.x + b.w, b.y + b.h);
     const attrs = ` data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}`;
@@ -173,17 +325,18 @@ export function renderCausalLoop(d: Diagram, refMarkers: Map<string, string>, do
   );
   out.push(`<g transform="translate(${n(sx)},${n(sy)})">`);
   out.push(...loopSvgs, ...edgeSvgs, ...nodeSvgs, ...marks);
-  out.push(...markers(d, boxes, anchors, refMarkers));
+  out.push(...markers(d, boxes, anchors, refMarkers(d.nodes, context)));
   out.push('</g></svg>');
-  return { svg: out.join(''), width, height };
+  return { svg: trusted(out.join('')), width, height };
 }
 
-function layout(d: Diagram, size: { w: number; h: number }[]): P[] {
+function layout(d: CausalLoop, members: NodeId[][], size: { w: number; h: number }[]): P[] {
   const count = d.nodes.length;
   if (!count) return [];
   const index = new Map(d.nodes.map((node, i) => [node.id, i]));
+  const of = (id: NodeId): number => index.get(id) ?? -1;
   const order: number[] = [];
-  for (const l of d.loops) for (const id of l.nodes) if (!order.includes(index.get(id)!)) order.push(index.get(id)!);
+  for (const ids of members) for (const id of ids) if (!order.includes(of(id))) order.push(of(id));
   d.nodes.forEach((_, i) => order.includes(i) || order.push(i));
   const radius = Math.max(LINK * 0.6, (LINK * count) / (2 * Math.PI));
   const pos: P[] = Array.from({ length: count });
@@ -192,9 +345,9 @@ function layout(d: Diagram, size: { w: number; h: number }[]): P[] {
     pos[i] = { x: radius * Math.cos(a), y: radius * Math.sin(a) };
   });
   const links = new Set<string>();
-  for (const e of d.edges) links.add([index.get(e.from)!, index.get(e.to)!].sort((a, b) => a - b).join(','));
+  for (const e of d.edges) links.add([of(e.from), of(e.to)].sort((a, b) => a - b).join(','));
   const pairs = [...links].map((k) => k.split(',').map(Number));
-  const loops = d.loops.map((l) => l.nodes.map((id) => index.get(id)!));
+  const loops = members.map((ids) => ids.map(of));
 
   for (let it = 0; it < ITERATIONS; it++) {
     const heat = (LINK / 4) * (1 - it / ITERATIONS) + 0.5;

@@ -1,4 +1,5 @@
-import type { DiagramEdge, DiagramNode, StepTarget } from '../model.ts';
+import type { Arrow, EdgeTarget, NodeId, NodeTarget, PropTarget, Role } from '../next/model.ts';
+import type { RenderContext } from '../next/diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badge, esc, n, roleAttr, textBlock } from '../render/svg.ts';
@@ -34,10 +35,6 @@ const LINE = 18;
 const NOTE_FONT = 11.5;
 const NOTE_LINE = 15;
 
-export function measureText(node: DiagramNode, maxWidth: number): TextLines {
-  return measureLabel(node.label, node.attrs.note, maxWidth);
-}
-
 export function measureLabel(label: string, noteText: string | undefined, maxWidth: number): TextLines {
   const lines = wrap(label, FONT, maxWidth, 'sans500');
   const note = noteText ? wrap(noteText, NOTE_FONT, maxWidth) : [];
@@ -56,7 +53,13 @@ export function drawText(t: TextLines, x: number, cy: number, align: 'middle' | 
   return s;
 }
 
-export type EdgeLike = Pick<DiagramEdge, 'index' | 'from' | 'to' | 'arrow' | 'label' | 'role'>;
+export interface Labelled {
+  index: number;
+  label?: string;
+  role?: Role;
+}
+
+export type EdgeLike = Labelled & { from: string; to: string; arrow: Arrow };
 
 export function edgeSvg(e: EdgeLike, p: EdgePath, both: boolean): string {
   let s = `<g class="pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}" data-edge="${e.index}" data-from="${esc(e.from)}" data-to="${esc(e.to)}"${roleAttr(e.role)}>`;
@@ -66,7 +69,7 @@ export function edgeSvg(e: EdgeLike, p: EdgePath, both: boolean): string {
   return s + '</g>';
 }
 
-export function labelSvg(e: EdgeLike, x: number, y: number, onGroup: boolean): string {
+export function labelSvg(e: Labelled, x: number, y: number, onGroup: boolean): string {
   const lines = e.label ? wrap(e.label, LABEL_FONT, MAX_EDGE_LABEL) : [];
   const w = Math.max(...lines.map((l) => textWidth(l, LABEL_FONT))) + 8;
   const h = lines.length * LABEL_LINE + 2;
@@ -74,32 +77,34 @@ export function labelSvg(e: EdgeLike, x: number, y: number, onGroup: boolean): s
   return `<g class="pr-edge-label${onGroup ? ' pr-on-group' : ''}" data-edge="${e.index}"${roleAttr(e.role)}>${plate}${textBlock(lines, x, y, LABEL_LINE, 'pr-elabel')}</g>`;
 }
 
+export const targetKey = (t: NodeTarget | PropTarget): string => (t.type === 'node' ? t.id : `${t.node}.${t.key}`);
+
+export function refMarkers(nodes: readonly { id: NodeId }[], context: RenderContext): Map<string, string> {
+  return new Map(
+    nodes.flatMap((node) => {
+      const letter = context.marker({ type: 'node', id: node.id });
+      return letter === undefined ? [] : [[node.id, letter] as const];
+    }),
+  );
+}
+
 export function markers(
-  d: { steps: readonly { target: StepTarget }[] },
-  boxes: Map<string, Box>,
-  anchors: Map<number, { x: number; y: number }>,
-  refMarkers: Map<string, string>,
+  d: { steps: readonly { target: NodeTarget | EdgeTarget | PropTarget }[] },
+  boxes: ReadonlyMap<string, Box>,
+  anchors: ReadonlyMap<number, { x: number; y: number }>,
+  refMarkers: ReadonlyMap<string, string>,
 ): string[] {
   const out: string[] = [];
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {
-    let x: number;
-    let y: number;
-    let key: string;
-    if (s.target.type === 'node') {
-      const b = boxes.get(s.target.id)!;
-      x = b.x;
-      y = b.y;
-      key = 'n:' + s.target.id;
-    } else {
-      const a = anchors.get(s.target.index)!;
-      x = a.x - 6;
-      y = a.y;
-      key = 'e:' + s.target.index;
-    }
+    const t = s.target;
+    const key = t.type === 'edge' ? 'e:' + t.index : 'n:' + targetKey(t);
+    const spot = t.type === 'edge' ? anchors.get(t.index) : boxes.get(targetKey(t));
+    if (!spot) return;
     const k = stacked.get(key) ?? 0;
     stacked.set(key, k + 1);
-    out.push(badge('pr-step-marker', ` data-step="${i + 1}"`, x - k * 18, y, String(i + 1)));
+    const x = t.type === 'edge' ? spot.x - 6 : spot.x;
+    out.push(badge('pr-step-marker', ` data-step="${i + 1}"`, x - k * 18, spot.y, String(i + 1)));
   });
   for (const [id, letter] of refMarkers) {
     const b = boxes.get(id);

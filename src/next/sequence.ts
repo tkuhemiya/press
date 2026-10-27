@@ -1,7 +1,48 @@
-import type { Diagram, DiagramEdge, DiagramNode } from '../model.ts';
+import {
+  SEQUENCE_KINDS,
+  type Edge,
+  type GroupId,
+  type Participant,
+  type Sequence,
+  type SequenceKind,
+} from './model.ts';
+import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
+import type { Fence } from './grammar.ts';
+import type { Reporter } from './diagnostics.ts';
+import { GRAMMARS } from './grammars.ts';
+import { buildGraph, header, inGroup, lean, resolveSteps, toNode } from './graph.ts';
+import { groupId, trusted } from './brand.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock, type Rendered } from '../render/svg.ts';
-import { GLYPH_W, glyph, kindShape } from './kinds.ts';
+import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock } from '../render/svg.ts';
+import { GLYPH_W, glyph, kindShape } from '../diagrams/kinds.ts';
+
+export const SEQUENCE: DiagramDef<'sequence'> = {
+  type: 'sequence',
+  name: 'Sequence',
+  grammar: GRAMMARS.sequence,
+  build,
+  render,
+  withoutMuted(d, pinned) {
+    const kept = lean(d, pinned);
+    return kept && { ...d, ...kept };
+  },
+};
+
+const isKind = (kind: string | undefined): kind is SequenceKind => SEQUENCE_KINDS.some((k) => k === kind);
+
+function build(fence: Fence, report: Reporter): Sequence {
+  const graph = buildGraph(fence, report, {
+    label: (id) => id.replace(/_/g, ' '),
+    empty: 'Add at least one edge, e.g. `a -> b : label`.',
+  });
+  const nodes = graph.nodes.map((draft): Participant => {
+    const node: Participant = toNode(draft);
+    if (isKind(draft.kind)) node.kind = draft.kind;
+    return node;
+  });
+  const steps = resolveSteps(fence.steps, nodes, graph.edges, report);
+  return { ...header(fence, 'sequence'), nodes, edges: graph.edges, groups: graph.groups, steps };
+}
 
 const FONT = 14;
 const LABEL_FONT = 12.5;
@@ -21,24 +62,25 @@ const GROUP_PAD = 12;
 const GROUP_TITLE = 26;
 
 interface Column {
-  node: DiagramNode;
+  node: Participant;
   note: string[];
   w: number;
   x: number;
 }
 
-export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domId: string): Rendered {
+function render(d: Sequence, context: RenderContext): Rendered {
+  const { domId } = context;
   const order = participantOrder(d);
   const cols: Column[] = order.map((node) => {
     const glyphW = hasGlyph(node) ? GLYPH_W : 0;
-    const note = node.attrs.note ? wrap(node.attrs.note, NOTE_FONT, MAX_LABEL) : [];
+    const note = node.note ? wrap(node.note, NOTE_FONT, MAX_LABEL) : [];
     const w = Math.max(textWidth(node.label, FONT, 'sans500') + glyphW, ...note.map((l) => textWidth(l, NOTE_FONT)));
     return { node, note, w: Math.max(MIN_HEADER, Math.ceil(w + 2 * HEADER_PAD)), x: 0 };
   });
   const at = new Map(cols.map((c, i) => [c.node.id, i]));
 
-  const labelLines = (e: DiagramEdge): string[] => (e.label ? wrap(e.label, LABEL_FONT, MAX_LABEL) : []);
-  const labelW = (e: DiagramEdge): number => Math.max(0, ...labelLines(e).map((l) => textWidth(l, LABEL_FONT)));
+  const labelLines = (e: Edge): string[] => (e.label ? wrap(e.label, LABEL_FONT, MAX_LABEL) : []);
+  const labelW = (e: Edge): number => Math.max(0, ...labelLines(e).map((l) => textWidth(l, LABEL_FONT)));
 
   const gaps = cols.slice(1).map((c, i) => (cols[i].w + c.w) / 2 + GAP);
   const need = (lo: number, hi: number, width: number): void => {
@@ -49,8 +91,13 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     for (let i = lo; i < hi; i++) gaps[i] += extra;
   };
   let rightOverflow = 0;
-  const spans = d.edges
-    .map((e) => ({ e, a: at.get(e.from)!, b: at.get(e.to)! }))
+  const rows = d.edges.flatMap((e) => {
+    const a = at.get(e.from);
+    const b = at.get(e.to);
+    return a === undefined || b === undefined ? [] : [{ e, a: cols[a], b: cols[b], ai: a, bi: b }];
+  });
+  const spans = rows
+    .map(({ e, ai, bi }) => ({ e, a: ai, b: bi }))
     .sort((p, q) => Math.abs(p.a - p.b) - Math.abs(q.a - q.b));
   for (const { e, a, b } of spans) {
     if (a === b) {
@@ -61,9 +108,10 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   }
 
   const depthBelow = d.groups.map(() => 0);
-  d.groups.forEach((_, g) => {
+  d.groups.forEach((group) => {
     let depth = 0;
-    for (let p = d.groups[g].parent; p >= 0; p = d.groups[p].parent) depthBelow[p] = Math.max(depthBelow[p], ++depth);
+    for (let p = group.parent; p !== undefined; p = d.groups[p].parent)
+      depthBelow[p] = Math.max(depthBelow[p], ++depth);
   });
   const outerPad = d.groups.length ? GROUP_PAD + Math.max(...depthBelow) * 10 : 0;
 
@@ -81,12 +129,12 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   const headerBottom = headerTop + headH;
 
   let y = headerBottom + 18;
-  const rows = d.edges.map((e) => {
-    const lines = labelLines(e);
-    const self = e.from === e.to;
+  const placed = rows.map((r) => {
+    const lines = labelLines(r.e);
+    const self = r.e.from === r.e.to;
     const labelH = lines.length * LABEL_LINE;
     y += self ? Math.max(ROW, labelH / 2 + 6) : ROW + labelH;
-    const row = { y, lines, self };
+    const row = { ...r, y, lines, self };
     y += self ? SELF_H + 10 : 6;
     return row;
   });
@@ -100,7 +148,7 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
 
   const groupOrder = d.groups.map((_, i) => i).sort((a, b) => depthBelow[b] - depthBelow[a]);
   for (const g of groupOrder) {
-    const members = cols.filter((c) => inGroup(d, c.node, g));
+    const members = cols.filter((c) => inGroup(d.groups, c.node.group, g));
     if (!members.length) continue;
     const pad = GROUP_PAD + depthBelow[g] * 10;
     const gx = Math.min(...members.map((c) => c.x - c.w / 2)) - pad;
@@ -120,7 +168,7 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     const glyphW = hasGlyph(c.node) ? GLYPH_W : 0;
     const tx = c.x + glyphW / 2;
     const labelY = headerTop + HEADER_H / 2 - (c.note.length ? 3 : 0);
-    if (glyphW) s += glyph(c.node.kind!, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, labelY);
+    if (glyphW && c.node.kind) s += glyph(c.node.kind, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, labelY);
     s += `<text class="pr-label" x="${n(tx)}" y="${n(labelY)}" dy="0.35em">${esc(c.node.label)}</text>`;
     if (c.note.length)
       s += textBlock(c.note, c.x, labelY + 17 + ((c.note.length - 1) * NOTE_LINE) / 2, NOTE_LINE, 'pr-note');
@@ -129,10 +177,8 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
 
   const labels: string[] = [];
   const anchors = new Map<number, { x: number; y: number }>();
-  d.edges.forEach((e, i) => {
-    const row = rows[i];
-    const a = cols[at.get(e.from)!];
-    const b = cols[at.get(e.to)!];
+  for (const row of placed) {
+    const { e, a, b } = row;
     const both = e.arrow === '<->';
     let s = `<g class="pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}" data-edge="${e.index}" data-from="${esc(e.from)}" data-to="${esc(e.to)}"${roleAttr(e.role)}>`;
     if (row.self) {
@@ -164,58 +210,48 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
       } else anchors.set(e.index, { x: cx, y: row.y - 12 });
     }
     out.push(s + '</g>');
-  });
+  }
   out.push(...labels);
 
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {
-    let mx: number;
-    let my: number;
-    let key: string;
-    if (s.target.type === 'node') {
-      const c = cols[at.get(s.target.id)!];
-      mx = c.x - c.w / 2;
-      my = headerTop;
-      key = 'n:' + s.target.id;
-    } else {
-      const a = anchors.get(s.target.index)!;
-      mx = a.x;
-      my = a.y;
-      key = 'e:' + s.target.index;
-    }
+    const t = s.target;
+    const c = t.type === 'node' ? cols[at.get(t.id) ?? -1] : undefined;
+    const a = t.type === 'edge' ? anchors.get(t.index) : undefined;
+    const spot = c ? { x: c.x - c.w / 2, y: headerTop } : a;
+    if (!spot) return;
+    const mx = spot.x;
+    const my = spot.y;
+    const key = t.type === 'node' ? 'n:' + t.id : 'e:' + t.index;
     const k = stacked.get(key) ?? 0;
     stacked.set(key, k + 1);
     out.push(badge('pr-step-marker', ` data-step="${i + 1}"`, mx - k * 18, my, String(i + 1)));
   });
-  for (const [id, letter] of refMarkers) {
-    const i = at.get(id);
-    if (i === undefined) continue;
-    out.push(badge('pr-ref-marker', ` data-node="${esc(id)}"`, cols[i].x + cols[i].w / 2, headerTop, letter));
+  for (const c of cols) {
+    const letter = context.marker({ type: 'node', id: c.node.id });
+    if (letter !== undefined)
+      out.push(badge('pr-ref-marker', ` data-node="${esc(c.node.id)}"`, c.x + c.w / 2, headerTop, letter));
   }
   out.push('</svg>');
-  return { svg: out.join(''), width, height };
+  return { svg: trusted(out.join('')), width, height };
 }
 
-function inGroup(d: Diagram, node: DiagramNode, g: number): boolean {
-  for (let p = node.group; p >= 0; p = d.groups[p].parent) if (p === g) return true;
-  return false;
-}
-
-function participantOrder(d: Diagram): DiagramNode[] {
+function participantOrder(d: Sequence): Participant[] {
   const first = new Map(d.nodes.map((node, i) => [node.id, i]));
-  const items = (g: number): { at: number; nodes: DiagramNode[] }[] => {
-    const own = d.nodes.filter((node) => node.group === g).map((node) => ({ at: first.get(node.id)!, nodes: [node] }));
+  const at = (node: Participant) => first.get(node.id) ?? Infinity;
+  const items = (g: GroupId | undefined): { at: number; nodes: Participant[] }[] => {
+    const own = d.nodes.filter((node) => node.group === g).map((node) => ({ at: at(node), nodes: [node] }));
     const sub = d.groups
-      .map((grp, i) => ({ grp, i }))
+      .map((grp, i) => ({ grp, i: groupId(i) }))
       .filter(({ grp }) => grp.parent === g)
       .map(({ i }) => {
         const nodes = items(i).flatMap((it) => it.nodes);
-        return { at: Math.min(Infinity, ...nodes.map((node) => first.get(node.id)!)), nodes };
+        return { at: Math.min(Infinity, ...nodes.map(at)), nodes };
       })
       .filter((it) => it.nodes.length);
     return [...own, ...sub].sort((a, b) => a.at - b.at);
   };
-  return items(-1).flatMap((it) => it.nodes);
+  return items(undefined).flatMap((it) => it.nodes);
 }
 
 function leftBlock(lines: string[], x: number, cy: number): string {
@@ -223,6 +259,6 @@ function leftBlock(lines: string[], x: number, cy: number): string {
   return `<text class="pr-elabel pr-left" x="${n(x)}" y="${n(top)}">${lines.map((l, i) => `<tspan x="${n(x)}" ${i ? `dy="${LABEL_LINE}"` : 'dy="0.35em"'}>${esc(l)}</tspan>`).join('')}</text>`;
 }
 
-function hasGlyph(node: DiagramNode): boolean {
+function hasGlyph(node: Participant): boolean {
   return node.kind !== undefined && node.kind !== 'database';
 }

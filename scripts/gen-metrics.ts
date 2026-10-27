@@ -36,7 +36,8 @@ const tables: Record<string, number[]> = {};
 for (const [name, [family, weight]] of Object.entries(faces)) {
   tables[name] = await page.evaluate(
     ({ family, weight, chars }: { family: string; weight: number; chars: string[] }) => {
-      const ctx = document.createElement('canvas').getContext('2d')!;
+      const ctx = document.createElement('canvas').getContext('2d');
+      if (!ctx) throw new Error('No 2D canvas in this browser.');
       ctx.font = `${weight} 1000px "${family}"`;
       return chars.map((ch: string) => Math.round(ctx.measureText(ch).width));
     },

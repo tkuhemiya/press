@@ -177,7 +177,7 @@ export interface Er extends Header {
 export interface Cell {
   option: NodeId;
   criterion: NodeId;
-  value: string;
+  value?: string;
   role?: Role;
   line: number;
 }
