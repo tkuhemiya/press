@@ -83,7 +83,8 @@ export function parseDocument(source: string): PressDocument {
         });
         continue;
       }
-      const ids = diagram.nodes.map((n) => n.id);
+      // A reference names a node, or a property as `node.key`.
+      const ids = [...diagram.nodes.map((n) => n.id), ...diagram.props.map((p) => `${p.node}.${p.key}`)];
       if (!ids.includes(nodeId)) {
         const near = closest(nodeId, ids);
         diagnostics.push({ severity: 'error', line, message: `Reference \`${href}\` names \`${nodeId}\`, which is not in diagram \`${diagramId}\`.`, hint: near ? `Did you mean \`#${diagramId}.${near}\`?` : `Nodes in \`${diagramId}\`: ${list(ids)}.` });

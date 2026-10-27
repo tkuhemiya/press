@@ -167,6 +167,18 @@ waiting -> end
       for (const [x2, y2, w2, h2] of boxes.slice(i + 1)) expect(x < x2 + w2 && x2 < x + w && y < y2 + h2 && y2 < y + h).toBe(false);
   });
 
+  it('draws a decision tree: questions as boxes, outcomes as pills, answers on the edges', () => {
+    const src = readFileSync(new URL('../examples/caching.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-decision-tree"');
+    expect(count(svg, /class="pr-box pr-question"/g)).toBe(3);
+    expect(count(svg, /class="pr-box pr-outcome"/g)).toBe(4);
+    expect(count(svg, /class="pr-edge pr-dashed"/g)).toBe(1);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);

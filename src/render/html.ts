@@ -4,6 +4,7 @@ import type { Diagram, DiagramType } from '../model.ts';
 import type { PressDocument } from '../parse/document.ts';
 import { renderArchitecture } from '../diagrams/architecture.ts';
 import { renderCausalLoop } from '../diagrams/causal-loop.ts';
+import { renderDecisionTree } from '../diagrams/decision-tree.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
 import { renderStateMachine } from '../diagrams/state-machine.ts';
 import { renderTimeline } from '../diagrams/timeline.ts';
@@ -53,7 +54,7 @@ export function renderHtml(doc: PressDocument, options: HtmlOptions = {}): strin
     if (!ref) return defaultLink(tokens, idx, opts, env, self);
     const diagram = byId.get(ref.diagram)!;
     const figId = figureIds.get(diagram)!;
-    const role = diagram.nodes.find((x) => x.id === ref.node)?.role;
+    const role = (diagram.nodes.find((x) => x.id === ref.node) ?? diagram.props.find((p) => `${p.node}.${p.key}` === ref.node))?.role;
     return `<a class="pr-ref" href="#${figId}-node-${esc(ref.node)}" data-figure="${figId}" data-node="${esc(ref.node)}" data-marker="${esc(ref.marker)}"${role ? ` data-role="${role}"` : ''}>`;
   };
 
@@ -89,8 +90,11 @@ const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, 
   architecture: renderArchitecture,
   'causal-loop': renderCausalLoop,
   timeline: renderTimeline,
+  'decision-tree': renderDecisionTree,
+  er: renderDecisionTree,
+  tradeoffs: renderDecisionTree,
 };
-const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline' };
+const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline', 'decision-tree': 'Decision tree', er: 'Entity-relationship', tradeoffs: 'Tradeoffs' };
 
 function figure(doc: PressDocument, d: Diagram, figId: string): string {
   const markers = new Map<string, string>();

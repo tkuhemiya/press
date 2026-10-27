@@ -150,6 +150,9 @@ th { font-weight: 600; }
 .pr-edge-label[data-role="error"] .pr-polarity { fill: var(--error); }
 .pr-edge-label[data-role="muted"] .pr-polarity { fill: var(--muted-ink); }
 
+/* Decision tree. Outcomes end a path: a pill on a faint fill, with a heavier outline. */
+.pr-outcome { fill: var(--group-fill); stroke-width: 1.6; }
+
 /* Roles. In grayscale they still differ: focus and happy by weight, error by hatching, muted by lightness. */
 .pr-node[data-role="focus"] .pr-box { stroke: var(--focus); fill: var(--focus-fill); stroke-width: 2; }
 .pr-node[data-role="happy"] .pr-box { stroke: var(--happy); fill: var(--happy-fill); stroke-width: 2; }

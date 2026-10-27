@@ -65,5 +65,5 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 | Type            | Shows                               | Version | Status  |
 |-----------------|-------------------------------------|---------|---------|
 | `argument-map`  | Claims, support, objections         | —       | planned |
-| `decision-tree` | Choices and outcomes                | 0.3     | spec    |
+| `decision-tree` | Choices and outcomes                | 0.3     | done    |
 | `tradeoffs`     | Options compared across criteria    | 0.3     | spec    |

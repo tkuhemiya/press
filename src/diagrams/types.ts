@@ -10,6 +10,8 @@ export interface TypeSpec {
   directional: boolean;
   // Attributes this type adds to `role` and `note`.
   attrs: string[];
+  // Whether the type has properties: `node.key : value`.
+  props?: boolean;
 }
 
 export const TYPE_SPECS: Record<DiagramType, TypeSpec> = {
@@ -18,4 +20,7 @@ export const TYPE_SPECS: Record<DiagramType, TypeSpec> = {
   architecture: { reserved: [], kinds: ['client', 'service', 'database', 'queue', 'cache', 'storage', 'external', 'user'], directional: true, attrs: [] },
   'causal-loop': { reserved: ['loop'], kinds: [], directional: false, attrs: ['delay'] },
   timeline: { reserved: [], kinds: [], directional: true, attrs: ['until'] },
+  'decision-tree': { reserved: [], kinds: [], directional: true, attrs: [] },
+  er: { reserved: [], kinds: [], directional: true, attrs: ['key', 'unique', 'null', 'card'], props: true },
+  tradeoffs: { reserved: [], kinds: [], directional: true, attrs: [], props: true },
 };

@@ -45,8 +45,22 @@ export interface DiagramEdge {
   index: number;
   from: string;
   to: string;
+  // er only: the fields an edge joins, when it joins fields rather than whole entities.
+  fromKey?: string;
+  toKey?: string;
   arrow: Arrow;
   label?: string;
+  role?: Role;
+  attrs: Attrs;
+  line: number;
+}
+
+// A named value that belongs to a node: `node.key : value {attrs}`. A field in `er`, a cell
+// in `tradeoffs`. Steps, prose references and the drawing address it as `node.key`.
+export interface Property {
+  node: string;
+  key: string;
+  value?: string;
   role?: Role;
   attrs: Attrs;
   line: number;
@@ -58,6 +72,7 @@ export interface DiagramGroup {
   line: number;
 }
 
+// A node step's id may be a property's `node.key`.
 export type StepTarget = { type: 'node'; id: string } | { type: 'edge'; index: number };
 
 export interface Step {
@@ -79,7 +94,7 @@ export interface Loop {
   line: number;
 }
 
-export const DIAGRAM_TYPES = ['state-machine', 'sequence', 'architecture', 'causal-loop', 'timeline'] as const;
+export const DIAGRAM_TYPES = ['state-machine', 'sequence', 'architecture', 'causal-loop', 'timeline', 'decision-tree', 'er', 'tradeoffs'] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
 export interface Diagram {
@@ -91,6 +106,8 @@ export interface Diagram {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   groups: DiagramGroup[];
+  // er and tradeoffs only, in source order.
+  props: Property[];
   steps: Step[];
   // causal-loop only.
   loops: Loop[];

@@ -366,3 +366,65 @@ describe('causal-loop', () => {
     expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringContaining('no meaning') });
   });
 });
+
+describe('properties', () => {
+  it('reads node.key : value with attributes, in types that have them', () => {
+    const doc = parse('tradeoffs', 'redis.ops : "another service" {role=error}\nredis.revoke : yes\nredis.latency {role=happy}');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].props.map((p) => [p.node, p.key, p.value, p.role])).toEqual([
+      ['redis', 'ops', 'another service', 'error'],
+      ['redis', 'revoke', 'yes', undefined],
+      ['redis', 'latency', undefined, 'happy'],
+    ]);
+  });
+
+  it('rejects a property in a type without them, naming the types that have them', () => {
+    const e = errors(parse('state-machine', 'a.b : c'))[0];
+    expect(e.message).toMatch(/is a property/);
+    expect(e.hint).toMatch(/`er`.*`tradeoffs`|`tradeoffs`.*`er`/);
+  });
+
+  it('warns when a property is given twice', () => {
+    const doc = parse('er', 'a.id : uuid\na.id : int');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringMatching(/given twice/) });
+    expect(doc.diagrams[0].props).toHaveLength(1);
+  });
+
+  it('steps and prose references can name a property', () => {
+    const doc = parseDocument('```tradeoffs id=t\nredis.ops : x\n\nsteps:\n  redis.ops "Costs"\n```\n\nSee [ops](#t.redis.ops).\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'node', id: 'redis.ops' });
+    expect(doc.refs[0].node).toBe('redis.ops');
+  });
+
+  it('only er edges join fields', () => {
+    const e = errors(parse('state-machine', 'a.x -> b'))[0];
+    expect(e.message).toMatch(/only er edges join fields/);
+  });
+});
+
+describe('decision-tree', () => {
+  it('parses the spec example cleanly', () => {
+    const doc = parse('decision-tree', 'reads -> stale : yes\nreads -> skip : no\nstale -> cache : yes\nstale --> skip : no');
+    expect(doc.diagnostics).toEqual([]);
+  });
+
+  const cases: [string, string, RegExp, RegExp][] = [
+    ['unlabelled branch', 'a -> b : yes\na -> c', /does not say which/, /a -> c : yes/],
+    ['two roots', 'a -> b\nc -> d', /has one root.*2/, /a -> c/],
+    ['a path that loops back', 'a -> b\nb -> c\nc -> a', /loops back: a -> b -> c -> a/, /state-machine/],
+    ['two-way arrow', 'a <-> b', /`<->` is not allowed/, /a -> b : yes/],
+  ];
+  for (const [name, body, message, hint] of cases) {
+    it(name, () => {
+      const e = errors(parse('decision-tree', body))[0];
+      expect(e, name).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+    });
+  }
+
+  it('lets branches rejoin', () => {
+    expect(parse('decision-tree', 'a -> b : yes\na -> c : no\nb -> d\nc -> d').diagnostics).toEqual([]);
+  });
+});

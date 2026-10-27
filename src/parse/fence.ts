@@ -1,5 +1,5 @@
 // Parses the body of a Press fence (the shared grammar in SPEC.md) into a Diagram.
-import { ROLES, type Arrow, type Attrs, type Diagnostic, type Diagram, type DiagramType, type Role, type Step } from '../model.ts';
+import { ROLES, type Arrow, type Attrs, type Diagnostic, type Diagram, type DiagramType, type Property, type Role, type Step } from '../model.ts';
 import { TYPE_SPECS } from '../diagrams/types.ts';
 import { closest, list } from './suggest.ts';
 import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
@@ -7,6 +7,8 @@ import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
 const ID = /^[a-z0-9_]+(?:-[a-z0-9_]+)*/;
 const LOOSE_ID = /^[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*/;
 const ARROW = /^(<->|-->|->)/;
+// The start of a property line: node.key
+const PROP = /^([a-z0-9_]+(?:-[a-z0-9_]+)*)\.([a-z0-9_]+(?:-[a-z0-9_]+)*)/;
 // Words authors reach for that mean one of the roles.
 const ROLE_SYNONYMS: Record<string, Role> = {
   danger: 'error', fail: 'error', failure: 'error', bad: 'error', warning: 'error', invalid: 'error',
@@ -24,7 +26,7 @@ export interface FenceInput {
 }
 
 export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagram {
-  const diagram: Diagram = { type: input.type, nodes: [], edges: [], groups: [], steps: [], loops: [], line: input.line };
+  const diagram: Diagram = { type: input.type, nodes: [], edges: [], groups: [], props: [], steps: [], loops: [], line: input.line };
   const spec = TYPE_SPECS[input.type];
   const knownAttrs = new Set(['role', 'note', ...spec.attrs]);
   const report = (severity: Diagnostic['severity'], line: number, message: string, hint?: string): void => {
@@ -83,6 +85,40 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       }
       diagram.groups.push({ label: m[1], parent: currentGroup(), line });
       groupStack.push(diagram.groups.length - 1);
+      continue;
+    }
+
+    // A property: node.key : value {attrs}
+    const prop = PROP.exec(text);
+    if (prop && !ARROW.test(text.slice(prop[0].length).trim())) {
+      const [, node, key] = prop;
+      if (!spec.props) {
+        error(line, `\`${node}.${key}\` is a property, and a ${input.type} has none.`, `Properties (\`node.key : value\`) belong to ${list(Object.keys(TYPE_SPECS).filter((t) => TYPE_SPECS[t as DiagramType].props))}. Here, use an edge or a declaration.`);
+        continue;
+      }
+      const { body, attrs } = splitAttrs(text.slice(prop[0].length), line, error);
+      const rest = body.trim();
+      let value: string | undefined;
+      if (rest) {
+        const v = /^:\s*("([^"]*)"|\S+)$/.exec(rest);
+        if (!v) {
+          error(line, `Cannot read the value of \`${node}.${key}\`.`, `Write \`${node}.${key} : value\`, quoting a value with spaces: \`${node}.${key} : "${rest.replace(/^:\s*/, '').replace(/"/g, '')}"\`.`);
+          continue;
+        }
+        value = v[2] ?? v[1];
+      }
+      if (reservedSteps(node, line) || reservedSteps(key, line)) continue;
+      ensureNode(node, line);
+      if (input.type === 'tradeoffs') ensureNode(key, line);
+      const at = diagram.props.findIndex((q) => q.node === node && q.key === key);
+      if (at >= 0) {
+        warn(line, `\`${node}.${key}\` is given twice; the later one wins.`, `Keep one line for it; the first is on line ${diagram.props[at].line}.`);
+        diagram.props.splice(at, 1);
+      }
+      const p: Property = { node, key, attrs: {}, line };
+      if (value !== undefined) p.value = value;
+      applyAttrs(p, attrs, line);
+      diagram.props.push(p);
       continue;
     }
 
@@ -173,7 +209,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       continue;
     }
 
-    const arrowMatch = ARROW.exec(rest);
+    const arrowMatch = ARROW.exec(rest.replace(/^\.[a-z0-9_-]+\s*/, ''));
     if (!arrowMatch) {
       // A bare node, optionally with attributes.
       const { body, attrs } = splitAttrs(rest, line, error);
@@ -194,8 +230,16 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       continue;
     }
 
-    // Edge or chain: a -> b --> c : label {attrs}
+    // Edge or chain: a -> b --> c : label {attrs}. In er, an end may be a field: a.key
     const ids = [first];
+    const keys: (string | undefined)[] = [undefined];
+    const readKey = (): string | undefined => {
+      const k = /^\.([a-z0-9_]+(?:-[a-z0-9_]+)*)/.exec(rest);
+      if (!k) return undefined;
+      rest = rest.slice(k[0].length).trimStart();
+      return k[1];
+    };
+    keys[0] = readKey();
     const arrows: Arrow[] = [];
     let ok = true;
     while (true) {
@@ -209,9 +253,16 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
         break;
       }
       ids.push(id);
-      rest = rest.slice(id.length).trimStart();
+      rest = rest.slice(id.length);
+      keys.push(readKey());
+      rest = rest.trimStart();
     }
     if (!ok) continue;
+    if (keys.some((k) => k !== undefined) && input.type !== 'er') {
+      const i = keys.findIndex((k) => k !== undefined);
+      error(line, `\`${ids[i]}.${keys[i]}\` names a field, and only er edges join fields.`, `Join the nodes themselves: \`${ids.join(' -> ')}\`.`);
+      continue;
+    }
     const { body, attrs } = splitAttrs(rest, line, error);
     let label: string | undefined;
     const tail = body.trim();
@@ -234,6 +285,10 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     }
     if (ids.some((id) => reservedSteps(id, line) || reservedLoop(id, line))) continue;
     if (input.type === 'causal-loop' && !causalEdge(arrows, label, ids, line)) continue;
+    if (input.type === 'decision-tree' && arrows.includes('<->')) {
+      error(line, '`<->` is not allowed in a decision tree: an answer leads one way.', `Write the answer as \`${ids[0]} -> ${ids[1]} : yes\`.`);
+      continue;
+    }
     for (let i = 0; i + 1 < ids.length; i++) {
       const from = ids[i];
       const to = ids[i + 1];
@@ -244,6 +299,8 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       ensureNode(from, line);
       ensureNode(to, line);
       const edge = { index: diagram.edges.length, from, to, arrow: arrows[i], attrs: {} as Attrs, line } as Diagram['edges'][number];
+      if (keys[i] !== undefined) edge.fromKey = keys[i];
+      if (keys[i + 1] !== undefined) edge.toKey = keys[i + 1];
       if (label !== undefined) edge.label = label;
       applyAttrs(edge, attrs, line);
       diagram.edges.push(edge);
@@ -255,6 +312,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
   }
   if (!diagram.nodes.length) warn(input.line, `The ${input.type} fence is empty.`, input.type === 'timeline' ? 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.' : 'Add at least one edge, e.g. `a -> b : label`.');
   if (input.type === 'timeline') checkTimeline(diagram, error, warn);
+  if (input.type === 'decision-tree') checkTree(diagram, error);
   for (const l of rawLoops) resolveLoop(l);
 
   for (const s of rawSteps) {
@@ -363,6 +421,21 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
   }
 
   function resolveStep(s: { line: number; from: string; to?: string; label?: string; caption: string }): Step | undefined {
+    const isProp = (ref: string) => diagram.props.some((p) => `${p.node}.${p.key}` === ref);
+    if (s.to === undefined && s.from.includes('.')) {
+      if (isProp(s.from)) return { target: { type: 'node', id: s.from }, caption: s.caption, line: s.line };
+      const near = closest(s.from, diagram.props.map((p) => `${p.node}.${p.key}`));
+      error(s.line, `Step refers to \`${s.from}\`, which is not a property in the diagram.`, near ? `Did you mean \`${near}\`?` : 'Declare it first: `node.key : value`.');
+      return;
+    }
+    if (s.from.includes('.') || s.to?.includes('.')) {
+      const end = (id: string, key?: string) => (key ? `${id}.${key}` : id);
+      const found = diagram.edges.filter((e) => end(e.from, e.fromKey) === s.from && end(e.to, e.toKey) === s.to && (s.label === undefined || e.label === s.label));
+      if (found.length === 1) return { target: { type: 'edge', index: found[0].index }, caption: s.caption, line: s.line };
+      const edges = diagram.edges.map((e) => `\`${end(e.from, e.fromKey)} -> ${end(e.to, e.toKey)}\``);
+      error(s.line, `Step refers to an edge \`${s.from} -> ${s.to}\` that the diagram does not have.`, edges.length ? `Edges: ${edges.join(', ')}.` : 'Add the edge above `steps:`.');
+      return;
+    }
     if (s.to === undefined) {
       if (!nodeIndex.has(s.from)) {
         const near = closest(s.from, nodeIndex.keys());
@@ -429,6 +502,37 @@ function checkTimeline(d: Diagram, error: (l: number, m: string, h?: string) => 
   }
 }
 
+// A decision tree has one root, never loops back, and labels every branch of a real choice.
+function checkTree(d: Diagram, error: (l: number, m: string, h?: string) => void): void {
+  if (!d.nodes.length) return;
+  const out = new Map(d.nodes.map((n) => [n.id, d.edges.filter((e) => e.from === n.id)]));
+  for (const [id, edges] of out) {
+    if (edges.length < 2) continue;
+    for (const e of edges) {
+      if (e.label === undefined) error(e.line, `\`${id}\` has ${edges.length} answers, and \`${e.from} -> ${e.to}\` does not say which this is.`, `Label it with the answer: \`${e.from} -> ${e.to} : yes\`.`);
+    }
+  }
+  // A path that comes back to a node it passed: report the edge that closes it.
+  const state = new Map<string, 'open' | 'done'>();
+  const visit = (id: string, path: string[]): boolean => {
+    state.set(id, 'open');
+    for (const e of out.get(id) ?? []) {
+      if (state.get(e.to) === 'open') {
+        const loop = [...path.slice(path.indexOf(e.to)), id, e.to].filter((x, i, a) => i === 0 || x !== a[i - 1]);
+        error(e.line, `\`${e.from} -> ${e.to}\` loops back: ${loop.join(' -> ')}. A decision tree only moves forward.`, 'If the process can return to an earlier point, draw it as a `state-machine`. Otherwise point this answer at a new outcome.');
+        return true;
+      }
+      if (!state.has(e.to) && visit(e.to, [...path, id])) return true;
+    }
+    state.set(id, 'done');
+    return false;
+  };
+  for (const n of d.nodes) if (!state.has(n.id) && visit(n.id, [])) return;
+  const roots = d.nodes.filter((n) => !d.edges.some((e) => e.to === n.id));
+  if (roots.length > 1)
+    error(roots[1].line, `A decision tree has one root, and this one has ${roots.length}: ${roots.map((r) => `\`${r.id}\``).join(', ')}.`, `Lead every question from the first one, e.g. \`${roots[0].id} -> ${roots[1].id} : …\`, or split them into separate trees.`);
+}
+
 function parseHeader(input: FenceInput, diagram: Diagram, error: (l: number, m: string, h?: string) => void, warn: (l: number, m: string, h?: string) => void): void {
   const line = input.line;
   let rest = input.info.slice(input.type.length).trim();
@@ -473,6 +577,14 @@ function readId(text: string, line: number, error: (l: number, m: string, h?: st
   return undefined;
 }
 
+// A node id, or a property's `node.key`.
+function readRef(text: string, line: number, error: (l: number, m: string, h?: string) => void, where?: string): string | undefined {
+  const id = readId(text, line, error, where);
+  if (!id) return undefined;
+  const key = /^\.([a-z0-9_]+(?:-[a-z0-9_]+)*)/.exec(text.slice(id.length));
+  return key ? id + key[0] : id;
+}
+
 // Splits a trailing `{key=value, ...}` block off the end of text.
 function splitAttrs(text: string, line: number, error: (l: number, m: string, h?: string) => void): { body: string; attrs: Attrs } {
   const attrs: Attrs = {};
@@ -510,7 +622,7 @@ function parseStepLine(text: string, line: number, error: (l: number, m: string,
   }
   const caption = m[1];
   let target = text.slice(0, m.index).trim();
-  const from = readId(target, line, error);
+  const from = readRef(target, line, error);
   if (!from) return;
   target = target.slice(from.length).trim();
   if (!target) return { line, from, caption };
@@ -520,7 +632,7 @@ function parseStepLine(text: string, line: number, error: (l: number, m: string,
     return;
   }
   target = target.slice(a[1].length).trim();
-  const to = readId(target, line, error, `after \`${a[1]}\``);
+  const to = readRef(target, line, error, `after \`${a[1]}\``);
   if (!to) return;
   target = target.slice(to.length).trim();
   if (!target) return { line, from, to, caption };

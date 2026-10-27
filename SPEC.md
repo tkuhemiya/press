@@ -284,8 +284,9 @@ steps:
 Entities, their fields, and the references between them. Fields are properties: `entity.field : type {attrs}`. The type is free text (`uuid`, `text`, `"numeric(10,2)"`), shown in small type beside the field name. `direction` defaults to `right`.
 
 - Field attributes: `{key=yes}` marks the primary key, `{unique=yes}` a unique field, `{null=yes}` a field that may be empty. Fields draw in source order, keys first.
-- **A reference is an edge between two fields**, from the field that refers to the field it refers to: `orders.user_id -> users.id`. Press works out the cardinality instead of asking for it: the referring side is *many*, or *one* when its field is `unique`; it is optional (zero allowed) when its field is `null=yes`. Ends are drawn with crow's-foot marks. The referred-to field must be a key or unique; otherwise it is an error that says which attribute to add.
-- **Entity-level edges** are for conceptual models that have no fields yet: `users -> teams : member of {card=N:M}`. `card` is `1:1`, `1:N`, `N:1` or `N:M`, read from the first entity to the second, and is required on an entity-level edge.
+- **A reference is an edge between two fields**, from the field that refers to the field it refers to: `orders.user_id -> users.id {card=N:1}`. **`card` is required on every edge** and says how many of each side take part, read from the first entity to the second. Each end is one of `1` (exactly one), `0..1` (zero or one), `N` (zero or more) or `1..N` (one or more), so `N:1` reads "many orders, each with exactly one user". Ends are drawn with crow's-foot marks. Both fields must be declared as properties.
+- **Entity-level edges** are for conceptual models that have no fields yet: `users -> teams : member of {card=N:N}`.
+- `key`, `unique` and `null` describe fields only; they do not change the drawn cardinality, which is always the one written.
 - An edge label is the relationship's name (`places`, `belongs to`).
 - `<->` is an error: a reference has a direction. Groups are schemas or bounded contexts.
 - A declaration gives an entity its display name: `users: "User"`. Node kinds: none.
@@ -308,12 +309,12 @@ items.qty : int
 coupons.id : uuid {key=yes}
 coupons.code : text {unique=yes}
 
-orders.user_id -> users.id : placed by
-orders.coupon_id -> coupons.id
-items.order_id -> orders.id : belongs to
+orders.user_id -> users.id : placed by {card=N:1}
+orders.coupon_id -> coupons.id {card=N:0..1}
+items.order_id -> orders.id : belongs to {card=1..N:1}
 ```
 
-Here an order belongs to exactly one user (many orders per user), a coupon is optional on an order, and an order has many line items.
+Here every order is placed by exactly one user and a user has any number of orders; an order has at most one coupon; and every order has at least one line item.
 
 ### `tradeoffs`
 
