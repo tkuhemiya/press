@@ -10,7 +10,7 @@ Fence header:
 ```<type> id=<name> title="<title>" direction=<right|down>
 ````
 
-All header fields are optional. `id` is needed only when prose refers to the diagram.
+All header fields are optional. `id` is needed only when prose refers to the diagram. Without `direction`, a type draws in its default direction, or in the other one when that fits the page clearly better; an explicit `direction` is always kept.
 
 ## Shared grammar
 
@@ -27,7 +27,8 @@ group "Name" { ... }           nesting
 # comment
 ```
 
-- Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`.
+- Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`. An undeclared node is labelled with its id, `_` read as a space (`wage_demands` shows as "wage demands"); in `er` an entity's id is a table name and shows as written.
+- A group with no members is a warning, since it would draw nothing.
 - A node belongs to the group it is declared in. A bare node line inside a group (`api` alone) moves an existing node into that group, so members can be listed after they are declared.
 - A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are lowercase letters, digits, `_` and `-`. A `-` must sit between two other characters, so `a-->b` reads as an edge, never as an id. Labels are quoted strings.

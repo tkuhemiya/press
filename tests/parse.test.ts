@@ -99,7 +99,10 @@ api --> db`
 
   it('warns when a node is listed in two groups', () => {
     const doc = parse('architecture', 'group "A" {\n  x\n}\ngroup "B" {\n  x\n}');
-    expect(doc.diagnostics).toMatchObject([{ severity: 'warning', line: 8, message: expect.stringContaining('already in group "A"') }]);
+    expect(doc.diagnostics).toMatchObject([
+      { severity: 'warning', line: 4, message: expect.stringContaining('Group "A" has no members') },
+      { severity: 'warning', line: 8, message: expect.stringContaining('already in group "A"') },
+    ]);
     expect(doc.diagrams[0].nodes[0].group).toBe(1);
   });
 
@@ -493,4 +496,28 @@ describe('er', () => {
       expect(e.hint).toMatch(hint);
     });
   }
+});
+
+describe('fixes from the authoring eval', () => {
+  it('reads an undeclared id as words, except an er table name', () => {
+    expect(parse('causal-loop', 'wage_demands -> prices : +').diagrams[0].nodes[0].label).toBe('wage demands');
+    expect(parse('er', 'channel_members.id : uuid {key=yes}').diagrams[0].nodes[0].label).toBe('channel_members');
+  });
+
+  it('puts the criterion of a cell written inside a group into that category', () => {
+    const doc = parse('tradeoffs', 'group "Cost" {\n  a.ops : cheap\n  b.ops : dear\n}');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].nodes.find((n) => n.id === 'ops')!.group).toBe(0);
+  });
+
+  it('warns about a group with no members', () => {
+    const w = parse('architecture', 'a -> b\ngroup "Empty" {\n}').diagnostics[0];
+    expect(w).toMatchObject({ severity: 'warning', message: expect.stringMatching(/no members/) });
+  });
+
+  it('explains that a timeline takes times, not durations', () => {
+    const e = errors(parse('timeline', '0ms crash: "Leader crashes"\n180ms fire: "B fires"'))[0];
+    expect(e.message).toMatch(/is a duration or a number/);
+    expect(e.hint).toMatch(/00:00:05.*crash: "Label"/);
+  });
 });

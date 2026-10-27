@@ -241,17 +241,26 @@ describe('the Press skill', () => {
 });
 
 describe('print layout', () => {
-  it('gives a wide figure a second layout for paper, and leaves a narrow one alone', () => {
-    const wide = build(readFileSync(new URL('../examples/photo-uploads.md', import.meta.url), 'utf8'), { embedFonts: false }).html;
+  // Wide enough for the screen, too wide for paper: six components in a row.
+  const row = '```architecture id=row\n' + Array.from({ length: 5 }, (_, i) => `c${i}: service "Component ${i}"\nc${i} -> c${i + 1}`).join('\n') + '\n```';
+
+  it('gives a figure too wide for paper a second layout, and leaves a narrow one alone', () => {
+    const wide = build(row, { embedFonts: false }).html;
     expect(wide).toMatch(/<svg class="pr-svg pr-architecture pr-screen-only"/);
-    expect(wide).toMatch(/<svg class="pr-svg pr-architecture pr-print-only"[^>]*>.*id="press-uploads-paper-node-api"/);
+    expect(wide).toMatch(/<svg class="pr-svg pr-architecture pr-print-only"[^>]*>.*id="press-row-paper-node-c0"/);
     const narrow = build('```state-machine\na -> b\n```', { embedFonts: false }).html;
     expect(narrow).not.toContain('pr-print-only"');
   });
 
+  it('turns a figure on screen too when it fits better, unless the author chose a direction', () => {
+    const chain = (header: string) => '```architecture' + header + '\n' + Array.from({ length: 9 }, (_, i) => `n${i}: service "A component with a long name ${i}"\nn${i} -> n${i + 1}`).join('\n') + '\n```';
+    const width = (html: string) => Number(/<svg class="pr-svg[^"]*"[^>]*width="(\d+)"/.exec(html)![1]);
+    expect(width(build(chain(''), { embedFonts: false }).html)).toBeLessThan(900);
+    expect(width(build(chain(' direction=right'), { embedFonts: false }).html)).toBeGreaterThan(1500);
+  });
+
   it('keeps the author\'s direction on paper', () => {
-    const src = readFileSync(new URL('../examples/photo-uploads.md', import.meta.url), 'utf8').replace('```architecture id=uploads', '```architecture id=uploads direction=right');
-    expect(build(src, { embedFonts: false }).html).not.toContain('pr-print-only"');
+    expect(build(row.replace('id=row', 'id=row direction=right'), { embedFonts: false }).html).not.toContain('pr-print-only"');
   });
 
   it('drops muted elements on paper only when nothing points at them', () => {

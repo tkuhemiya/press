@@ -104,7 +104,7 @@ function figure(doc: PressDocument, d: Diagram, figId: string): string {
   for (const r of doc.refs) if (r.diagram === d.id) markers.set(r.node, r.marker);
   let drawn: Rendered;
   try {
-    drawn = RENDERERS[d.type](d, markers, figId);
+    drawn = screenLayout(d, markers, figId);
   } catch (err) {
     return `<pre class="pr-error">Press could not draw the ${d.type} on line ${d.line}: ${esc(String((err as Error).message ?? err))}</pre>\n`;
   }
@@ -132,6 +132,25 @@ function figure(doc: PressDocument, d: Diagram, figId: string): string {
     out += `<div class="pr-walk" hidden><span class="pr-count"></span><div class="pr-caption"><span><span class="pr-hint">${steps.length} steps · use ← → to step through</span></span></div><div class="pr-track"></div><button class="pr-btn" data-act="prev" aria-label="Previous step"><svg viewBox="0 0 16 16"><path d="M10 3.5 5.5 8 10 12.5"/></svg></button><button class="pr-btn pr-primary" data-act="next">Walk through</button></div>\n`;
   }
   return out + `</figure>\n`;
+}
+
+// A figure's drawing room on screen: the figure's width inside its padding, and a height
+// beyond which a reader has to scroll to see it whole.
+const SCREEN_W = 870;
+const SCREEN_H = 1000;
+const screenScale = (r: Rendered): number => Math.min(1, SCREEN_W / r.width, SCREEN_H / r.height);
+
+// When the author gives no direction, the layout takes whichever direction fits the figure,
+// keeping the type's own default unless the other is clearly larger.
+function screenLayout(d: Diagram, markers: Map<string, string>, figId: string): Rendered {
+  const drawn = RENDERERS[d.type](d, markers, figId);
+  if (d.direction !== undefined || !TYPE_SPECS[d.type].directional || screenScale(drawn) >= 0.9) return drawn;
+  let best = drawn;
+  for (const direction of ['right', 'down'] as const) {
+    const r = RENDERERS[d.type]({ ...d, direction }, markers, figId);
+    if (screenScale(r) > screenScale(best) * 1.25) best = r;
+  }
+  return best;
 }
 
 // The space a figure has on an A4 page, in CSS pixels: the text width, and the share of the

@@ -37,6 +37,12 @@ If two types fit, pick the one whose *edges* mean what you want to say. A sequen
 are messages in time; an architecture's are standing connections; a state machine's are
 transitions.
 
+**When no type fits**, say so in prose rather than forcing one. Stretching a type is fine
+when its edges still mean the same thing (a commit history is a graph of commits, so
+`architecture` with `direction=right` draws it honestly). It is not fine when the picture
+needs something the type lacks: quantities on axes (supply and demand, a temperature over
+time), bytes in memory, parallel lanes, or claims and rebuttals. Those have no type yet.
+
 ## Principles
 
 - **Meaning, not styling.** Never describe looks. Use `role` to say what something *is*:
@@ -44,7 +50,10 @@ transitions.
   Use roles sparingly: one `focus` per diagram, `happy` and `error` only where they carry the
   point. A diagram where everything has a role says nothing.
 - **Ids are short and lowercase** (`db`, `user_id`, `payment_ok`). Put the reader-facing text in
-  a label: `db: database "Orders DB"`.
+  a label: `db: database "Orders DB"`. An id without a declaration shows as words
+  (`wage_demands` reads "wage demands"), so declare a label whenever capitals, symbols or
+  different wording matter. This works in every type: causal-loop variables and tradeoffs
+  criteria take `id: "Label"` like anything else.
 - **Labels are short.** A node label is a noun phrase; an edge label a few words. Detail
   belongs in prose or in a step caption. `note` is for a short qualifier under a label.
 - **Steps tell the story.** Three to six steps, each a sentence that says *why*, not just
@@ -52,8 +61,9 @@ transitions.
 - **Prose and diagram work together.** Refer to nodes from the text with
   `[the failed state](#order.failed)`; the reader can hover to see it, and print shows a
   lettered marker.
-- **Only `direction` is a layout hint.** Don't fight the layout with extra nodes or ordering
-  tricks.
+- **Only `direction` is a layout hint**, and usually you can leave it out: Press picks the
+  direction that fits. It goes in the fence header: ` ```architecture direction=down `.
+  Don't fight the layout with extra nodes or ordering tricks.
 
 ## The shared grammar
 
@@ -61,12 +71,18 @@ transitions.
 a -> b : label               edge (--> dashed, <-> both ways)
 a -> b -> c                  chain, one edge per segment (no label on a chain)
 id: kind "Label" {attrs}     declaration; kind and label are optional
+id {note="short qualifier"}  a note prints small, under the label
 group "Name" { ... }         grouping
 node.key : value {attrs}     property (er and tradeoffs only)
 # comment
 steps:                       last section: one step per line
-  a -> b "Caption"
+  a -> b "Caption"           a step on an edge
+  a "Caption"                a step on one node (or a property: x.y "Caption")
 ```
+
+The fence header holds `id=`, `title="…"` and `direction=right|down`. Steps work in every
+type. If two edges join the same pair (a request `->` and its reply `-->` count as the same
+pair), name the one you mean by its label: `api -> db : insert "Caption"`.
 
 ## Each type in brief
 
@@ -85,8 +101,10 @@ paid -> end
 
 ### sequence
 
-Participants appear in order of first use; `-->` is a reply. When the same two participants
-exchange several messages, a step picks one by its label: `api -> db : insert "caption"`.
+Participants appear in order of first use; `-->` is a reply. Kinds: `user`, `service`,
+`database`, `queue`, `external` (not `client`; a plain declaration draws a plain box).
+`group "Name" { ... }` boxes participants together. There is no way yet to bracket a run of
+messages into a phase; put phases in step captions or prose.
 
 ```sequence
 client: user "Browser"
@@ -117,9 +135,11 @@ bucket --> jobs : object created
 
 ### timeline
 
-Start an event line with its time (`2019`, `2019-03`, `2019-03-14`, `14:02`,
-`2019-03-14T14:02`). Use one kind of time throughout, in order. `{until=…}` makes a span; a
-group becomes a band. Leave the times off entirely for an evenly spaced sequence of stages.
+Start an event line with its time (`2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30`,
+`2019-03-14T14:02`). Use one kind of time throughout, in order; durations such as `180ms` are
+not times. `{until=…}` makes a span. A group becomes a shaded band over its members' stretch
+of time: it marks a window, not a parallel lane. Leave the times off entirely for an evenly
+spaced sequence of stages.
 
 ```timeline title="Outage"
 14:02 deploy: "v2.3 rolls out"
@@ -131,8 +151,9 @@ deploy -> alerts : caused
 
 ### causal-loop
 
-Every edge label is a polarity: `+` (same direction) or `-` (opposite). Name loops so the
-reader sees them; Press works out R (reinforcing) or B (balancing) from the polarities.
+Every edge label is a polarity: `+` (same direction) or `-` (opposite). `{delay=yes}` marks a
+delayed link with ‖. Name loops so the reader sees them; Press works out R (reinforcing) or
+B (balancing) from the polarities. Declare variables with labels: `rate: "Interest rate"`.
 
 ```causal-loop title="Word of mouth"
 customers -> referrals : +
@@ -168,14 +189,23 @@ or `1..N`, read from the first entity to the second.
 ```er title="Orders"
 users.id : uuid {key=yes}
 orders.id : uuid {key=yes}
-orders.user_id : uuid
-orders.user_id -> users.id : placed by {card=N:1}
+orders.user_id : uuid {null=yes}
+orders.user_id -> users.id : placed by {card=N:0..1}
+
+steps:
+  orders.user_id -> users.id "An order may have no user yet, as for a guest checkout."
 ```
+
+Field attributes: `{key=yes}`, `{unique=yes}`, `{null=yes}`. They describe the field; the
+crow's feet always follow `card`.
 
 ### tradeoffs
 
-Each cell is `option.criterion : value`. Mark how a cell compares with `happy` or `error`, and
-the recommended option with `{role=focus}`. Fill every cell; group criteria into categories.
+Each cell is `option.criterion : value`. Mark how a cell compares with `happy` or `error`
+(`muted` for "not relevant"), and the recommended option with `{role=focus}`. Fill every
+cell. Name criteria with declarations (`revoke: "Revoke at once"`), and group them into
+categories either by listing ids (`group "Security" {` then `revoke`, then `}`) or by writing
+their cells inside the group.
 
 ```tradeoffs title="Session storage"
 postgres: "Postgres" {role=focus}
@@ -195,5 +225,7 @@ cookie.revoke : "at expiry" {role=error}
 | Uppercase or spaced ids: `Order DB` | `orders_db: "Order DB"` |
 | A step for every edge | Three to six steps along the path that matters |
 | An er edge without `card` | `{card=N:1}` |
+| A causal edge drawn through an extra node to mean "slowly" | `{delay=yes}` |
+| Timeline groups used as parallel lanes | One band per window; lanes need prose for now |
 | A causal edge labelled `increases` | `: +` |
 | One diagram explaining two ideas | Two diagrams, each with its own prose |

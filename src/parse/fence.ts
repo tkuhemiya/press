@@ -46,7 +46,9 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     if (i === undefined) {
       i = diagram.nodes.length;
       nodeIndex.set(id, i);
-      diagram.nodes.push({ id, label: id, attrs: {}, group: currentGroup(), line });
+      // Without a declared label, an id reads as words: `wage_demands` shows as "wage demands".
+      // In er an entity's id is its table name, so it stays as written.
+      diagram.nodes.push({ id, label: input.type === 'er' ? id : id.replace(/_/g, ' '), attrs: {}, group: currentGroup(), line });
     }
     return diagram.nodes[i];
   };
@@ -108,8 +110,15 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
         value = v[2] ?? v[1];
       }
       if (reservedSteps(node, line) || reservedSteps(key, line)) continue;
-      ensureNode(node, line);
-      if (input.type === 'tradeoffs') ensureNode(key, line);
+      const isNew = !nodeIndex.has(node);
+      const owner = ensureNode(node, line);
+      if (input.type === 'tradeoffs') {
+        // Options sit outside categories, wherever their cells are written.
+        if (isNew) owner.group = -1;
+        // A cell written inside a group puts its criterion in that category.
+        const criterion = ensureNode(key, line);
+        if (groupStack.length && criterion.group < 0) criterion.group = currentGroup();
+      }
       const at = diagram.props.findIndex((q) => q.node === node && q.key === key);
       if (at >= 0) {
         warn(line, `\`${node}.${key}\` is given twice; the later one wins.`, `Keep one line for it; the first is on line ${diagram.props[at].line}.`);
@@ -140,6 +149,10 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
 
     // A timeline line that starts with a time is an event: <when> id: "Label" {attrs}
     const when = /^(\S+)(.*)$/.exec(text)!;
+    if (input.type === 'timeline' && /^\+?\d+(?:\.\d+)?(?:ms|s|sec|min|m|h|d)?$/.test(when[1]) && !looksLikeTime(when[1]) && /^\s+[a-z]/.test(when[2])) {
+      error(line, `\`${when[1]}\` is a duration or a number, and a timeline places events at dates or clock times.`, `Write a time (${TIME_EXAMPLES}); to show seconds use \`00:00:05\`. For finer steps, leave every time off (\`${when[2].trim().split(/[\s:]/)[0]}: "Label"\`) and put the duration in the label.`);
+      continue;
+    }
     if (input.type === 'timeline' && looksLikeTime(when[1])) {
       const time = parseTime(when[1]);
       if ('error' in time) {
@@ -314,6 +327,13 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     const g = diagram.groups[groupStack[groupStack.length - 1]];
     error(g.line, `Group "${g.label}" is never closed.`, 'Add `}` on its own line after the last member.');
   }
+  diagram.groups.forEach((g, i) => {
+    const members = diagram.nodes.some((n) => {
+      for (let p = n.group; p >= 0; p = diagram.groups[p].parent) if (p === i) return true;
+      return false;
+    });
+    if (!members) warn(g.line, `Group "${g.label}" has no members, so it is not drawn.`, 'List its members by id inside the braces, one per line: `group "Name" {` then `api`, `db`, then `}`.');
+  });
   if (!diagram.nodes.length) warn(input.line, `The ${input.type} fence is empty.`, input.type === 'timeline' ? 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.' : 'Add at least one edge, e.g. `a -> b : label`.');
   if (input.type === 'timeline') checkTimeline(diagram, error, warn);
   if (input.type === 'decision-tree') checkTree(diagram, error);
