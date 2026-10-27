@@ -15,7 +15,7 @@ export interface Rendered {
   svg: Html;
   width: number;
   height: number;
-  scene?: Scene;
+  scene: Scene;
 }
 
 interface Members {

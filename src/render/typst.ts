@@ -20,12 +20,25 @@ type Block =
   | { t: 'quote'; b: Block[] }
   | { t: 'rule' }
   | { t: 'table'; head: Inline[][]; rows: Inline[][][] }
-  | { t: 'figure'; title?: string; scene?: PrintScene; fit: number; beside: boolean; steps: Inline[][]; kind: string };
+  | { t: 'figure'; key: string; title?: string; variants: Variant[]; steps: Inline[][]; kind: string };
+
+interface Variant {
+  scene: PrintScene;
+  fit: number;
+  beside: boolean;
+}
+
+interface Section {
+  heading?: Block;
+  blocks: Block[];
+  keep: boolean;
+  fresh: boolean;
+}
 
 export interface TypstDocument {
   title?: string;
   scale: number;
-  blocks: Block[];
+  sections: Section[];
 }
 
 const PT_PER_PX = 0.62;
@@ -36,9 +49,18 @@ const DIRECTIONS: Direction[] = ['right', 'down'];
 export function typstDocument(doc: Document): TypstDocument {
   const walk = walkDocument(doc);
   const [blocks] = blockRun(walk, 0, undefined);
-  const out: TypstDocument = { scale: PT_PER_PX, blocks };
+  const out: TypstDocument = { scale: PT_PER_PX, sections: sectionsOf(blocks) };
   if (doc.title !== undefined) out.title = doc.title;
   return out;
+}
+
+function sectionsOf(blocks: Block[]): Section[] {
+  return blocks.reduce<Section[]>((out, b) => {
+    if (b.t === 'heading') return [...out, { heading: b, blocks: [], keep: false, fresh: false }];
+    const last = out.at(-1);
+    if (last === undefined) return [{ blocks: [b], keep: false, fresh: false }];
+    return [...out.slice(0, -1), { ...last, blocks: [...last.blocks, b] }];
+  }, []);
 }
 
 function blockRun(walk: Walk, from: number, close: string | undefined): [Block[], number] {
@@ -191,20 +213,29 @@ function draw(v: View, f: Figure, direction?: Direction): Rendered {
 
 const fitOf = (r: Rendered): number => Math.min(1, PAGE_W / (r.width * PT_PER_PX), PAGE_H / (r.height * PT_PER_PX));
 
+const variantOf = (r: Rendered): Variant => ({
+  scene: printScene(r.scene),
+  fit: fitOf(r),
+  beside: r.width * PT_PER_PX * fitOf(r) <= PAGE_W * 0.6,
+});
+
+const sameSize = (a: Rendered, b: Rendered): boolean => a.width === b.width && a.height === b.height;
+
+const distinct = (renders: Rendered[]): Rendered[] =>
+  renders.reduce<Rendered[]>((kept, r) => (kept.some((k) => sameSize(k, r)) ? kept : [...kept, r]), []);
+
 function figure(f: Figure): Block {
   const v = view(f.diagram);
   const first = draw(v, f);
   const tried = v.turnable() ? [first, ...DIRECTIONS.map((d) => draw(v, f, d))] : [first];
   const best = tried.reduce((a, b) => (fitOf(b) > fitOf(a) * 1.1 ? b : a));
-  const fit = fitOf(best);
   const block: Block = {
     t: 'figure',
+    key: f.domId,
     kind: f.diagram.type,
-    fit,
-    beside: best.width * PT_PER_PX * fit <= PAGE_W * 0.6,
+    variants: distinct([best, ...tried]).map(variantOf),
     steps: f.diagram.steps.map((s) => htmlInlines(s.caption)),
   };
   if (f.diagram.title !== undefined) block.title = f.diagram.title;
-  if (best.scene) block.scene = printScene(best.scene);
   return block;
 }

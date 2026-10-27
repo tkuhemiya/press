@@ -59,7 +59,7 @@
   else { curve.close() }
 }
 
-#let label(m, s) = for (i, line) in m.lines.enumerate() {
+#let text-mark(m, s) = for (i, line) in m.lines.enumerate() {
   let plain = text(
     font: sans,
     size: m.size * s,
@@ -91,7 +91,7 @@
   } else if m.k == "path" {
     place(curve(fill: fill-of(m), stroke: stroke-of(m, s), ..m.segs.map(seg => segment(seg, s))))
   } else {
-    label(m, s)
+    text-mark(m, s)
   }
 }
 
@@ -125,34 +125,55 @@
   }
 }
 
-#let figure-block(f) = block(breakable: false, width: 100%, above: 1.3em, below: 1.4em, {
-  if "title" in f { block(below: 6pt, text(font: sans, size: 9pt, weight: 600, fill: ink2, f.title)) }
-  let native = "scene" in f
-  let art = if native {
-    drawing(f.scene, doc.scale * f.fit * 1pt)
-  } else {
-    block(width: 100%, inset: 10pt, stroke: (paint: rule, dash: "dashed"),
-      text(font: sans, size: 8.5pt, fill: ink3)[A #f.kind diagram. Press cannot draw this type natively in print yet.])
-  }
-  if f.steps.len() == 0 { align(center, art) }
-  else if f.beside and native { grid(columns: (auto, 1fr), column-gutter: 18pt, align: horizon, art, legend(f.steps)) }
-  else {
-    let half = calc.ceil(f.steps.len() / 2)
-    align(center, art)
-    v(8pt)
-    grid(columns: (1fr, 1fr), column-gutter: 18pt, legend(f.steps.slice(0, half)), legend(f.steps.slice(half), from: half))
-  }
-})
+// Layout. Each figure has variants (its directions) and may be drawn at k times its size.
+// Candidates go from the largest drawing scale down to 80% of the preferred variant's.
 
-#let blocks(bs) = for b in bs {
+// A zero-height marker before each decision: its position stays put even when the
+// content chosen after it moves to the next page. It also carries the space above that
+// content, since spacing inside a context block does not reach outside it.
+#let anchor(key, gap) = [#block(height: 0pt, above: gap, below: 0pt, width: 100%)[]#label(key)]
+#let room-at(key) = page.height - page.margin.bottom - locate(label(key)).position().y
+#let full-h() = page.height - page.margin.top - page.margin.bottom
+#let content-w = 210mm - 2 * 17mm
+#let key-of(f) = "pm-" + f.key
+
+#let figure-block(f, i: 0, k: 1.0) = {
+  let variant = f.variants.at(i)
+  block(breakable: false, width: 100%, above: 1.3em, below: 1.4em, {
+    if "title" in f { block(below: 6pt, text(font: sans, size: 9pt, weight: 600, fill: ink2, f.title)) }
+    let art = drawing(variant.scene, doc.scale * variant.fit * k * 1pt)
+    if f.steps.len() == 0 { align(center, art) }
+    else if variant.beside { grid(columns: (auto, 1fr), column-gutter: 18pt, align: horizon, art, legend(f.steps)) }
+    else {
+      let half = calc.ceil(f.steps.len() / 2)
+      align(center, art)
+      v(8pt)
+      grid(columns: (1fr, 1fr), column-gutter: 18pt, legend(f.steps.slice(0, half)), legend(f.steps.slice(half), from: half))
+    }
+  })
+}
+
+#let candidates(f) = {
+  let base = f.variants.first().fit
+  let out = ()
+  for (i, v) in f.variants.enumerate() {
+    for k in (1.0, 0.95, 0.9, 0.85, 0.8) {
+      if v.fit * k >= 0.8 * base { out.push((i: i, k: k, scale: v.fit * k)) }
+    }
+  }
+  out.sorted(key: c => (-c.scale, c.i))
+}
+
+
+#let blocks(bs, fig) = for b in bs {
   if b.t == "heading" { heading(level: b.level, inl(b.c)) }
   else if b.t == "para" { par(inl(b.c)) }
   else if b.t == "list" {
-    let items = b.items.map(item => blocks(item))
+    let items = b.items.map(item => blocks(item, fig))
     if b.ordered { enum(..items) } else { list(..items) }
   }
   else if b.t == "code" { block(width: 100%, inset: 8pt, radius: 4pt, fill: rgb("#f5f3ed"), raw(b.s, lang: b.lang, block: true)) }
-  else if b.t == "quote" { quote(block: true, blocks(b.b)) }
+  else if b.t == "quote" { quote(block: true, blocks(b.b, fig)) }
   else if b.t == "rule" { line(length: 100%, stroke: 0.6pt + rule) }
   else if b.t == "table" {
     set text(font: sans, size: 8.5pt)
@@ -165,7 +186,74 @@
       ..b.rows.map(r => r.map(c => inl(c))).flatten(),
     )
   }
-  else if b.t == "figure" { figure-block(b) }
+  else if b.t == "figure" { fig(b) }
 }
 
-#blocks(doc.blocks)
+#let one(b, fig) = blocks((b,), fig)
+
+// A heading placed directly before a figure travels with it, in one unbreakable block.
+#let lead-with(lead, body) = if lead == none { body } else { block(breakable: false, width: 100%, { one(lead, none); body }) }
+#let unit-of(f, c, lead) = lead-with(lead, figure-block(f, i: c.i, k: c.k))
+
+// The largest candidate that fits the room left, measured from the marker; otherwise the
+// first that fits a fresh page (the block then moves there), otherwise the smallest.
+#let fig-place(f, key, lead: none) = context {
+  let cs = candidates(f)
+  let space = room-at(key)
+  let measured = cs.map(c => (c: c, h: measure(unit-of(f, c, lead), width: content-w).height))
+  let placed = measured.find(m => m.h + 16pt <= space)
+  let whole = measured.find(m => m.h <= full-h())
+  let pick = if placed != none { placed } else if whole != none { whole } else { measured.sorted(key: m => m.h).first() }
+  unit-of(f, pick.c, lead)
+}
+
+#let fig-flow(f, lead: none) = {
+  anchor(key-of(f), if lead == none { 1.3em } else { 1.7em })
+  fig-place(f, key-of(f), lead: lead)
+}
+
+#let section-head(s, fig) = if s.at("heading", default: none) != none { one(s.heading, fig) }
+
+#let flow-section(s) = {
+  let lead = s.at("heading", default: none)
+  if lead != none and s.blocks.len() > 0 and s.blocks.first().t == "figure" {
+    fig-flow(s.blocks.first(), lead: lead)
+    blocks(s.blocks.slice(1), fig-flow)
+  } else {
+    section-head(s, fig-flow)
+    blocks(s.blocks, fig-flow)
+  }
+}
+
+#let keep-section(s, i) = {
+  let key = "pm-sec-" + str(i)
+  let unit(level) = block(breakable: false, width: 100%, {
+    let fig = f => {
+      let cs = candidates(f)
+      let c = cs.at(calc.min(level, cs.len() - 1))
+      figure-block(f, i: c.i, k: c.k)
+    }
+    section-head(s, fig)
+    blocks(s.blocks, fig)
+  })
+  anchor(key, if s.at("heading", default: none) == none { 0.95em } else { 1.7em })
+  context {
+    let w = content-w
+    let space = room-at(key)
+    let measured = range(8).map(c => (c: c, h: measure(unit(c), width: w).height))
+    let placed = measured.find(m => m.h + 16pt <= space)
+    let whole = measured.find(m => m.h <= full-h())
+    if placed != none { unit(placed.c) }
+    else if whole != none {
+      pagebreak(weak: true)
+      unit(whole.c)
+    }
+    else { flow-section(s) }
+  }
+}
+
+#for (i, s) in doc.sections.enumerate() {
+  if s.fresh { pagebreak(weak: true) }
+  if s.keep { keep-section(s, i) }
+  else { flow-section(s) }
+}
