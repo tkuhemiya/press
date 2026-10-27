@@ -109,6 +109,39 @@ waiting -> end
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
+  it('draws a timeline: events on an axis, spans, a band and a cause arc', () => {
+    const src = readFileSync(new URL('../examples/incident.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-timeline"');
+    expect(count(svg, /class="pr-node pr-event/g)).toBe(6);
+    expect(count(svg, /class="pr-span"/g)).toBe(1);
+    expect(count(svg, /class="pr-group pr-band"/g)).toBe(1);
+    expect(count(svg, /class="pr-edge"/g)).toBe(1);
+    expect(svg).toContain('>14:02<');
+    expect(svg).toContain('>14:30<');
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('never runs a timeline stem through another card', () => {
+    // A dense cluster: every card is wider than the gap to the next event.
+    const body = Array.from({ length: 8 }, (_, i) => `14:0${i} e${i}: "A rather long event label ${i}"`).join('\n');
+    const { html } = build('```timeline\n' + body + '\n```', { embedFonts: false });
+    const cards = [...html.matchAll(/<rect class="pr-box" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    const stems = [...html.matchAll(/<path class="pr-stem" d="M([\d.]+),([\d.]+)V([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    expect(cards).toHaveLength(8);
+    for (const [sx, y0, y1] of stems)
+      for (const [x, y, w, h] of cards) expect(sx > x && sx < x + w && Math.min(y0, y1) < y && Math.max(y0, y1) > y + h).toBe(false);
+  });
+
+  it('formats calendar times and ticks', () => {
+    const { html } = build('```timeline\n2019-03 a: "A"\n2021-06-14 b: "B"\n```', { embedFonts: false });
+    expect(html).toContain('>Mar 2019<');
+    expect(html).toContain('>14 Jun 2021<');
+    expect(html).toMatch(/class="pr-tick-label"[^>]*>2020</);
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);

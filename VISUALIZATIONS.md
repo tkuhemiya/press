@@ -34,7 +34,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 | Type       | Shows                  | Version | Status  |
 |------------|------------------------|---------|---------|
-| `timeline` | Events in order        | 0.2     | spec    |
+| `timeline` | Events in order        | 0.2     | done    |
 
 ## ML
 

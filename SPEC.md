@@ -197,6 +197,8 @@ Events in order. This type adds one line form, the event, with the time first so
 | clock time | `14:02`, `14:02:30` |
 | date and time | `2019-03-14T14:02` |
 
+- The label is optional, as in any declaration: `14:02 deploy` is an event labelled `deploy`.
+- Each event's card shows its time, written out for reading: `14:02`, `Mar 2019`, `14 Mar 2019`, `14 Mar 2019, 14:02`.
 - Spacing follows real time. Calendar forms (the first three and date-and-time) may be mixed in one fence; clock times may not be mixed with calendar forms.
 - Events are expected in chronological order. An event earlier than the one above it is a warning, since it is usually a typo.
 - `{until=<when>}` makes an event a span that lasts until that time: a deploy freeze, an outage. `until` takes the same form as the event's own time and may not be earlier.
