@@ -24,13 +24,20 @@
     bar.hidden = false;
 
     const nodes = (id) => svg.querySelectorAll(`.pr-node[data-node="${CSS.escape(id)}"]`);
+    // Parts that belong to a node, such as the cells of a tradeoffs option, stay in view with it.
+    const parts = (id) => svg.querySelectorAll(`[data-in~="${CSS.escape(id)}"]`);
+    // A property (`node.key`) keeps the node it belongs to in view.
+    const owner = (id) => (id.includes('.') ? nodes(id.slice(0, id.indexOf('.'))) : []);
     const edgeParts = (i) => svg.querySelectorAll(`.pr-edge[data-edge="${i}"], .pr-edge-label[data-edge="${i}"]`);
     const mark = (step, cls) => {
-      if (step.edge !== undefined) {
-        edgeParts(step.edge).forEach((el) => el.classList.add(cls));
-        nodes(step.from).forEach((el) => el.classList.add(cls));
-        nodes(step.to).forEach((el) => el.classList.add(cls));
-      } else nodes(step.node).forEach((el) => el.classList.add(cls));
+      const near = cls === 'is-current' ? 'is-near' : cls;
+      const ids = step.edge !== undefined ? [step.from, step.to] : [step.node];
+      if (step.edge !== undefined) edgeParts(step.edge).forEach((el) => el.classList.add(cls));
+      for (const id of ids) {
+        nodes(id).forEach((el) => el.classList.add(cls));
+        parts(id).forEach((el) => el.classList.add(near));
+        owner(id).forEach((el) => el.classList.add(near));
+      }
     };
 
     function setCaption(html) {
@@ -55,7 +62,7 @@
       at = i;
       cancelAnimationFrame(motion);
       svg.querySelectorAll('.pr-pulse, .pr-pulse-halo').forEach((el) => el.remove());
-      svg.querySelectorAll('.is-current, .is-visited, .is-arrived').forEach((el) => el.classList.remove('is-current', 'is-visited', 'is-arrived'));
+      svg.querySelectorAll('.is-current, .is-visited, .is-arrived, .is-near').forEach((el) => el.classList.remove('is-current', 'is-visited', 'is-arrived', 'is-near'));
       fig.classList.toggle('pr-walking', i > 0);
       ticks.forEach((t, k) => {
         t.classList.toggle('is-done', k < i - 1);
@@ -136,13 +143,16 @@
     const fig = document.getElementById(ref.dataset.figure);
     if (!fig) continue;
     const targets = () => fig.querySelectorAll(`.pr-node[data-node="${CSS.escape(ref.dataset.node)}"]`);
+    const parts = () => fig.querySelectorAll(`[data-in~="${CSS.escape(ref.dataset.node)}"]`);
     const on = () => {
       fig.classList.add('pr-pointing');
       targets().forEach((el) => el.classList.add('is-pointed'));
+      parts().forEach((el) => el.classList.add('is-near'));
     };
     const off = () => {
       fig.classList.remove('pr-pointing');
       targets().forEach((el) => el.classList.remove('is-pointed'));
+      parts().forEach((el) => el.classList.remove('is-near'));
     };
     ref.addEventListener('mouseenter', on);
     ref.addEventListener('mouseleave', off);

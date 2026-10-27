@@ -167,8 +167,74 @@ waiting -> end
       for (const [x2, y2, w2, h2] of boxes.slice(i + 1)) expect(x < x2 + w2 && x2 < x + w && y < y2 + h2 && y2 < y + h).toBe(false);
   });
 
+  it('draws a decision tree: questions as boxes, outcomes as pills, answers on the edges', () => {
+    const src = readFileSync(new URL('../examples/caching.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-decision-tree"');
+    expect(count(svg, /class="pr-box pr-question"/g)).toBe(3);
+    expect(count(svg, /class="pr-box pr-outcome"/g)).toBe(4);
+    expect(count(svg, /class="pr-edge pr-dashed"/g)).toBe(1);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('draws a tradeoffs table: a chosen column, marked cells, a category band', () => {
+    const src = readFileSync(new URL('../examples/sessions.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-tradeoffs"');
+    expect(count(svg, /class="pr-node pr-cell/g)).toBe(15);
+    expect(svg).toMatch(/class="pr-node pr-col pr-option" data-node="postgres"[^>]*data-role="focus"/);
+    expect(svg).toMatch(/data-node="cookie\.revoke" data-in="cookie revoke"[^>]*data-role="error"/);
+    expect(count(svg, /class="pr-good"/g)).toBe(8);
+    expect(count(svg, /class="pr-group pr-band"/g)).toBe(1);
+    expect(count(svg, /class="pr-step-marker"/g)).toBe(4);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('turns a tradeoffs table with direction=down and draws a missing cell as a dash', () => {
+    const { html } = build('```tradeoffs direction=down\na.x : 1\na.y : 2\nb.x : 3\n```', { embedFonts: false });
+    expect(html).toMatch(/class="pr-node pr-row pr-option" data-node="a"/);
+    expect(html).toMatch(/class="pr-node pr-col pr-criterion" data-node="x"/);
+    expect(html).toMatch(/pr-missing" data-node="b\.y"[\s\S]*?>—</);
+  });
+
+  it('draws an er diagram: entities of fields, crow\'s feet from the written cardinality', () => {
+    const src = readFileSync(new URL('../examples/orders-schema.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-er"');
+    expect(count(svg, /class="pr-node pr-entity"/g)).toBe(4);
+    expect(count(svg, /class="pr-node pr-field/g)).toBe(14);
+    expect(count(svg, /class="pr-node pr-field pr-key"/g)).toBe(4);
+    expect(svg).toMatch(/data-node="orders\.coupon_id" data-in="orders"/);
+    expect(svg).toContain('uuid · null');
+    // N:1, N:0..1 and 1..N:1: rings for each zero end (N, N, 0..1).
+    expect(count(svg, /class="pr-crow-ring"/g)).toBe(3);
+    expect(count(svg, /class="pr-step-marker"/g)).toBe(3);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('lights the fields of a reference in the walkthrough', () => {
+    const { html } = build('```er\na.id : uuid {key=yes}\nb.a_id : uuid\nb.a_id -> a.id {card=N:1}\n\nsteps:\n  b.a_id -> a.id "x"\n```', { embedFonts: false });
+    expect(html).toContain('"from":"b.a_id","to":"a.id"');
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);
+  });
+});
+
+describe('the Press skill', () => {
+  it('teaches only Press that builds cleanly', () => {
+    const skill = readFileSync(new URL('../skills/press/SKILL.md', import.meta.url), 'utf8');
+    const body = skill.replace(/^---[\s\S]*?---\n/, '');
+    const { diagnostics, html } = build(body, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(8);
   });
 });

@@ -4,9 +4,12 @@ import type { Diagram, DiagramType } from '../model.ts';
 import type { PressDocument } from '../parse/document.ts';
 import { renderArchitecture } from '../diagrams/architecture.ts';
 import { renderCausalLoop } from '../diagrams/causal-loop.ts';
+import { renderDecisionTree } from '../diagrams/decision-tree.ts';
+import { renderEr } from '../diagrams/er.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
 import { renderStateMachine } from '../diagrams/state-machine.ts';
 import { renderTimeline } from '../diagrams/timeline.ts';
+import { renderTradeoffs } from '../diagrams/tradeoffs.ts';
 import { esc, type Rendered } from './svg.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
@@ -53,7 +56,7 @@ export function renderHtml(doc: PressDocument, options: HtmlOptions = {}): strin
     if (!ref) return defaultLink(tokens, idx, opts, env, self);
     const diagram = byId.get(ref.diagram)!;
     const figId = figureIds.get(diagram)!;
-    const role = diagram.nodes.find((x) => x.id === ref.node)?.role;
+    const role = (diagram.nodes.find((x) => x.id === ref.node) ?? diagram.props.find((p) => `${p.node}.${p.key}` === ref.node))?.role;
     return `<a class="pr-ref" href="#${figId}-node-${esc(ref.node)}" data-figure="${figId}" data-node="${esc(ref.node)}" data-marker="${esc(ref.marker)}"${role ? ` data-role="${role}"` : ''}>`;
   };
 
@@ -65,7 +68,7 @@ export function renderHtml(doc: PressDocument, options: HtmlOptions = {}): strin
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="Press 0.2">
+<meta name="generator" content="Press 0.3">
 <title>${esc(doc.title ?? 'Press')}</title>
 <style>
 ${options.embedFonts === false ? '' : fonts()}
@@ -89,8 +92,11 @@ const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, 
   architecture: renderArchitecture,
   'causal-loop': renderCausalLoop,
   timeline: renderTimeline,
+  'decision-tree': renderDecisionTree,
+  er: renderEr,
+  tradeoffs: renderTradeoffs,
 };
-const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline' };
+const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline', 'decision-tree': 'Decision tree', er: 'Entity-relationship', tradeoffs: 'Tradeoffs' };
 
 function figure(doc: PressDocument, d: Diagram, figId: string): string {
   const markers = new Map<string, string>();
@@ -107,7 +113,8 @@ function figure(doc: PressDocument, d: Diagram, figId: string): string {
     const html = doc.md.renderInline(s.caption);
     if (s.target.type === 'node') return { node: s.target.id, caption: s.caption, html };
     const e = d.edges[s.target.index];
-    return { edge: e.index, from: e.from, to: e.to, caption: s.caption, html };
+    // An edge between fields lights the fields themselves.
+    return { edge: e.index, from: e.fromKey ? `${e.from}.${e.fromKey}` : e.from, to: e.toKey ? `${e.to}.${e.toKey}` : e.to, caption: s.caption, html };
   });
   let out = `<figure class="pr-figure" id="${figId}" data-type="${d.type}" data-anchor="${esc(anchor)}"${steps.length ? ' data-steps tabindex="0"' : ''} aria-label="${esc(label)}">\n`;
   if (d.title) out += `<figcaption class="pr-title">${esc(d.title)}</figcaption>\n`;

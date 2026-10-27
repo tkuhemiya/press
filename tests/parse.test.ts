@@ -366,3 +366,131 @@ describe('causal-loop', () => {
     expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringContaining('no meaning') });
   });
 });
+
+describe('properties', () => {
+  it('reads node.key : value with attributes, in types that have them', () => {
+    const doc = parse('tradeoffs', 'redis.ops : "another service" {role=error}\nredis.revoke : yes\nredis.latency {role=happy}');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].props.map((p) => [p.node, p.key, p.value, p.role])).toEqual([
+      ['redis', 'ops', 'another service', 'error'],
+      ['redis', 'revoke', 'yes', undefined],
+      ['redis', 'latency', undefined, 'happy'],
+    ]);
+  });
+
+  it('rejects a property in a type without them, naming the types that have them', () => {
+    const e = errors(parse('state-machine', 'a.b : c'))[0];
+    expect(e.message).toMatch(/is a property/);
+    expect(e.hint).toMatch(/`er`.*`tradeoffs`|`tradeoffs`.*`er`/);
+  });
+
+  it('warns when a property is given twice', () => {
+    const doc = parse('er', 'a.id : uuid\na.id : int');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringMatching(/given twice/) });
+    expect(doc.diagrams[0].props).toHaveLength(1);
+  });
+
+  it('steps and prose references can name a property', () => {
+    const doc = parseDocument('```tradeoffs id=t\nredis.ops : x\n\nsteps:\n  redis.ops "Costs"\n```\n\nSee [ops](#t.redis.ops).\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'node', id: 'redis.ops' });
+    expect(doc.refs[0].node).toBe('redis.ops');
+  });
+
+  it('only er edges join fields', () => {
+    const e = errors(parse('state-machine', 'a.x -> b'))[0];
+    expect(e.message).toMatch(/only er edges join fields/);
+  });
+});
+
+describe('decision-tree', () => {
+  it('parses the spec example cleanly', () => {
+    const doc = parse('decision-tree', 'reads -> stale : yes\nreads -> skip : no\nstale -> cache : yes\nstale --> skip : no');
+    expect(doc.diagnostics).toEqual([]);
+  });
+
+  const cases: [string, string, RegExp, RegExp][] = [
+    ['unlabelled branch', 'a -> b : yes\na -> c', /does not say which/, /a -> c : yes/],
+    ['two roots', 'a -> b\nc -> d', /has one root.*2/, /a -> c/],
+    ['a path that loops back', 'a -> b\nb -> c\nc -> a', /loops back: a -> b -> c -> a/, /state-machine/],
+    ['two-way arrow', 'a <-> b', /`<->` is not allowed/, /a -> b : yes/],
+  ];
+  for (const [name, body, message, hint] of cases) {
+    it(name, () => {
+      const e = errors(parse('decision-tree', body))[0];
+      expect(e, name).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+    });
+  }
+
+  it('lets branches rejoin', () => {
+    expect(parse('decision-tree', 'a -> b : yes\na -> c : no\nb -> d\nc -> d').diagnostics).toEqual([]);
+  });
+});
+
+describe('tradeoffs', () => {
+  const warnings = (doc: ReturnType<typeof parseDocument>) => doc.diagnostics.filter((d) => d.severity === 'warning');
+
+  it('reads options, criteria and cells', () => {
+    const doc = parse('tradeoffs', 'a: "A" {role=focus}\na.x : 1\na.y : 2 {role=happy}\nb.x : 3\nb.y : 4');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].nodes.map((n) => n.id)).toEqual(['a', 'x', 'y', 'b']);
+  });
+
+  it('rejects edges, suggesting a cell', () => {
+    const e = errors(parse('tradeoffs', 'a -> b'))[0];
+    expect(e.message).toMatch(/has no edges/);
+    expect(e.hint).toMatch(/a\.b : value/);
+  });
+
+  it('rejects an id used as both option and criterion', () => {
+    expect(errors(parse('tradeoffs', 'a.b : 1\nb.c : 2'))[0].message).toMatch(/both as an option/);
+  });
+
+  it('warns about missing cells, naming them', () => {
+    const w = warnings(parse('tradeoffs', 'a.x : 1\na.y : 2\nb.x : 3'));
+    expect(w[0].message).toMatch(/`b` has no value for `y`/);
+    expect(w[0].hint).toMatch(/b\.y : value/);
+  });
+
+  it('warns about unused declarations and options inside groups', () => {
+    const w = warnings(parse('tradeoffs', 'z: "Unused"\ngroup "G" {\n  a: "A"\n}\na.x : 1'));
+    expect(w.map((x) => x.message).join(' ')).toMatch(/`z` is declared but no cell uses it.*`a` is an option/);
+  });
+});
+
+describe('er', () => {
+  const schema = 'users.id : uuid {key=yes}\norders.id : uuid {key=yes}\norders.user_id : uuid {null=yes}';
+
+  it('reads fields and references between them', () => {
+    const doc = parse('er', `${schema}\norders.user_id -> users.id : placed by {card=N:0..1}`);
+    expect(doc.diagnostics).toEqual([]);
+    const [e] = doc.diagrams[0].edges;
+    expect([e.from, e.fromKey, e.to, e.toKey, e.label, e.attrs.card]).toEqual(['orders', 'user_id', 'users', 'id', 'placed by', 'N:0..1']);
+  });
+
+  it('reads entity-level edges, and steps over field edges', () => {
+    const doc = parse('er', `${schema}\nusers -> teams : member of {card=N:N}\norders.user_id -> users.id {card=N:1}\n\nsteps:\n  orders.user_id -> users.id "Placed by"`);
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'edge', index: 1 });
+  });
+
+  const cases: [string, string, RegExp, RegExp][] = [
+    ['missing card', 'orders.user_id -> users.id', /needs a cardinality/, /card=N:1/],
+    ['card in words', 'orders.user_id -> users.id {card=many-to-one}', /not a cardinality/, /card=N:1/],
+    ['an undeclared field', 'orders.user_id -> users.uuid {card=N:1}', /`users\.uuid` is not a field/, /users\.uuid : uuid/],
+    ['field to entity', 'orders.user_id -> users {card=N:1}', /joins a field to a whole entity/, /orders -> users/],
+    ['two-way arrow', 'orders <-> users {card=N:1}', /`<->` is not allowed/, /card=N:1/],
+    ['key=true', 'users.name : text {key=true}', /`key=true` is not understood/, /key=yes/],
+    ['card on a field', 'users.name : text {card=1:1}', /belongs on an edge/, /card=1:1/],
+  ];
+  for (const [name, body, message, hint] of cases) {
+    it(name, () => {
+      const e = errors(parse('er', `${schema}\n${body}`))[0];
+      expect(e, name).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+    });
+  }
+});

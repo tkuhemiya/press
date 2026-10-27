@@ -150,6 +150,47 @@ th { font-weight: 600; }
 .pr-edge-label[data-role="error"] .pr-polarity { fill: var(--error); }
 .pr-edge-label[data-role="muted"] .pr-polarity { fill: var(--muted-ink); }
 
+/* Decision tree. Outcomes end a path: a pill on a faint fill, with a heavier outline. */
+.pr-outcome { fill: var(--group-fill); stroke-width: 1.6; }
+
+/* Tradeoffs. A cell's tint and mark say how it compares; the box itself is drawn only to highlight. */
+.pr-rule { fill: none; stroke: var(--rule); stroke-width: 1; }
+.pr-head { font-weight: 600; }
+.pr-row-head { font-weight: 500; fill: var(--ink-2); }
+.pr-value { font-size: 13.5px; fill: var(--ink); text-anchor: middle; }
+.pr-missing .pr-value { fill: var(--ink-3); }
+.pr-good { fill: var(--happy); }
+.pr-tradeoffs .pr-line-box { fill: none; stroke: none; }
+.pr-tradeoffs .pr-cell-box { fill: none; stroke: none; }
+.pr-tradeoffs .pr-cell[data-role="happy"] .pr-cell-box { fill: var(--happy-fill); stroke: none; }
+.pr-tradeoffs .pr-cell[data-role="error"] .pr-cell-box { fill: var(--error-fill); stroke: none; }
+.pr-tradeoffs .pr-cell[data-role="error"] .pr-value { fill: var(--error); }
+.pr-tradeoffs .pr-cell[data-role="muted"] .pr-value { fill: var(--muted-ink); }
+.pr-tradeoffs .pr-cell[data-role="focus"] .pr-cell-box { stroke: var(--focus); stroke-width: 1.6; }
+.pr-tradeoffs .pr-col[data-role="focus"] .pr-line-box { fill: var(--focus-fill); stroke: var(--focus); stroke-width: 2; }
+.pr-tradeoffs .pr-col[data-role="focus"] .pr-head { fill: var(--focus); }
+.pr-tradeoffs .pr-row[data-role="focus"] .pr-line-box { fill: var(--focus-fill); stroke: var(--focus); stroke-width: 2; }
+
+/* ER. */
+.pr-entity-head { fill: var(--group-fill); }
+.pr-entity-rule { stroke: var(--node-line); stroke-width: 1; }
+.pr-entity-name { font-weight: 600; }
+.pr-er .pr-field-box { fill: none; stroke: none; }
+.pr-field-name { font-weight: 500; font-size: 13px; fill: var(--ink); }
+.pr-key .pr-field-name { text-decoration: underline; text-underline-offset: 2px; }
+.pr-field-type { font-size: 11.5px; fill: var(--ink-3); text-anchor: end; font-family: var(--mono); }
+.pr-key-glyph { stroke: var(--ink-3); stroke-width: 1.2; }
+.pr-crow { fill: none; stroke: var(--edge); stroke-width: 1.4; stroke-linejoin: round; }
+.pr-crow-ring { fill: var(--fig-bg); stroke: var(--edge); stroke-width: 1.4; }
+.pr-er .pr-field[data-role="focus"] .pr-field-box { fill: var(--focus-fill); }
+.pr-er .pr-field[data-role="error"] .pr-field-box { fill: var(--error-fill); }
+.pr-er .pr-field[data-role="happy"] .pr-field-box { fill: var(--happy-fill); }
+.pr-er .pr-field[data-role="muted"] .pr-field-name { fill: var(--muted-ink); }
+.pr-edge[data-role="focus"] .pr-crow { stroke: var(--focus); }
+.pr-edge[data-role="focus"] .pr-crow-ring { stroke: var(--focus); }
+.pr-edge[data-role="error"] .pr-crow, .pr-edge[data-role="error"] .pr-crow-ring { stroke: var(--error); }
+.pr-edge[data-role="happy"] .pr-crow, .pr-edge[data-role="happy"] .pr-crow-ring { stroke: var(--happy); }
+
 /* Roles. In grayscale they still differ: focus and happy by weight, error by hatching, muted by lightness. */
 .pr-node[data-role="focus"] .pr-box { stroke: var(--focus); fill: var(--focus-fill); stroke-width: 2; }
 .pr-node[data-role="happy"] .pr-box { stroke: var(--happy); fill: var(--happy-fill); stroke-width: 2; }
@@ -178,6 +219,8 @@ th { font-weight: 600; }
   .pr-walking .is-current { opacity: 1; }
   .pr-walking .pr-edge.is-current .pr-line { stroke: var(--signal); stroke-width: 2.4; }
   .pr-walking .pr-edge.is-current .pr-head { fill: var(--signal); }
+  .pr-walking .pr-edge.is-current .pr-crow, .pr-walking .pr-edge.is-current .pr-crow-ring { stroke: var(--signal); }
+  .pr-walking .pr-field.is-current .pr-field-box { fill: color-mix(in srgb, var(--signal) 8%, white); stroke: var(--signal); stroke-width: 1.4; }
   .pr-walking .pr-edge-label.is-current .pr-elabel, .pr-walking .pr-edge-label.is-current .pr-polarity { fill: var(--signal); font-weight: 600; }
   .pr-walking .pr-loop { opacity: 0.3; transition: opacity 0.45s var(--ease); }
   .pr-walking .pr-node.is-current .pr-box { stroke: var(--signal); stroke-width: 2; }
@@ -189,6 +232,7 @@ th { font-weight: 600; }
 
   .pr-pointing .pr-node, .pr-pointing .pr-edge, .pr-pointing .pr-edge-label { opacity: 0.35; }
   .pr-pointing .pr-node.is-pointed { opacity: 1; }
+  .pr-walking .is-near, .pr-pointing .is-near { opacity: 1; }
   .pr-pointing .pr-node.is-pointed .pr-box { stroke: var(--signal); stroke-width: 2.2; }
 }
 
