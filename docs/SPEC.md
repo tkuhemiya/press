@@ -33,7 +33,7 @@ group "Name" { ... }           nesting
 - A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are lowercase letters, digits, `_` and `-`. A `-` must sit between two other characters, so `a-->b` reads as an edge, never as an id. Labels are quoted strings.
 - Values containing spaces are quoted: `{note="retried up to 3 times"}`.
-- `note` is the one attribute besides `role` that every type accepts. A node's note prints in small type under its label; it is for a short qualifier, not a sentence. `er` and `tradeoffs` keep it in the source but do not draw it.
+- `note` is the one attribute besides `role` that every type accepts. A node's note prints in small type under its label; it is for a short qualifier, not a sentence. `er` keeps it in the source but does not draw it; in `tradeoffs` a cell's note is its caveat.
 - Chains may mix arrows (`a -> b --> c`). Attributes at the end of a chain apply to every segment, so `start -> draft -> paid {role=happy}` marks a whole path. A label is ambiguous on a chain and is an error; give the labelled edge its own line.
 - `steps` is a reserved word in every diagram type, and each type may reserve more (see its keywords). Using one as a node id is an error.
 
@@ -240,10 +240,12 @@ Events in order. This type adds one line form, the event, with the time first so
 | day | `2019-03-14` |
 | clock time | `14:02`, `14:02:30` |
 | date and time | `2019-03-14T14:02` |
+| time since the start | `0ms`, `+150ms`, `+1.5s`, `+2min`, `+3h`, `+2d` |
 
 - The label is optional, as in any declaration: `14:02 deploy` is an event labelled `deploy`.
 - Each event's card shows its time, written out for reading: `14:02`, `Mar 2019`, `14 Mar 2019`, `14 Mar 2019, 14:02`.
-- Spacing follows real time. Calendar forms (the first three and date-and-time) may be mixed in one fence; clock times may not be mixed with calendar forms.
+- Spacing follows real time. Calendar forms (the first three and date-and-time) may be mixed in one fence; clock times and times since the start may not be mixed with each other or with calendar forms.
+- *New in v0.4.* A time since the start is a number and a unit (`ms`, `s`, `min`, `h`, `d`), with an optional leading `+`. Use it for latencies and timeouts, where only the gaps matter. A number with no unit, or `m` for minutes, is an error that suggests the unit.
 - Events are expected in chronological order. An event earlier than the one above it is a warning, since it is usually a typo.
 - `{until=<when>}` makes an event a span that lasts until that time: a deploy freeze, an outage. `until` takes the same form as the event's own time and may not be earlier.
 - A group becomes a span covering its members: an era, an impact window.
@@ -251,6 +253,23 @@ Events in order. This type adds one line form, the event, with the time first so
 - **Undated timelines.** If no event has a `<when>`, events are ordinary node declarations (`id: "Label"`) and are spaced evenly in source order. A fence is either dated or undated; mixing the two is an error, and `until` needs a dated timeline.
 - `direction=right` (the default) runs time left to right; `direction=down` runs it top to bottom, for many events or long labels.
 - In a timeline, a line that starts with a `<when>` is an event, so ids cannot themselves be dates.
+
+**Lanes.** *New in v0.4.* Keyword: `lane`, reserved.
+
+```
+lane "Server B" {
+  +150ms wait: "Waits" {until=180ms}
+  +180ms fire: "Becomes candidate"
+}
+```
+
+- A lane is a parallel track: one server, one spacecraft, one git branch. Lanes stack top to bottom in source order and share one time axis.
+- Once a fence has a lane, every event belongs to one. An event belongs to the lane it is declared or first used in.
+- Events are expected in order within each lane, not across lanes.
+- Edges join events in the same lane or in different lanes: a message, a merge, a handover.
+- Lanes do not nest, and a lane cannot be inside a group or hold one. A group lists its members by id after the lanes, and draws as a window across all of them.
+- In an undated timeline with lanes, events are spaced in an order that respects both each lane's order and the edges, so `c1 -> f1 : branch` puts `f1` after `c1`.
+- A timeline with lanes runs left to right; `direction=down` is ignored with a warning.
 
 Node kinds: none.
 
@@ -345,7 +364,8 @@ Here every order is placed by exactly one user and a user has any number of orde
 
 Options compared across criteria. Each cell is a property: `option.criterion : value {attrs}`. The node on the left of the dot is an option, the key on the right a criterion; declarations give either a display name. There are no edges: an edge is an error that says so.
 
-- The value is short text: `"<1 ms"`, `yes`, `"another service"`. A cell's role says how it compares: `{role=happy}` favourable, `{role=error}` unfavourable, no role neutral, `{role=muted}` not relevant. Favourable and unfavourable cells stay distinct in grayscale: a filled mark and a hatched cell.
+- The value is short text: `"<1 ms"`, `yes`, `"another service"`. A cell's role says how it compares: `{role=happy}` favourable, `{role=error}` unfavourable, no role neutral, `{role=muted}` not relevant.
+- *New in v0.4.* A cell's `note` is its caveat, printed small under the value: `mongo.tx : yes {note="multi-document since 4.0"}`. A neutral cell with a note is marked with a hollow ring: neither good nor bad, but read the small print. Favourable and unfavourable cells stay distinct in grayscale: a filled mark and a hatched cell.
 - `{role=focus}` on an option marks the recommendation, and its column is drawn as chosen.
 - Options and criteria appear in order of first use. A declared id that no cell uses is a warning. A missing cell draws as a dash and is a warning that names it, since a comparison with gaps is usually unfinished.
 - A group of criteria is a category (`group "Operations" { ops  revoke }`) and draws as a band of rows.

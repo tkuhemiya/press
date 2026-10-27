@@ -597,10 +597,10 @@ describe('fixes from the authoring eval', () => {
     expect(w).toMatchObject({ severity: 'warning', message: expect.stringMatching(/no members/) });
   });
 
-  it('explains that a timeline takes times, not durations', () => {
-    const e = errors(parse('timeline', '0ms crash: "Leader crashes"\n180ms fire: "B fires"'))[0];
-    expect(e.message).toMatch(/is a duration or a number/);
-    expect(e.hint).toMatch(/00:00:05.*crash: "Label"/);
+  it('explains a number with no unit on a timeline', () => {
+    const e = errors(parse('timeline', '0ms crash: "Leader crashes"\n180 fire: "B fires"'))[0];
+    expect(e.message).toMatch(/`180` has no unit/);
+    expect(e.hint).toMatch(/`180ms`/);
   });
 });
 
@@ -718,5 +718,81 @@ Bad: [x](#s.a->b) [y](#s.c->a) [z](#c.x->z).
     );
     expect(d.loops[0].id).toBe('g');
     expect(d.steps[0].target).toEqual({ type: 'edges', id: 'g' });
+  });
+});
+
+describe('timeline: time since the start', () => {
+  it('reads durations with units as times', () => {
+    const doc = parse('timeline', '0ms crash: "Crash"\n+150ms wait: "Wait" {until=1.5s}\n+2min done: "Done"');
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'timeline');
+    expect(d.dating).toBe('elapsed');
+    if (d.dating === 'undated') throw new Error('dated');
+    expect(d.nodes.map((n) => [n.at.value, n.lastsMs])).toEqual([
+      [0, undefined],
+      [150, 1350],
+      [120_000, undefined],
+    ]);
+  });
+
+  it('will not mix them with clock times', () => {
+    const e = errors(parse('timeline', '0ms a: "A"\n14:02 b: "B"'))[0];
+    expect(e.message).toMatch(/clock time, but `0ms` above is a time since the start/);
+  });
+});
+
+describe('timeline lanes', () => {
+  const body = `lane "Server A" {
+  0ms crash: "Crash"
+}
+lane "Server B" {
+  +150ms fire: "Fires"
+  +180ms lead: "Leads"
+}
+crash -> fire`;
+
+  it('puts each event in the lane it is written in', () => {
+    const doc = parse('timeline', body);
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'timeline');
+    expect(d.lanes.map((l) => l.label)).toEqual(['Server A', 'Server B']);
+    expect(d.nodes.map((n) => [n.id, n.lane])).toEqual([
+      ['crash', 0],
+      ['fire', 1],
+      ['lead', 1],
+    ]);
+  });
+
+  it('checks order within a lane only', () => {
+    const doc = parse('timeline', 'lane "A" {\n  2020 a: "A"\n}\nlane "B" {\n  2019 b: "B"\n}');
+    expect(doc.diagnostics).toEqual([]);
+  });
+
+  it('needs every event in a lane once there are lanes', () => {
+    const e = errors(parse('timeline', 'lane "A" {\n  2020 a: "A"\n}\n2021 b: "B"'))[0];
+    expect(e.message).toMatch(/`b` is in no lane/);
+    expect(e.hint).toMatch(/lane "A" \{/);
+  });
+
+  it('reports lane mistakes with a fix', () => {
+    const cases: [string, string, RegExp][] = [
+      ['timeline', 'lane "A" {\n  2020 a', /never closed/],
+      ['timeline', 'lane A {\n}', /quoted name/],
+      ['timeline', 'group "G" {\n  lane "A" {\n  }\n}', /lane cannot be inside a group/],
+      ['timeline', 'lane "A" {\n  group "G" {\n  }\n}', /group cannot be inside a lane/],
+      ['sequence', 'lane "A" {\n  a -> b\n}', /has no lanes/],
+    ];
+    for (const [type, src, message] of cases) {
+      const errs = errors(parse(type, src));
+      expect(errs.map((e) => e.message).join('\n')).toMatch(message);
+      expect(errs.every((e) => e.hint)).toBe(true);
+    }
+  });
+});
+
+describe('tradeoffs caveats', () => {
+  it('keeps a cell note as its caveat', () => {
+    const d = first(parse('tradeoffs', 'a.x : yes {note="since 4.0"}\nb.x : no'), 'tradeoffs');
+    expect(d.cells[0]).toMatchObject({ value: 'yes', note: 'since 4.0' });
   });
 });

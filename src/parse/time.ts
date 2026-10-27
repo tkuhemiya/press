@@ -8,13 +8,19 @@ const FORMS: [TimeForm, RegExp][] = [
   ['clock', /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/],
 ];
 
-export const TIME_EXAMPLES = '`2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30` or `2019-03-14T14:02`';
+export const TIME_EXAMPLES =
+  '`2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30`, `2019-03-14T14:02`, or a time since the start such as `0ms`, `+150ms` or `+2s`';
+
+const ELAPSED = /^\+?(\d+(?:\.\d+)?)(ms|s|min|h|d)$/;
+const UNIT_MS: Record<string, number> = { ms: 1, s: 1000, min: 60_000, h: 3_600_000, d: 86_400_000 };
 
 export function looksLikeTime(word: string): boolean {
-  return /^\d{4}(?:$|[-T])|^\d{1,2}:\d/.test(word);
+  return /^\d{4}(?:$|[-T])|^\d{1,2}:\d/.test(word) || ELAPSED.test(word);
 }
 
 export function parseTime(text: string): Time | { error: string } {
+  const elapsed = ELAPSED.exec(text);
+  if (elapsed) return { text, form: 'elapsed', value: Number(elapsed[1]) * UNIT_MS[elapsed[2]] };
   for (const [form, re] of FORMS) {
     const m = re.exec(text);
     if (!m) continue;

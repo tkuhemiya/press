@@ -6,7 +6,7 @@ import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
 
 export type Attrs = ReadonlyMap<string, string>;
 
-export type LineForm = 'event' | 'loop' | 'prop' | 'field' | 'phase';
+export type LineForm = 'event' | 'loop' | 'prop' | 'field' | 'phase' | 'lane';
 
 export interface Grammar {
   reserved: readonly string[];
@@ -24,6 +24,7 @@ interface Meaning {
   attrs: Attrs;
   group?: GroupId;
   phase?: PhaseIndex;
+  lane?: number;
   line: number;
 }
 
@@ -65,6 +66,7 @@ export interface Fence {
   line: number;
   groups: FenceGroup[];
   phases: FencePhase[];
+  lanes: { label: string; line: number }[];
   statements: Statement[];
   steps: RawStep[];
 }
@@ -119,14 +121,14 @@ function isArrow(value: string): value is Arrow {
 
 export function parseFence(input: FenceInput, report: Reporter): Fence {
   const { grammar, type } = input;
-  const fence: Fence = { type, line: input.line, groups: [], phases: [], statements: [], steps: [] };
+  const fence: Fence = { type, line: input.line, groups: [], phases: [], lanes: [], statements: [], steps: [] };
   const has = (form: LineForm) => grammar.forms.includes(form);
   const knownAttrs = new Set(['role', 'note', ...grammar.attrs]);
   const { error, warn } = report;
 
   parseHeader(input, fence, report);
 
-  type Open = { kind: 'group'; at: GroupId } | { kind: 'phase'; at: PhaseIndex };
+  type Open = { kind: 'group'; at: GroupId } | { kind: 'phase'; at: PhaseIndex } | { kind: 'lane'; at: number };
   const open: Open[] = [];
   const top = (): Open | undefined => open.at(-1);
   const current = (): GroupId | undefined => {
@@ -136,6 +138,10 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
   const currentPhase = (): PhaseIndex | undefined => {
     const o = top();
     return o?.kind === 'phase' ? o.at : undefined;
+  };
+  const currentLane = (): number | undefined => {
+    const o = top();
+    return o?.kind === 'lane' ? o.at : undefined;
   };
   let inSteps = false;
   const lines = input.body.split('\n');
@@ -214,8 +220,48 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
       open.push({ kind: 'phase', at: phaseIndex(fence.phases.length - 1) });
       continue;
     }
+    const lane = /^lane\b\s*(.*)$/.exec(text);
+    if (lane && (has('lane') || /\{\s*$/.test(text))) {
+      if (!has('lane')) {
+        error(
+          line,
+          `A ${type} has no lanes.`,
+          `Lanes put events on parallel tracks in ${list(input.formsElsewhere('lane'))}. Here, use \`group "Name" {\` to box nodes together.`,
+        );
+        continue;
+      }
+      const m = /^"([^"]*)"\s*\{$/.exec(lane[1]);
+      if (!m) {
+        error(
+          line,
+          'A lane needs a quoted name and an opening brace.',
+          'Write it as `lane "Server A" {`, with its events on the lines below and `}` on its own line.',
+        );
+        continue;
+      }
+      const o = top();
+      if (o) {
+        error(
+          line,
+          `A lane cannot be inside a ${o.kind}.`,
+          `Close the ${o.kind} with \`}\` first. Lanes sit side by side at the top level.`,
+        );
+        continue;
+      }
+      fence.lanes.push({ label: m[1], line });
+      open.push({ kind: 'lane', at: fence.lanes.length - 1 });
+      continue;
+    }
     const group = /^group\b\s*(.*)$/.exec(text);
     if (group) {
+      if (currentLane() !== undefined) {
+        error(
+          line,
+          'A group cannot be inside a lane.',
+          'Put the group after the lanes, and list its members by id: `group "Name" {`, then `a`, `b`, then `}`.',
+        );
+        continue;
+      }
       if (currentPhase() !== undefined) {
         error(
           line,
@@ -273,6 +319,8 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
       if (g !== undefined) out.group = g;
       const p = currentPhase();
       if (p !== undefined) out.phase = p;
+      const l = currentLane();
+      if (l !== undefined) out.lane = l;
       return out;
     };
     const reservedLoop = (id: string): boolean => {
@@ -281,6 +329,14 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
           line,
           `\`loop\` is a reserved word in a ${type} and cannot be a node id.`,
           'Rename the node. To name a feedback loop, write `loop "Name": a -> b -> a`.',
+        );
+        return true;
+      }
+      if (has('lane') && id === 'lane') {
+        error(
+          line,
+          `\`lane\` is a reserved word in a ${type} and cannot be a node id.`,
+          'Rename the node. To start a parallel track, write `lane "Name" {` with its events on the lines below.',
         );
         return true;
       }
@@ -361,8 +417,8 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
       if (/^\+?\d+(?:\.\d+)?(?:ms|s|sec|min|m|h|d)?$/.test(word) && !looksLikeTime(word) && /^\s+[a-z]/.test(after)) {
         error(
           line,
-          `\`${word}\` is a duration or a number, and a ${type} places events at dates or clock times.`,
-          `Write a time (${TIME_EXAMPLES}); to show seconds use \`00:00:05\`. For finer steps, leave every time off (\`${after.trim().split(/[\s:]/)[0]}: "Label"\`) and put the duration in the label.`,
+          `\`${word}\` has no unit Press knows, so it is not a time.`,
+          `Write a time since the start with a unit: \`${word.replace(/(sec|m)$/, (u) => (u === 'm' ? 'min' : 's')).replace(/^(\+?[\d.]+)$/, '$1ms')}\`. Units are \`ms\`, \`s\`, \`min\`, \`h\` and \`d\`. Other forms: ${TIME_EXAMPLES}.`,
         );
         continue;
       }
@@ -545,6 +601,9 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
   } else if (unclosed?.kind === 'phase') {
     const p = fence.phases[unclosed.at];
     error(p.line, `Phase "${p.label}" is never closed.`, 'Add `}` on its own line after its last message.');
+  } else if (unclosed?.kind === 'lane') {
+    const l = fence.lanes[unclosed.at];
+    error(l.line, `Lane "${l.label}" is never closed.`, 'Add `}` on its own line after its last event.');
   }
   return fence;
 }

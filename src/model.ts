@@ -131,7 +131,7 @@ export type CausalLoop = Graph<Node, Link, NodeTarget | EdgeTarget | EdgesTarget
   loops: Loop[];
 };
 
-export type TimeForm = 'year' | 'month' | 'day' | 'datetime' | 'clock';
+export type TimeForm = 'year' | 'month' | 'day' | 'datetime' | 'clock' | 'elapsed';
 
 export interface Time {
   text: string;
@@ -139,18 +139,27 @@ export interface Time {
   value: number;
 }
 
-export type DatedEvent = Node & { at: Time; lastsMs?: number };
+export type Dating = 'clock' | 'calendar' | 'elapsed';
+
+export type Moment = Node & { lane?: number };
+export type DatedEvent = Moment & { at: Time; lastsMs?: number };
+
+export interface Lane {
+  label: string;
+  line: number;
+}
 
 type TimelineBase = Header & {
   type: 'timeline';
   direction?: Direction;
   edges: Edge[];
   groups: Group[];
+  lanes: Lane[];
   steps: Step<NodeTarget | EdgeTarget>[];
 };
 
 export type Timeline = TimelineBase &
-  ({ dating: 'undated'; nodes: Node[] } | { dating: 'clock' | 'calendar'; nodes: DatedEvent[] });
+  ({ dating: 'undated'; nodes: Moment[] } | { dating: Dating; nodes: DatedEvent[] });
 
 export type DecisionTree = Graph<Node, Edge<'->' | '-->'>, NodeTarget | EdgeTarget> & {
   type: 'decision-tree';
@@ -192,6 +201,7 @@ export interface Cell {
   option: NodeId;
   criterion: NodeId;
   value?: string;
+  note?: string;
   role?: Role;
   line: number;
 }

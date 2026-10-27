@@ -17,6 +17,7 @@ The language is in `docs/SPEC.md`. This file is how to write it well.
 4. Write the fence. Set `id` and `title` when prose will refer to the diagram.
 5. Add `steps:` when order matters. Link a node from prose with `[text](#id.node)`, an edge with `[text](#id.from->to)`.
 6. Run `press check doc.md`. Fix every error and every warning. Each message names the line and states a fix you can apply as written.
+7. Build it and look: `press build doc.md --out-dir out`, then open the HTML, and `press pdf doc.md -o doc.pdf` for paper. The checker cannot see raw ids used as labels, text shrunk too small, or a figure that says something other than you meant. If you cannot open a browser, say so to the user rather than skipping this step silently.
 
 ## Choose a type
 
@@ -33,7 +34,7 @@ The language is in `docs/SPEC.md`. This file is how to write it well.
 
 If two types fit, pick the one whose edges mean what you want to say. A sequence edge is a message in time. An architecture edge is a standing connection. A state-machine edge is a transition.
 
-**No type fits.** Write that part as prose. Stretch a type only when its edges still mean the same thing. A commit history is a graph of commits, so `architecture` with `direction=right` draws it honestly. Stop when the picture needs something the type lacks. Press has no type yet for quantities on axes, such as supply and demand or temperature over time. It also has no type for bytes in memory, parallel lanes, or claims and rebuttals.
+**No type fits.** Write that part as prose. Stretch a type only when its edges still mean the same thing. A commit history is a graph of commits, so `architecture` with `direction=right` draws it honestly. Stop when the picture needs something the type lacks. Press has no type yet for quantities on axes, such as supply and demand or temperature over time. It also has no type for bytes in memory, or claims and rebuttals.
 
 ## Principles
 
@@ -114,7 +115,21 @@ bucket --> jobs : object created
 
 ### timeline
 
-Start an event line with its time. The forms are `2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30`, and `2019-03-14T14:02`. Use one form throughout, and keep the lines in order. A duration such as `180ms` is not a time. `{until=…}` makes a span. A group becomes a shaded band across the time its members cover. The band marks a window. It does not draw a parallel lane. Leave the times off when you want evenly spaced stages.
+Start an event line with its time. The forms are `2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30`, and `2019-03-14T14:02`. For latencies and timeouts, use a time since the start: `0ms`, `+150ms`, `+2s`, `+5min`. Use one kind throughout, and keep the lines in order. `{until=…}` makes a span. A group becomes a shaded band across the time its members cover. Leave the times off when you want evenly spaced stages.
+
+`lane "Name" { ... }` puts events on a parallel track: one per server, spacecraft, or git branch. Once there is a lane, every event goes in one. Edges may cross lanes, such as a vote request or a merge.
+
+```timeline title="Election"
+lane "Server B" {
+  +150ms b_fires: "Becomes candidate"
+  +180ms b_leads: "Leads term 5" {role=happy}
+}
+lane "Server C" {
+  +165ms c_votes: "Votes for B"
+}
+b_fires -> c_votes : RequestVote
+c_votes -> b_leads : granted
+```
 
 ```timeline title="Outage"
 14:02 deploy: "v2.3 rolls out"
@@ -170,7 +185,7 @@ Field attributes are `{key=yes}`, `{unique=yes}`, and `{null=yes}`. They describ
 
 ### tradeoffs
 
-Each cell is `option.criterion : value`. Mark a cell with `happy` or `error`. Use `muted` when the cell is not relevant. Mark the recommended option with `{role=focus}`. Fill every cell. Name a criterion with a declaration, as in `revoke: "Revoke at once"`. To put criteria in a category, either list their ids in the group, or write their cells inside the group. Listing ids looks like `group "Security" {`, then `revoke`, then `}`.
+Each cell is `option.criterion : value`. Mark a cell with `happy` or `error`. Use `muted` when the cell is not relevant. When a value is neither good nor bad but has a catch, leave the role off and give it a note, as in `mongo.tx : yes {note="multi-document since 4.0"}`. The note prints under the value. Mark the recommended option with `{role=focus}`. Fill every cell. Name a criterion with a declaration, as in `revoke: "Revoke at once"`. To put criteria in a category, either list their ids in the group, or write their cells inside the group. Listing ids looks like `group "Security" {`, then `revoke`, then `}`.
 
 ```tradeoffs title="Session storage"
 postgres: "Postgres" {role=focus}
@@ -191,6 +206,7 @@ cookie.revoke : "at expiry" {role=error}
 | A step for every edge | Three to six steps along the path that matters |
 | An er edge without `card` | `{card=N:1}` |
 | A causal edge drawn through an extra node to mean "slowly" | `{delay=yes}` |
-| Timeline groups used as parallel lanes | One band per window. Lanes need prose for now |
+| Timeline groups used as parallel lanes | `lane "Name" { ... }`. A group is a window across time |
+| A neutral cell marked `error` because it has a catch | No role, and `{note="the catch"}` |
 | A causal edge labelled `increases` | `: +` |
 | One diagram explaining two ideas | Two diagrams, each with its own prose |

@@ -42,6 +42,7 @@ interface DraftProp {
   node: NodeId;
   key: NodeId;
   value?: string;
+  note?: string;
   role?: Role;
   attrs: Attrs;
   line: number;
@@ -168,6 +169,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
         }
         const prop: DraftProp = { node: s.node, key: s.key, attrs: s.attrs, line: s.line };
         if (s.value !== undefined) prop.value = s.value;
+        if (s.note !== undefined) prop.note = s.note;
         if (s.role) prop.role = s.role;
         props.push(prop);
         break;

@@ -371,6 +371,18 @@ th {
   text-anchor: middle;
   font-variant-numeric: tabular-nums;
 }
+.pr-lane-label {
+  font-weight: 600;
+  font-size: 12.5px;
+  fill: var(--ink-2);
+  text-anchor: start;
+}
+.pr-grid {
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
 .pr-tick-label.pr-tick-down {
   text-anchor: end;
 }
@@ -502,6 +514,11 @@ th {
 }
 .pr-good {
   fill: var(--happy);
+}
+.pr-caveat {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.4;
 }
 .pr-tradeoffs .pr-line-box {
   fill: none;
