@@ -2,7 +2,9 @@ import { targetName, type Arrow, type EdgeIndex, type NodeId, type Role, type Ta
 import type { RenderContext } from './diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { arrowhead, badge, esc, n, roleAttr, textBlock } from '../render/svg.ts';
+import { arrowhead, badgeItem, linesItem } from '../render/svg.ts';
+import { attr, type Attrs, type Item } from '../scene/scene.ts';
+import { paintItem, paintItems } from '../scene/svg.ts';
 
 const LABEL_FONT = 12.5;
 const LABEL_LINE = 16;
@@ -19,7 +21,7 @@ export interface NodeShape {
   w: number;
   h: number;
   pseudo?: boolean;
-  draw(box: Box, attrs: string): string;
+  draw(box: Box, attrs: Attrs): Item;
 }
 
 export interface TextLines {
@@ -43,15 +45,23 @@ export function measureLabel(label: string, noteText: string | undefined, maxWid
   return { lines, note, first: textWidth(lines[0] ?? '', FONT, 'sans500'), w, h };
 }
 
-export function drawText(t: TextLines, x: number, cy: number, align: 'middle' | 'start' = 'middle'): string {
+export const hatchItems = (node: { role?: Role }, b: Box, r: number): Item[] =>
+  node.role === 'error' ? [{ type: 'rect', cls: 'pr-hatch-fill', ...b, r, hatch: true }] : [];
+
+export function textItems(t: TextLines, x: number, cy: number, align: 'middle' | 'start' = 'middle'): Item[] {
   const labelH = t.lines.length * LINE;
   const top = cy - t.h / 2;
   const start = align === 'start' ? ' pr-start' : '';
-  let s = textBlock(t.lines, x, top + labelH / 2, LINE, 'pr-label' + start);
-  if (t.note.length)
-    s += textBlock(t.note, x, top + labelH + 4 + (t.note.length * NOTE_LINE) / 2, NOTE_LINE, 'pr-note' + start);
-  return s;
+  const label = linesItem(t.lines, x, top + labelH / 2, LINE, 'pr-label' + start);
+  if (!t.note.length) return [label];
+  return [
+    label,
+    linesItem(t.note, x, top + labelH + 4 + (t.note.length * NOTE_LINE) / 2, NOTE_LINE, 'pr-note' + start),
+  ];
 }
+
+export const drawText = (t: TextLines, x: number, cy: number, align: 'middle' | 'start' = 'middle'): string =>
+  paintItems(textItems(t, x, cy, align), '');
 
 export interface Labelled {
   index: number;
@@ -61,21 +71,39 @@ export interface Labelled {
 
 export type EdgeLike = Labelled & { from: string; to: string; arrow: Arrow };
 
-export function edgeSvg(e: EdgeLike, p: EdgePath, both: boolean): string {
-  let s = `<g class="pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}" data-edge="${e.index}" data-from="${esc(e.from)}" data-to="${esc(e.to)}"${roleAttr(e.role)}>`;
-  s += `<path class="pr-line" d="${p.d}"/>`;
-  s += `<path class="pr-head" d="${arrowhead(p.ex, p.ey, p.edx, p.edy)}"/>`;
-  if (both) s += `<path class="pr-head" d="${arrowhead(p.sx, p.sy, p.sdx, p.sdy)}"/>`;
-  return s + '</g>';
+export function edgeItem(e: EdgeLike, p: EdgePath, both: boolean): Item {
+  const heads: Item[] = both ? [{ type: 'path', cls: 'pr-head', d: arrowhead(p.sx, p.sy, p.sdx, p.sdy) }] : [];
+  return {
+    type: 'group',
+    cls: `pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}`,
+    attrs: [['data-edge', String(e.index)], ['data-from', e.from], ['data-to', e.to], ...attr('data-role', e.role)],
+    items: [
+      { type: 'path', cls: 'pr-line', d: p.d },
+      { type: 'path', cls: 'pr-head', d: arrowhead(p.ex, p.ey, p.edx, p.edy) },
+      ...heads,
+    ],
+  };
 }
 
-export function labelSvg(e: Labelled, x: number, y: number, onGroup: boolean): string {
+export const edgeSvg = (e: EdgeLike, p: EdgePath, both: boolean): string => paintItem(edgeItem(e, p, both), '');
+
+export function labelItem(e: Labelled, x: number, y: number, onGroup: boolean): Item {
   const lines = e.label ? wrap(e.label, LABEL_FONT, MAX_EDGE_LABEL) : [];
   const w = Math.max(...lines.map((l) => textWidth(l, LABEL_FONT))) + 8;
   const h = lines.length * LABEL_LINE + 2;
-  const plate = `<rect class="pr-elabel-plate" x="${n(x - w / 2)}" y="${n(y - h / 2)}" width="${n(w)}" height="${n(h)}" rx="3"/>`;
-  return `<g class="pr-edge-label${onGroup ? ' pr-on-group' : ''}" data-edge="${e.index}"${roleAttr(e.role)}>${plate}${textBlock(lines, x, y, LABEL_LINE, 'pr-elabel')}</g>`;
+  return {
+    type: 'group',
+    cls: `pr-edge-label${onGroup ? ' pr-on-group' : ''}`,
+    attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+    items: [
+      { type: 'rect', cls: 'pr-elabel-plate', x: x - w / 2, y: y - h / 2, w, h, r: 3 },
+      linesItem(lines, x, y, LABEL_LINE, 'pr-elabel'),
+    ],
+  };
 }
+
+export const labelSvg = (e: Labelled, x: number, y: number, onGroup: boolean): string =>
+  paintItem(labelItem(e, x, y, onGroup), '');
 
 export const nodeTargets = (nodes: readonly { id: NodeId }[]): Target[] =>
   nodes.map((node) => ({ type: 'node', id: node.id }));
@@ -101,13 +129,13 @@ export interface Anchor {
   w?: number;
 }
 
-export function markers(
+export function markerItems(
   d: { steps: readonly { target: Target }[] },
   boxes: ReadonlyMap<string, Box>,
   anchors: ReadonlyMap<number, Anchor>,
   refMarkers: ReadonlyMap<string, string>,
-): string[] {
-  const out: string[] = [];
+): Item[] {
+  const out: Item[] = [];
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {
     const t = s.target;
@@ -117,7 +145,7 @@ export function markers(
     const k = stacked.get(key) ?? 0;
     stacked.set(key, k + 1);
     const x = t.type === 'edge' ? spot.x - 6 : spot.x;
-    out.push(badge('pr-step-marker', ` data-step="${i + 1}"`, x - k * 18, spot.y, String(i + 1)));
+    out.push(badgeItem('pr-step-marker', [['data-step', String(i + 1)]], x - k * 18, spot.y, String(i + 1)));
   });
   for (const [id, letter] of refMarkers) {
     const edge = /^#(\d+)$/.exec(id);
@@ -125,13 +153,22 @@ export function markers(
     if (edge) {
       if (a)
         out.push(
-          badge('pr-ref-marker', ` data-edge="${edge[1]}"`, a.w === undefined ? a.x + 14 : a.x + a.w + 6, a.y, letter),
+          badgeItem(
+            'pr-ref-marker',
+            [['data-edge', edge[1]]],
+            a.w === undefined ? a.x + 14 : a.x + a.w + 6,
+            a.y,
+            letter,
+          ),
         );
       continue;
     }
     const b = boxes.get(id);
     if (!b) continue;
-    out.push(badge('pr-ref-marker', ` data-node="${esc(id)}"`, b.x + b.w, b.y, letter));
+    out.push(badgeItem('pr-ref-marker', [['data-node', id]], b.x + b.w, b.y, letter));
   }
   return out;
 }
+
+export const markers = (...args: Parameters<typeof markerItems>): string[] =>
+  markerItems(...args).map((item) => paintItem(item, ''));

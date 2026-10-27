@@ -169,6 +169,18 @@ export function parseDocument(source: string): Document {
   return doc;
 }
 
+export interface Walk {
+  tokens: readonly Token[];
+  figure(token: Token): Figure | undefined;
+  ref(token: Token): Ref | undefined;
+}
+
+export function walkDocument(doc: Document): Walk {
+  const p = parsed.get(doc);
+  if (!p) throw new Error('walkDocument needs a document from parseDocument.');
+  return { tokens: p.tokens, figure: (t) => p.figures.get(t), ref: (t) => p.refs.get(t) };
+}
+
 export function renderDocument(doc: Document, weave: Weave): Html {
   const p = parsed.get(doc);
   if (!p) throw new Error('renderDocument needs a document from parseDocument.');
