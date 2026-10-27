@@ -1,5 +1,4 @@
-// Reads and orders the `<when>` of a timeline event (SPEC.md, `timeline`).
-import type { Time, TimeForm } from '../model.ts';
+import type { Time, TimeForm } from './model.ts';
 
 const FORMS: [TimeForm, RegExp][] = [
   ['year', /^(\d{4})$/],
@@ -11,12 +10,10 @@ const FORMS: [TimeForm, RegExp][] = [
 
 export const TIME_EXAMPLES = '`2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30` or `2019-03-14T14:02`';
 
-// Whether a word is meant as a time, valid or not: four digits, or digits and a colon.
 export function looksLikeTime(word: string): boolean {
   return /^\d{4}(?:$|[-T])|^\d{1,2}:\d/.test(word);
 }
 
-// A time, or a message saying what is wrong with it.
 export function parseTime(text: string): Time | { error: string } {
   for (const [form, re] of FORMS) {
     const m = re.exec(text);
@@ -43,5 +40,3 @@ export function parseTime(text: string): Time | { error: string } {
   }
   return { error: `Cannot read \`${text}\` as a time.` };
 }
-
-export const isClock = (t: Time): boolean => t.form === 'clock';

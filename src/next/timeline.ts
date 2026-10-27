@@ -1,14 +1,139 @@
-// Lays out and draws a timeline: events on an axis spaced by real time (or evenly, when
-// undated), spans as bars beside the axis, groups as bands, and cause edges as arcs.
-//
-// Across (direction=right), outward from the axis: span lanes, then event cards in lanes,
-// each card joined to its dot by a stem. Tick labels and cause arcs sit on the other side.
-// Down (direction=down) is the same picture turned: one column of cards, pushed apart where
-// they would overlap.
-import type { Diagram, DiagramNode, Time } from '../model.ts';
-import { drawText, edgeSvg, labelSvg, markers, measureText, type Box, type TextLines } from './graph.ts';
+import type { DatedEvent, Group, Node, Time, Timeline } from './model.ts';
+import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
+import type { Fence } from './grammar.ts';
+import type { Reporter } from './diagnostics.ts';
+import { GRAMMARS } from './grammars.ts';
+import { buildGraph, groupDepth, inGroup, keepOnly, lean, resolveSteps, toNode, type DraftNode } from './graph.ts';
+import { parseTime } from './time.ts';
+import { trusted } from './brand.ts';
+import { drawText, edgeSvg, labelSvg, markers, measureLabel, type Box, type TextLines } from '../diagrams/graph.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { arrowhead, esc, HEAD, n, roleAttr, type Rendered } from '../render/svg.ts';
+import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
+
+export const TIMELINE: DiagramDef<'timeline'> = {
+  type: 'timeline',
+  name: 'Timeline',
+  grammar: GRAMMARS.timeline,
+  build,
+  render,
+  withoutMuted(d, pinned) {
+    if (d.dating === 'undated') {
+      const kept = lean(d, pinned);
+      return kept && { ...d, ...kept };
+    }
+    const kept = lean(d, pinned);
+    return kept && { ...d, ...kept };
+  },
+};
+
+type Dated = DraftNode & { at: Time };
+const isDated = (node: DraftNode): node is Dated => node.at !== undefined;
+
+function build(fence: Fence, report: Reporter): Timeline {
+  const { error, warn } = report;
+  const graph = buildGraph(fence, report, {
+    label: (id) => id.replace(/_/g, ' '),
+    empty: 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.',
+  });
+  const header: Pick<Timeline, 'type' | 'id' | 'title' | 'direction' | 'line'> = { type: 'timeline', line: fence.line };
+  if (fence.id !== undefined) header.id = fence.id;
+  if (fence.title !== undefined) header.title = fence.title;
+  if (fence.direction !== undefined) header.direction = fence.direction;
+
+  const events = [...graph.nodes].sort((a, b) => a.line - b.line);
+  for (const node of events)
+    if (/^\d{4}(?:-\d{2}){0,2}$/.test(node.id) && !node.at)
+      error(
+        node.line,
+        `\`${node.id}\` looks like a date, so it cannot be an id in a timeline.`,
+        `To make it an event, give it an id after the time: \`${node.id} launch: "Label"\`.`,
+      );
+
+  const dated = events.filter(isDated);
+  const [first] = dated;
+  if (!first) {
+    for (const e of events)
+      if (e.attrs.has('until'))
+        error(
+          e.line,
+          '`until` needs a dated timeline.',
+          `Give every event a time, e.g. \`2019 ${e.id}: "${e.label}" {until=2021}\`, or remove \`until\`.`,
+        );
+    const steps = resolveSteps(fence.steps, graph.nodes, graph.edges, report);
+    return {
+      ...header,
+      dating: 'undated',
+      nodes: graph.nodes.map(toNode),
+      edges: graph.edges,
+      groups: graph.groups,
+      steps,
+    };
+  }
+
+  for (const e of events)
+    if (!e.at)
+      error(
+        e.line,
+        `\`${e.id}\` has no time, but other events in this timeline do.`,
+        `Give it one, e.g. \`${first.at.text} ${e.id}: "${e.label}"\`. A timeline is either dated or undated throughout.`,
+      );
+  const dating = first.at.form === 'clock' ? 'clock' : 'calendar';
+  const clock = dated.find((e) => e.at.form === 'clock');
+  const calendar = dated.find((e) => e.at.form !== 'clock');
+  const lasting = new Map<Dated, number>();
+  if (clock && calendar) {
+    const [late, early] = clock.line > calendar.line ? [clock, calendar] : [calendar, clock];
+    const kind = (e: Dated) => (e === clock ? 'clock time' : 'date');
+    error(
+      late.line,
+      `\`${late.at.text}\` is a ${kind(late)}, but \`${early.at.text}\` above is a ${kind(early)}.`,
+      'Use one kind throughout: clock times like `14:02`, or dates like `2019-03-14` and `2019-03-14T14:02`.',
+    );
+  } else {
+    let prev: Dated | undefined;
+    for (const e of dated) {
+      if (prev && e.at.value < prev.at.value)
+        warn(
+          e.line,
+          `\`${e.id}\` (${e.at.text}) is earlier than \`${prev.id}\` (${prev.at.text}) above it.`,
+          'Events are listed in order. Move the line up, or check the time for a typo.',
+        );
+      prev = e;
+      const until = e.attrs.get('until');
+      if (until === undefined) continue;
+      const t = parseTime(until);
+      if ('error' in t)
+        error(e.line, `\`until\`: ${t.error}`, `Write it in the same form as the event's time, \`${e.at.text}\`.`);
+      else if (t.form !== e.at.form)
+        error(
+          e.line,
+          `\`until=${until}\` is not in the same form as the event's time, \`${e.at.text}\`.`,
+          `Write both the same way, e.g. \`${e.at.text} ${e.id}: "${e.label}" {until=${e.at.text}}\` with the end time.`,
+        );
+      else if (t.value < e.at.value)
+        error(
+          e.line,
+          `\`${e.id}\` ends (${until}) before it starts (${e.at.text}).`,
+          'Check the two times; `until` is when the span ends.',
+        );
+      else lasting.set(e, t.value - e.at.value);
+    }
+  }
+
+  const steps = resolveSteps(fence.steps, graph.nodes, graph.edges, report);
+  const fits = (e: Dated) => (e.at.form === 'clock') === (dating === 'clock');
+  const nodes = graph.nodes
+    .filter(isDated)
+    .filter(fits)
+    .map((e): DatedEvent => {
+      const event: DatedEvent = { ...toNode(e), at: e.at };
+      const lasts = lasting.get(e);
+      if (lasts !== undefined) event.lastsMs = lasts;
+      return event;
+    });
+  const kept = keepOnly({ nodes, edges: graph.edges, groups: graph.groups, steps });
+  return { ...header, dating, ...kept };
+}
 
 const MARGIN = 16;
 const MAX_LABEL = 150;
@@ -18,7 +143,7 @@ const TIME_FONT = 11.5;
 const TIME_H = 15;
 const CARD_GAP = 12;
 const STEM = 16;
-// How far a card reaches left of its stem.
+
 const FLAG = 12;
 const SPAN_LANE = 12;
 const SPAN_H = 6;
@@ -31,59 +156,63 @@ const LABEL_FONT = 12.5;
 const LABEL_LINE = 16;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-interface Event {
-  node: DiagramNode;
-  // Position along the axis, from 0.
+interface Card {
+  node: Node;
   at: number;
   end?: number;
   time: string;
   text: TextLines;
   w: number;
   h: number;
-  // Card box, and the span lane when the event lasts.
   box: Box;
   lane: number;
 }
 
-export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domId: string): Rendered {
+interface Band {
+  label: string;
+  from: number;
+  to: number;
+  depth: number;
+}
+
+function card(node: Node, time: string): Card {
+  const text = measureLabel(node.label, node.note, MAX_LABEL);
+  const w = Math.ceil(Math.max(text.w, textWidth(time, TIME_FONT, 'sans500')) + 2 * PAD_X);
+  const h = Math.ceil(text.h + (time ? TIME_H : 0) + 2 * PAD_Y);
+  return { node, at: 0, time, text, w, h, box: { x: 0, y: 0, w, h }, lane: -1 };
+}
+
+function render(d: Timeline, context: RenderContext): Rendered {
+  const { domId } = context;
   const across = (d.direction ?? 'right') === 'right';
-  const dated = d.nodes.some((node) => node.time);
-  const sorted = dated
-    ? [...d.nodes].filter((node) => node.time).sort((a, b) => a.time!.value - b.time!.value || a.line - b.line)
-    : d.nodes;
 
-  const events: Event[] = sorted.map((node) => {
-    const text = measureText(node, MAX_LABEL);
-    const time = node.time ? formatTime(node.time) : '';
-    const w = Math.ceil(Math.max(text.w, textWidth(time, TIME_FONT, 'sans500')) + 2 * PAD_X);
-    const h = Math.ceil(text.h + (time ? TIME_H : 0) + 2 * PAD_Y);
-    return { node, at: 0, time, text, w, h, box: { x: 0, y: 0, w, h }, lane: -1 };
-  });
-
-  // Positions along the axis.
+  let events: Card[];
   let length: number;
   let ticks: { at: number; label: string }[] = [];
-  if (dated && events.length) {
-    const t0 = Math.min(...events.map((e) => e.node.time!.value));
-    const t1 = Math.max(...events.map((e) => (e.node.until ?? e.node.time!).value));
+  if (d.dating !== 'undated' && d.nodes.length) {
+    const sorted = [...d.nodes].sort((a, b) => a.at.value - b.at.value || a.line - b.line);
+    events = sorted.map((e) => card(e, formatTime(e.at)));
+    const t0 = Math.min(...sorted.map((e) => e.at.value));
+    const t1 = Math.max(...sorted.map((e) => e.at.value + (e.lastsMs ?? 0)));
     const room = across
       ? events.reduce((s, e) => s + e.w + CARD_GAP, 0) * 1.1
       : events.reduce((s, e) => s + e.h + CARD_GAP, 0);
     length = Math.round(Math.min(across ? 860 : 900, Math.max(across ? 520 : 360, room)));
     const scale = t1 > t0 ? length / (t1 - t0) : 0;
     if (t1 === t0) length = 0;
-    for (const e of events) {
-      e.at = (e.node.time!.value - t0) * scale;
-      if (e.node.until) e.end = (e.node.until.value - t0) * scale;
-    }
+    sorted.forEach((e, i) => {
+      events[i].at = (e.at.value - t0) * scale;
+      if (e.lastsMs !== undefined) events[i].end = (e.at.value + e.lastsMs - t0) * scale;
+    });
     if (t1 > t0)
       ticks = makeTicks(
         t0,
         t1,
-        events[0].node.time!.form === 'clock',
+        d.dating === 'clock',
         Math.floor(length / (across ? TICK_GAP_ACROSS : TICK_GAP_DOWN)),
       ).map((t) => ({ at: (t.value - t0) * scale, label: t.label }));
   } else {
+    events = d.nodes.map((node) => card(node, ''));
     const step = across
       ? Math.max(0, ...events.map((e) => e.w)) + CARD_GAP * 2
       : Math.max(0, ...events.map((e) => e.h)) + CARD_GAP;
@@ -91,7 +220,6 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     length = Math.max(0, events.length - 1) * step;
   }
 
-  // Span lanes: a span takes the first lane where it does not overlap another.
   const laneEnds: number[] = [];
   for (const e of events) {
     if (e.end === undefined) continue;
@@ -102,15 +230,10 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
   }
   const spanZone = laneEnds.length ? laneEnds.length * SPAN_LANE + 6 : 0;
 
-  // Cards. Across: lanes outward from the axis. Down: one column, pushed apart.
   const cardH = Math.max(0, ...events.map((e) => e.h));
   let cardLanes = 0;
   if (across) {
-    // Each card hangs off its stem like a flag, reaching right. No stem may run through a
-    // card: a card that covers another event's stem must sit further out than that event's
-    // card, and cards in one lane must not touch. Placed from the latest event back, each
-    // card takes the lowest lane that keeps both rules.
-    const covers = (c: Event, at: number) => at > c.box.x - 6 && at < c.box.x + c.w + 6;
+    const covers = (c: Card, at: number) => at > c.box.x - 6 && at < c.box.x + c.w + 6;
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
       e.box = { x: e.at - FLAG, y: 0, w: e.w, h: e.h };
@@ -120,7 +243,6 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
       const clash = (k: number) =>
         later.some((o) => o.box.y === k && o.box.x < e.box.x + e.w + CARD_GAP && e.box.x < o.box.x + o.w + CARD_GAP);
       while (clash(lane)) lane++;
-      // Rare: hemmed in from both sides. Lift the later cards that cover this stem above it.
       if (lane >= below) for (const o of later) if (covers(o, e.at) && o.box.y <= lane) o.box.y = lane + 1;
       e.box.y = lane;
     }
@@ -134,9 +256,12 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     }
   }
 
-  // Cause edges: arcs on the far side of the axis.
   const byId = new Map(events.map((e) => [e.node.id, e]));
-  const edges = d.edges.filter((e) => byId.has(e.from) && byId.has(e.to) && e.from !== e.to);
+  const arcs = d.edges.flatMap((edge) => {
+    const a = byId.get(edge.from);
+    const b = byId.get(edge.to);
+    return a && b && edge.from !== edge.to ? [{ edge, a: a.at, b: b.at }] : [];
+  });
   const labelBox = (label?: string): [number, number] => {
     if (!label) return [0, 0];
     const lines = wrap(label, LABEL_FONT, 150);
@@ -147,48 +272,20 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
   const tickRoom = ticks.length ? (across ? 26 : tickW + 18) : 8;
   const far = Math.max(
     tickRoom,
-    ...edges.map(
-      (e) =>
-        depth(byId.get(e.from)!.at, byId.get(e.to)!.at) +
-        (across ? labelBox(e.label)[1] : labelBox(e.label)[0]) / 2 +
-        4,
-    ),
+    ...arcs.map(({ edge, a, b }) => depth(a, b) + (across ? labelBox(edge.label)[1] : labelBox(edge.label)[0]) / 2 + 4),
   );
 
-  // Groups: bands over their members' time.
-  const groupDepth = d.groups.map((g) => {
-    let k = 0;
-    for (let p = g.parent; p >= 0; p = d.groups[p].parent) k++;
-    return k;
-  });
-  const bands = d.groups.map((g, i) => {
-    const members = events.filter((e) => inGroup(d, e.node, i));
-    if (!members.length) return undefined;
-    const from = Math.min(...members.map((e) => e.at));
-    const to = Math.max(...members.map((e) => e.end ?? e.at));
-    return {
-      label: g.label,
-      from: from - GROUP_PAD + groupDepth[i] * 4,
-      to: to + GROUP_PAD - groupDepth[i] * 4,
-      depth: groupDepth[i],
-    };
-  });
-  // Across, band titles sit above the cards; down, at the band's far end beside its top.
-  const groupRoom = bands.some(Boolean) ? GROUP_TITLE + Math.max(0, ...groupDepth) * 16 : 0;
+  const bands = groupBands(d.groups, events);
+  const groupRoom = bands.length ? GROUP_TITLE + Math.max(0, ...d.groups.map((g) => groupDepth(d.groups, g))) * 16 : 0;
 
-  // Place everything in one frame: `axis` is the axis line's offset across the flow.
   const near = spanZone + STEM;
   let width: number;
   let height: number;
   let origin: number;
   let axis: number;
   if (across) {
-    const left = Math.min(0, ...events.map((e) => e.box.x), ...bands.filter(Boolean).map((b) => b!.from));
-    const right = Math.max(
-      length + 14,
-      ...events.map((e) => e.box.x + e.box.w),
-      ...bands.filter(Boolean).map((b) => b!.to),
-    );
+    const left = Math.min(0, ...events.map((e) => e.box.x), ...bands.map((b) => b.from));
+    const right = Math.max(length + 14, ...events.map((e) => e.box.x + e.box.w), ...bands.map((b) => b.to));
     origin = MARGIN - left;
     axis = MARGIN + groupRoom + cardLanes * (cardH + CARD_GAP) - CARD_GAP + near;
     for (const e of events)
@@ -196,25 +293,17 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     width = Math.ceil(origin + right + MARGIN);
     height = Math.ceil(axis + far + MARGIN);
   } else {
-    const top = Math.min(0, ...events.map((e) => e.box.y), ...bands.filter(Boolean).map((b) => b!.from));
-    const bottom = Math.max(
-      length + 14,
-      ...events.map((e) => e.box.y + e.box.h),
-      ...bands.filter(Boolean).map((b) => b!.to),
-    );
+    const top = Math.min(0, ...events.map((e) => e.box.y), ...bands.map((b) => b.from));
+    const bottom = Math.max(length + 14, ...events.map((e) => e.box.y + e.box.h), ...bands.map((b) => b.to));
     origin = MARGIN - top;
     axis = MARGIN + far;
     const cardsAt = axis + near;
     const cardW = Math.max(0, ...events.map((e) => e.w));
     for (const e of events) e.box = { x: cardsAt, y: origin + e.box.y, w: e.w, h: e.h };
-    const titles = Math.max(
-      0,
-      ...bands.filter(Boolean).map((b) => textWidth(b!.label.toUpperCase(), 10.5, 'sans600') * 1.18 + 28),
-    );
+    const titles = Math.max(0, ...bands.map((b) => textWidth(b.label.toUpperCase(), 10.5, 'sans600') * 1.18 + 28));
     width = Math.ceil(cardsAt + cardW + Math.max(MARGIN, titles + 8));
     height = Math.ceil(origin + bottom + MARGIN);
   }
-  // A point `at` along the axis, `off` away from it (positive: towards the cards).
   const pt = (at: number, off: number): [number, number] =>
     across ? [origin + at, axis - off] : [axis + off, origin + at];
 
@@ -226,9 +315,7 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
   );
 
-  // Bands.
   for (const b of bands) {
-    if (!b) continue;
     if (across) {
       const y = MARGIN + b.depth * 16;
       out.push(
@@ -242,14 +329,12 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     }
   }
 
-  // Axis and ticks.
   const [ax0, ay0] = pt(-8, 0);
   const [ax1, ay1] = pt(length + 14, 0);
   out.push(
     `<g class="pr-axis"><path class="pr-axis-line" d="M${n(ax0)},${n(ay0)}L${n(ax1)},${n(ay1)}"/><path class="pr-axis-head" d="${arrowhead(ax1, ay1, ax1 - ax0, ay1 - ay0)}"/>`,
   );
-  // A tick label gives way where an edge leaves or meets the axis.
-  const ends = edges.flatMap((e) => [byId.get(e.from)!.at, byId.get(e.to)!.at]);
+  const ends = arcs.flatMap(({ a, b }) => [a, b]);
   for (const t of ticks) {
     const [x, y] = pt(t.at, 0);
     if (ends.some((at) => Math.abs(at - t.at) < (across ? 24 : 10))) {
@@ -266,12 +351,9 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
   }
   out.push('</g>');
 
-  // Edges.
   const labels: string[] = [];
   const anchors = new Map<number, { x: number; y: number }>();
-  for (const e of edges) {
-    const a = byId.get(e.from)!.at;
-    const b = byId.get(e.to)!.at;
+  for (const { edge: e, a, b } of arcs) {
     const k = depth(a, b);
     const [x1, y1] = pt(a, -DOT - 2);
     const [x2, y2] = pt(b, -DOT - 2 - HEAD + 1);
@@ -307,7 +389,6 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     } else anchors.set(e.index, { x: mx, y: my });
   }
 
-  // Events.
   for (const e of events) {
     const node = e.node;
     const attrs = ` data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}`;
@@ -336,30 +417,48 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     out.push(s + '</g>');
   }
   out.push(...labels);
-  out.push(...markers(d, new Map(events.map((e) => [e.node.id, e.box])), anchors, refMarkers));
+  const refs = new Map(
+    events.flatMap((e) => {
+      const letter = context.marker({ type: 'node', id: e.node.id });
+      return letter === undefined ? [] : [[e.node.id, letter] as const];
+    }),
+  );
+  out.push(...markers(d, new Map(events.map((e) => [e.node.id, e.box])), anchors, refs));
   out.push('</svg>');
-  return { svg: out.join(''), width, height };
+  return { svg: trusted(out.join('')), width, height };
 }
 
-function inGroup(d: Diagram, node: DiagramNode, g: number): boolean {
-  for (let p = node.group; p >= 0; p = d.groups[p].parent) if (p === g) return true;
-  return false;
+function groupBands(groups: readonly Group[], events: readonly Card[]): Band[] {
+  return groups.flatMap((g, i) => {
+    const members = events.filter((e) => inGroup(groups, e.node.group, i));
+    if (!members.length) return [];
+    const depth = groupDepth(groups, g);
+    const from = Math.min(...members.map((e) => e.at));
+    const to = Math.max(...members.map((e) => e.end ?? e.at));
+    return [{ label: g.label, from: from - GROUP_PAD + depth * 4, to: to + GROUP_PAD - depth * 4, depth }];
+  });
 }
 
-// How a time reads on a card: "14:02", "Mar 2019", "14 Mar 2019, 14:02".
 export function formatTime(t: Time): string {
   if (t.form === 'clock') return t.text.replace(/^(\d):/, '0$1:');
   const date = new Date(t.value);
   const y = date.getUTCFullYear();
   const mon = MONTHS[date.getUTCMonth()];
   const day = date.getUTCDate();
-  if (t.form === 'year') return String(y);
-  if (t.form === 'month') return `${mon} ${y}`;
-  if (t.form === 'day') return `${day} ${mon} ${y}`;
-  return `${day} ${mon} ${y}, ${t.text.slice(11)}`;
+  switch (t.form) {
+    case 'year':
+      return String(y);
+    case 'month':
+      return `${mon} ${y}`;
+    case 'day':
+      return `${day} ${mon} ${y}`;
+    case 'datetime':
+      return `${day} ${mon} ${y}, ${t.text.slice(11)}`;
+    default:
+      return t.form satisfies never;
+  }
 }
 
-// Round times between t0 and t1, at the finest step that leaves at most `most` of them.
 function makeTicks(t0: number, t1: number, clock: boolean, most: number): { value: number; label: string }[] {
   const MIN = 60_000;
   const HOUR = 60 * MIN;
@@ -370,7 +469,6 @@ function makeTicks(t0: number, t1: number, clock: boolean, most: number): { valu
     return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   };
   type Tick = { value: number; label: string };
-  // Each candidate step, with its rough length so a far too fine one is skipped unbuilt.
   const fixed = (step: number, label: (v: number) => string) => ({
     step,
     make() {
@@ -379,7 +477,6 @@ function makeTicks(t0: number, t1: number, clock: boolean, most: number): { valu
       return out;
     },
   });
-  // Steps of whole months, counted from year 0 so that, say, 5-year ticks fall on 2015, 2020.
   const calendar = (months: number, label: (d: Date) => string) => ({
     step: months * 30 * DAY,
     make() {
@@ -395,6 +492,7 @@ function makeTicks(t0: number, t1: number, clock: boolean, most: number): { valu
       return out;
     },
   });
+  const monthOrYear = (d: Date) => (d.getUTCMonth() ? MONTHS[d.getUTCMonth()] : String(d.getUTCFullYear()));
   const candidates = clock
     ? [5_000, 15_000, 30_000]
         .map((s) => fixed(s, (v) => `${hm(v)}:${pad(new Date(v).getUTCSeconds())}`))
@@ -404,9 +502,9 @@ function makeTicks(t0: number, t1: number, clock: boolean, most: number): { valu
         ...[1, 2, 7].map((k) =>
           fixed(k * DAY, (v) => `${new Date(v).getUTCDate()} ${MONTHS[new Date(v).getUTCMonth()]}`),
         ),
-        calendar(1, (d) => (d.getUTCMonth() ? MONTHS[d.getUTCMonth()] : String(d.getUTCFullYear()))),
-        calendar(3, (d) => (d.getUTCMonth() ? MONTHS[d.getUTCMonth()] : String(d.getUTCFullYear()))),
-        calendar(6, (d) => (d.getUTCMonth() ? MONTHS[d.getUTCMonth()] : String(d.getUTCFullYear()))),
+        calendar(1, monthOrYear),
+        calendar(3, monthOrYear),
+        calendar(6, monthOrYear),
         ...[1, 2, 5, 10, 20, 50, 100].map((k) => calendar(12 * k, (d) => String(d.getUTCFullYear()))),
       ];
   for (const c of candidates) {

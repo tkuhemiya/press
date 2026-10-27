@@ -265,6 +265,11 @@ Broken: [x](#ordr.failed) and
 
 describe('timeline', () => {
   const warnings = (doc: ReturnType<typeof parseDocument>) => doc.diagnostics.filter((d) => d.severity === 'warning');
+  const dated = (doc: ReturnType<typeof parseDocument>) => {
+    const d = doc.diagrams[0].typed;
+    if (d?.type !== 'timeline' || d.dating === 'undated') throw new Error('expected a dated timeline');
+    return d;
+  };
 
   it('reads events with every form of time, spans and groups', () => {
     const doc = parse(
@@ -282,9 +287,10 @@ describe('timeline', () => {
       ].join('\n'),
     );
     expect(doc.diagnostics).toEqual([]);
-    const [d] = doc.diagrams;
-    expect(d.nodes.map((n) => n.time?.form)).toEqual(['year', 'month', 'day', 'datetime']);
-    expect(d.nodes[1].until?.text).toBe('2019-09');
+    const d = dated(doc);
+    expect(d.dating).toBe('calendar');
+    expect(d.nodes.map((n) => n.at.form)).toEqual(['year', 'month', 'day', 'datetime']);
+    expect(d.nodes[1].lastsMs).toBe(Date.UTC(2019, 8) - Date.UTC(2019, 2));
     expect(d.nodes[1].group).toBe(0);
     expect(d.edges).toHaveLength(1);
   });
@@ -292,7 +298,8 @@ describe('timeline', () => {
   it('reads clock times and an event without a label', () => {
     const doc = parse('timeline', '9:05 a\n14:02:30 b: "Later"');
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].nodes.map((n) => [n.id, n.label, n.time?.value])).toEqual([
+    expect(dated(doc).dating).toBe('clock');
+    expect(dated(doc).nodes.map((n) => [n.id, n.label, n.at.value])).toEqual([
       ['a', 'a', 32_700_000],
       ['b', 'Later', 50_550_000],
     ]);
@@ -301,7 +308,7 @@ describe('timeline', () => {
   it('spaces an undated timeline in source order', () => {
     const doc = parse('timeline', 'a: "One"\nb: "Two"\na -> b');
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].nodes.every((n) => !n.time)).toBe(true);
+    expect(doc.diagrams[0].typed).toMatchObject({ type: 'timeline', dating: 'undated' });
   });
 
   const cases: [string, string, RegExp, RegExp][] = [

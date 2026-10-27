@@ -1,4 +1,3 @@
-// Parses the body of a Press fence (the shared grammar in SPEC.md) into a Diagram.
 import {
   ROLES,
   type Arrow,
@@ -12,14 +11,13 @@ import {
 } from '../model.ts';
 import { TYPE_SPECS } from '../diagrams/types.ts';
 import { closest, list } from './suggest.ts';
-import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
 
 const ID = /^[a-z0-9_]+(?:-[a-z0-9_]+)*/;
 const LOOSE_ID = /^[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*/;
 const ARROW = /^(<->|-->|->)/;
-// The start of a property line: node.key
+
 const PROP = /^([a-z0-9_]+(?:-[a-z0-9_]+)*)\.([a-z0-9_]+(?:-[a-z0-9_]+)*)/;
-// Words authors reach for that mean one of the roles.
+
 const ROLE_SYNONYMS: Record<string, Role> = {
   danger: 'error',
   fail: 'error',
@@ -48,7 +46,6 @@ export interface FenceInput {
   type: DiagramType;
   info: string;
   body: string;
-  // Line of the opening fence in the Markdown source.
   line: number;
 }
 
@@ -82,8 +79,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     if (i === undefined) {
       i = diagram.nodes.length;
       nodeIndex.set(id, i);
-      // Without a declared label, an id reads as words: `wage_demands` shows as "wage demands".
-      // In er an entity's id is its table name, so it stays as written.
       diagram.nodes.push({
         id,
         label: input.type === 'er' ? id : id.replace(/_/g, ' '),
@@ -143,7 +138,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       continue;
     }
 
-    // A property: node.key : value {attrs}
     const prop = PROP.exec(text);
     if (prop && !ARROW.test(text.slice(prop[0].length).trim())) {
       const [, node, key] = prop;
@@ -174,9 +168,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       const isNew = !nodeIndex.has(node);
       const owner = ensureNode(node, line);
       if (input.type === 'tradeoffs') {
-        // Options sit outside categories, wherever their cells are written.
         if (isNew) owner.group = -1;
-        // A cell written inside a group puts its criterion in that category.
         const criterion = ensureNode(key, line);
         if (groupStack.length && criterion.group < 0) criterion.group = currentGroup();
       }
@@ -196,7 +188,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       continue;
     }
 
-    // A named feedback loop: loop "Name": a -> b -> a
     if (input.type === 'causal-loop' && /^loop\b/.test(text)) {
       const m = /^loop\s+"([^"]*)"\s*:\s*(.*)$/.exec(text);
       if (!m) {
@@ -220,69 +211,11 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       continue;
     }
 
-    // A timeline line that starts with a time is an event: <when> id: "Label" {attrs}
-    const when = /^(\S+)(.*)$/.exec(text)!;
-    if (
-      input.type === 'timeline' &&
-      /^\+?\d+(?:\.\d+)?(?:ms|s|sec|min|m|h|d)?$/.test(when[1]) &&
-      !looksLikeTime(when[1]) &&
-      /^\s+[a-z]/.test(when[2])
-    ) {
-      error(
-        line,
-        `\`${when[1]}\` is a duration or a number, and a timeline places events at dates or clock times.`,
-        `Write a time (${TIME_EXAMPLES}); to show seconds use \`00:00:05\`. For finer steps, leave every time off (\`${when[2].trim().split(/[\s:]/)[0]}: "Label"\`) and put the duration in the label.`,
-      );
-      continue;
-    }
-    if (input.type === 'timeline' && looksLikeTime(when[1])) {
-      const time = parseTime(when[1]);
-      if ('error' in time) {
-        error(line, time.error, `Times are written ${TIME_EXAMPLES}.`);
-        continue;
-      }
-      const rest = when[2].trim();
-      if (!rest || ARROW.test(rest)) {
-        error(
-          line,
-          `\`${when[1]}\` is a time, so it cannot be an id in a timeline.`,
-          `An event is a time, then an id: \`${when[1]} launch: "Label"\`. Edges join ids: \`launch -> other\`.`,
-        );
-        continue;
-      }
-      const id = readId(rest, line, error, `after the time \`${when[1]}\``);
-      if (!id) continue;
-      const { body, attrs } = splitAttrs(rest.slice(id.length), line, error);
-      const m = /^(?::\s*"([^"]*)")?$/.exec(body.trim());
-      if (!m) {
-        error(
-          line,
-          ARROW.test(body.trim())
-            ? 'An event line declares one event; it cannot hold an edge.'
-            : `Cannot read the event \`${id}\`.`,
-          `Write the event as \`${when[1]} ${id}: "Label"\`, and any edge on its own line: \`${id} -> other : caused\`.`,
-        );
-        continue;
-      }
-      if (reservedSteps(id, line)) continue;
-      const node = ensureNode(id, line);
-      if (node.time) warn(line, `\`${id}\` is given a time twice; the later one wins.`, 'Keep one event line for it.');
-      declared.add(id);
-      node.group = currentGroup();
-      node.line = line;
-      node.time = time;
-      if (m[1] !== undefined) node.label = m[1];
-      applyAttrs(node, attrs, line);
-      continue;
-    }
-
-    // Everything else starts with a node id.
     const first = readId(text, line, error);
     if (!first) continue;
     let rest = text.slice(first.length).trimStart();
 
     if (rest.startsWith(':')) {
-      // Declaration: id: kind "Label" {attrs}
       rest = rest.slice(1).trim();
       const { body, attrs } = splitAttrs(rest, line, error);
       const m = /^(?:([A-Za-z][\w-]*))?\s*(?:"([^"]*)")?$/.exec(body.trim());
@@ -321,7 +254,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
 
     const arrowMatch = ARROW.exec(rest.replace(/^\.[a-z0-9_-]+\s*/, ''));
     if (!arrowMatch) {
-      // A bare node, optionally with attributes.
       const { body, attrs } = splitAttrs(rest, line, error);
       if (body.trim()) {
         const bad = /^(=>|<-|--|—>|=>|-)/.exec(body.trim());
@@ -341,7 +273,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       }
       if (reservedSteps(first, line) || reservedLoop(first, line)) continue;
       const node = ensureNode(first, line);
-      // Listed inside a group: the node is a member, wherever it was declared.
       if (groupStack.length) {
         if (node.group >= 0 && node.group !== currentGroup())
           warn(
@@ -355,7 +286,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       continue;
     }
 
-    // Edge or chain: a -> b --> c : label {attrs}. In er, an end may be a field: a.key
     const ids = [first];
     const keys: (string | undefined)[] = [undefined];
     const readKey = (): string | undefined => {
@@ -487,14 +417,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       );
   });
   if (!diagram.nodes.length)
-    warn(
-      input.line,
-      `The ${input.type} fence is empty.`,
-      input.type === 'timeline'
-        ? 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.'
-        : 'Add at least one edge, e.g. `a -> b : label`.',
-    );
-  if (input.type === 'timeline') checkTimeline(diagram, error, warn);
+    warn(input.line, `The ${input.type} fence is empty.`, 'Add at least one edge, e.g. `a -> b : label`.');
   if (input.type === 'decision-tree') checkTree(diagram, error);
   if (input.type === 'tradeoffs') checkTradeoffs(diagram, error, warn);
   if (input.type === 'er') checkEr(diagram, error);
@@ -526,7 +449,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     return true;
   }
 
-  // In a causal loop every edge carries a polarity as its label, and influence runs one way.
   function causalEdge(arrows: Arrow[], label: string | undefined, ids: string[], line: number): boolean {
     const pair = `${ids[0]} -> ${ids[1]}`;
     if (arrows.includes('<->')) {
@@ -759,84 +681,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
   }
 }
 
-// The rules a timeline adds once every line is read: dated or undated, one kind of time,
-// events in order, and spans that end after they start.
-function checkTimeline(
-  d: Diagram,
-  error: (l: number, m: string, h?: string) => void,
-  warn: (l: number, m: string, h?: string) => void,
-): void {
-  const events = [...d.nodes].sort((a, b) => a.line - b.line);
-  for (const node of events) {
-    if (/^\d{4}(?:-\d{2}){0,2}$/.test(node.id) && !node.time)
-      error(
-        node.line,
-        `\`${node.id}\` looks like a date, so it cannot be an id in a timeline.`,
-        `To make it an event, give it an id after the time: \`${node.id} launch: "Label"\`.`,
-      );
-  }
-  const dated = events.filter((e) => e.time);
-  if (!dated.length) {
-    for (const e of events)
-      if (e.attrs.until !== undefined)
-        error(
-          e.line,
-          '`until` needs a dated timeline.',
-          `Give every event a time, e.g. \`2019 ${e.id}: "${e.label}" {until=2021}\`, or remove \`until\`.`,
-        );
-    return;
-  }
-  for (const e of events) {
-    if (!e.time)
-      error(
-        e.line,
-        `\`${e.id}\` has no time, but other events in this timeline do.`,
-        `Give it one, e.g. \`${dated[0].time!.text} ${e.id}: "${e.label}"\`. A timeline is either dated or undated throughout.`,
-      );
-  }
-  const clock = dated.find((e) => e.time!.form === 'clock');
-  const calendar = dated.find((e) => e.time!.form !== 'clock');
-  if (clock && calendar) {
-    const late = clock.line > calendar.line ? clock : calendar;
-    error(
-      late.line,
-      `\`${late.time!.text}\` is a ${late === clock ? 'clock time' : 'date'}, but \`${(late === clock ? calendar : clock).time!.text}\` above is a ${late === clock ? 'date' : 'clock time'}.`,
-      'Use one kind throughout: clock times like `14:02`, or dates like `2019-03-14` and `2019-03-14T14:02`.',
-    );
-    return;
-  }
-  let prev: (typeof dated)[number] | undefined;
-  for (const e of dated) {
-    if (prev && e.time!.value < prev.time!.value)
-      warn(
-        e.line,
-        `\`${e.id}\` (${e.time!.text}) is earlier than \`${prev.id}\` (${prev.time!.text}) above it.`,
-        'Events are listed in order. Move the line up, or check the time for a typo.',
-      );
-    prev = e;
-    const until = e.attrs.until;
-    if (until === undefined) continue;
-    const t = parseTime(until);
-    if ('error' in t)
-      error(e.line, `\`until\`: ${t.error}`, `Write it in the same form as the event's time, \`${e.time!.text}\`.`);
-    else if (t.form !== e.time!.form)
-      error(
-        e.line,
-        `\`until=${until}\` is not in the same form as the event's time, \`${e.time!.text}\`.`,
-        `Write both the same way, e.g. \`${e.time!.text} ${e.id}: "${e.label}" {until=${e.time!.text}}\` with the end time.`,
-      );
-    else if (t.value < e.time!.value)
-      error(
-        e.line,
-        `\`${e.id}\` ends (${until}) before it starts (${e.time!.text}).`,
-        'Check the two times; `until` is when the span ends.',
-      );
-    else e.until = t;
-  }
-}
-
-// A tradeoffs table: no edges, each id is an option or a criterion but not both, and every
-// option has a value for every criterion.
 function checkTradeoffs(
   d: Diagram,
   error: (l: number, m: string, h?: string) => void,
@@ -888,7 +732,6 @@ function checkTradeoffs(
 const CARD_END = '(1|0\\.\\.1|N|1\\.\\.N)';
 const CARD = new RegExp(`^${CARD_END}:${CARD_END}$`);
 
-// An er diagram: every edge states its cardinality, and a reference joins declared fields.
 function checkEr(d: Diagram, error: (l: number, m: string, h?: string) => void): void {
   const field = (id: string, key: string) => d.props.some((p) => p.node === id && p.key === key);
   for (const e of d.edges) {
@@ -946,7 +789,6 @@ function checkEr(d: Diagram, error: (l: number, m: string, h?: string) => void):
   }
 }
 
-// A decision tree has one root, never loops back, and labels every branch of a real choice.
 function checkTree(d: Diagram, error: (l: number, m: string, h?: string) => void): void {
   if (!d.nodes.length) return;
   const out = new Map(d.nodes.map((n) => [n.id, d.edges.filter((e) => e.from === n.id)]));
@@ -961,7 +803,6 @@ function checkTree(d: Diagram, error: (l: number, m: string, h?: string) => void
         );
     }
   }
-  // A path that comes back to a node it passed: report the edge that closes it.
   const state = new Map<string, 'open' | 'done'>();
   const visit = (id: string, path: string[]): boolean => {
     state.set(id, 'open');
@@ -1042,7 +883,6 @@ function parseHeader(
   }
 }
 
-// Reads a node id at the start of text, reporting a fix when it is close to valid.
 function readId(
   text: string,
   line: number,
@@ -1077,7 +917,6 @@ function readId(
   return undefined;
 }
 
-// A node id, or a property's `node.key`.
 function readRef(
   text: string,
   line: number,
@@ -1090,7 +929,6 @@ function readRef(
   return key ? id + key[0] : id;
 }
 
-// Splits a trailing `{key=value, ...}` block off the end of text.
 function splitAttrs(
   text: string,
   line: number,
@@ -1184,7 +1022,6 @@ function parseStepLine(
   return { line, from, to, label: unquote(target.slice(1).trim()), caption };
 }
 
-// Comments: a line starting with `#`, or ` # ` after content.
 function stripComment(line: string): string {
   if (/^\s*#/.test(line)) return '';
   let quoted = false;

@@ -1,6 +1,4 @@
-// Lays out and draws a node-and-edge diagram with pele's compound layered layout. Each diagram
-// type that is a graph (state-machine, architecture) supplies only how its nodes look.
-import type { Diagram, DiagramEdge, DiagramNode } from '../model.ts';
+import type { Diagram, DiagramEdge, DiagramNode, StepTarget } from '../model.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
 import { loopPath, routePath, type EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -22,22 +20,17 @@ export interface Box {
   h: number;
 }
 
-// How one node is drawn: its size, and its SVG given the box the layout placed it in.
 export interface NodeShape {
   w: number;
   h: number;
-  // Pseudo nodes (a state machine's start and end) are dots: they share no side with edges.
   pseudo?: boolean;
   draw(box: Box, attrs: string): string;
 }
 
 export interface GraphStyle {
-  // Layout direction when the fence header gives none.
   direction: 'right' | 'down';
   shape(node: DiagramNode, domId: string): NodeShape;
-  // Nodes placed first in reading order, whatever their position in the source.
   first?(node: DiagramNode): boolean;
-  // An extra class on the svg element, for type-specific styling.
   svgClass?: string;
 }
 
@@ -46,7 +39,6 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
   const across = dir === 'TB';
   const shapes = d.nodes.map((node) => style.shape(node, domId));
 
-  // Groups come first in the layout's node list, then nodes.
   const cnodes: CNode[] = d.groups.map(() => {
     const g = cnode(0, 0);
     g.isGroup = true;
@@ -59,7 +51,6 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
   const base = cnodes.length;
   const index = new Map<string, number>();
 
-  // Self-edges hang off the side across the flow; the node's box grows to make room.
   const loops = new Map<string, DiagramEdge[]>();
   for (const e of d.edges) if (e.from === e.to) loops.set(e.from, [...(loops.get(e.from) ?? []), e]);
   const edgeLabel = (e: DiagramEdge): string[] => (e.label ? wrap(e.label, LABEL_FONT, MAX_EDGE_LABEL) : []);
@@ -85,7 +76,6 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
     cnodes.push(c);
   });
 
-  // Reading order: nodes in order of first use (with `first` ones ahead); groups take their first member's place.
   const order = (i: number): number => {
     if (i >= base) return style.first?.(d.nodes[i - base]) ? -1 : i - base;
     let best = Infinity;
@@ -140,7 +130,6 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
     `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
   );
 
-  // Groups.
   d.groups.forEach((g, i) => {
     const c = cnodes[i];
     const x = ox + c.x - c.w / 2;
@@ -150,14 +139,12 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
     );
   });
 
-  // A label inside a group sits on the group's fill, so its plate takes that colour.
   const onGroup = (x: number, y: number): boolean =>
     d.groups.some((_, i) => {
       const c = cnodes[i];
       return Math.abs(ox + c.x - x) < c.w / 2 && Math.abs(oy + c.y - y) < c.h / 2;
     });
 
-  // Edges.
   const labels: string[] = [];
   const anchors = new Map<number, { x: number; y: number }>();
   routed.forEach((e, k) => {
@@ -192,7 +179,6 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
     });
   }
 
-  // Nodes.
   d.nodes.forEach((node, i) => {
     const attrs = ` data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}${node.kind ? ` data-kind="${node.kind}"` : ''}`;
     out.push(shapes[i].draw(boxes.get(node.id)!, attrs));
@@ -203,13 +189,10 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
   return { svg: out.join(''), width, height };
 }
 
-// The usual node body: a label, and a note under it in smaller type.
 export interface TextLines {
   lines: string[];
   note: string[];
-  // Width of the label's first line.
   first: number;
-  // Width and height of the text alone.
   w: number;
   h: number;
 }
@@ -220,14 +203,17 @@ const NOTE_FONT = 11.5;
 const NOTE_LINE = 15;
 
 export function measureText(node: DiagramNode, maxWidth: number): TextLines {
-  const lines = wrap(node.label, FONT, maxWidth, 'sans500');
-  const note = node.attrs.note ? wrap(node.attrs.note, NOTE_FONT, maxWidth) : [];
+  return measureLabel(node.label, node.attrs.note, maxWidth);
+}
+
+export function measureLabel(label: string, noteText: string | undefined, maxWidth: number): TextLines {
+  const lines = wrap(label, FONT, maxWidth, 'sans500');
+  const note = noteText ? wrap(noteText, NOTE_FONT, maxWidth) : [];
   const w = Math.max(...lines.map((l) => textWidth(l, FONT, 'sans500')), ...note.map((l) => textWidth(l, NOTE_FONT)));
   const h = lines.length * LINE + (note.length ? 4 + note.length * NOTE_LINE : 0);
   return { lines, note, first: textWidth(lines[0] ?? '', FONT, 'sans500'), w, h };
 }
 
-// Draws measured text centred on (x, cy), or starting at x when aligned to the start.
 export function drawText(t: TextLines, x: number, cy: number, align: 'middle' | 'start' = 'middle'): string {
   const labelH = t.lines.length * LINE;
   const top = cy - t.h / 2;
@@ -238,7 +224,9 @@ export function drawText(t: TextLines, x: number, cy: number, align: 'middle' | 
   return s;
 }
 
-export function edgeSvg(e: DiagramEdge, p: EdgePath, both: boolean): string {
+export type EdgeLike = Pick<DiagramEdge, 'index' | 'from' | 'to' | 'arrow' | 'label' | 'role'>;
+
+export function edgeSvg(e: EdgeLike, p: EdgePath, both: boolean): string {
   let s = `<g class="pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}" data-edge="${e.index}" data-from="${esc(e.from)}" data-to="${esc(e.to)}"${roleAttr(e.role)}>`;
   s += `<path class="pr-line" d="${p.d}"/>`;
   s += `<path class="pr-head" d="${arrowhead(p.ex, p.ey, p.edx, p.edy)}"/>`;
@@ -246,9 +234,7 @@ export function edgeSvg(e: DiagramEdge, p: EdgePath, both: boolean): string {
   return s + '</g>';
 }
 
-// A label sits on its edge, so the line runs into it from both sides. A plate the colour of
-// the figure keeps the line clear of the text; a stroke halo alone leaves it showing between words.
-export function labelSvg(e: DiagramEdge, x: number, y: number, onGroup: boolean): string {
+export function labelSvg(e: EdgeLike, x: number, y: number, onGroup: boolean): string {
   const lines = e.label ? wrap(e.label, LABEL_FONT, MAX_EDGE_LABEL) : [];
   const w = Math.max(...lines.map((l) => textWidth(l, LABEL_FONT))) + 8;
   const h = lines.length * LABEL_LINE + 2;
@@ -256,9 +242,8 @@ export function labelSvg(e: DiagramEdge, x: number, y: number, onGroup: boolean)
   return `<g class="pr-edge-label${onGroup ? ' pr-on-group' : ''}" data-edge="${e.index}"${roleAttr(e.role)}>${plate}${textBlock(lines, x, y, LABEL_LINE, 'pr-elabel')}</g>`;
 }
 
-// Print markers: numbered badges for steps, lettered badges for prose references.
 export function markers(
-  d: Diagram,
+  d: { steps: readonly { target: StepTarget }[] },
   boxes: Map<string, Box>,
   anchors: Map<number, { x: number; y: number }>,
   refMarkers: Map<string, string>,

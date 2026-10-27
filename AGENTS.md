@@ -34,6 +34,7 @@ These were settled deliberately. Don't reopen them without a good reason.
 
 - Node 26+, TypeScript run directly (erasable syntax only: no enums, namespaces or parameter properties). `npm test`; `npm run check` checks formatting (oxfmt), lints (oxlint, type-aware) and typechecks.
 - `src/parse` turns Markdown into the model in `src/model.ts`; `src/diagrams/*` lay out and draw each type; `src/render` builds the page (`style.css`, `client.js`).
+- The code is moving to the typed model in `src/next` (`model.ts`, `grammar.ts`, `diagram.ts`). Types on it are listed in `MIGRATED` in `src/next/bridge.ts` and skip the old parser and renderers; the bridge goes away once all eight have moved.
 - Diagram SVG carries meaning as classes and `data-role`, never colours; all styling lives in `style.css`, including print.
 - No comments in code; they go stale. Let names, types and tests carry the meaning. The one exception is `src/layout/pele`.
 - `src/layout/pele` is vendored. Keep changes there minimal and note them in the file header.

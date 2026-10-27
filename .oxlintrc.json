@@ -21,5 +21,13 @@
   "ignorePatterns": ["src/layout/pele/**", "docs/**"],
   "env": {
     "builtin": true
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/next/brand.ts"],
+      "rules": {
+        "typescript/consistent-type-assertions": "off"
+      }
+    }
+  ]
 }
