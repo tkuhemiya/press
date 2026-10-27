@@ -67,12 +67,14 @@
     fill: rgb(m.fill),
     style: if m.at("italic", default: false) { "italic" } else { "normal" },
     tracking: m.at("tracking", default: 0) * 1em,
+    number-width: if m.at("tabular", default: false) { "tabular" } else { auto },
     top-edge: "baseline",
     bottom-edge: "baseline",
     if m.at("upper", default: false) { upper(line) } else { line },
   )
   context {
-    let shift = if m.anchor == "middle" { measure(body).width / 2 } else { 0pt }
+    let w = measure(body).width
+    let shift = if m.anchor == "middle" { w / 2 } else if m.anchor == "end" { w } else { 0pt }
     place(dx: m.x * s - shift, dy: (m.y + i * m.lh) * s, body)
   }
 }

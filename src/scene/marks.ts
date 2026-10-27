@@ -25,11 +25,14 @@ export type Mark =
       size: number;
       weight: number;
       fill: string;
-      anchor: 'middle' | 'start';
+      anchor: Anchor;
       italic?: boolean;
+      tabular?: boolean;
       tracking?: number;
       upper?: boolean;
     };
+
+export type Anchor = 'middle' | 'start' | 'end';
 
 export type Leaf = Exclude<Item, { type: 'group' }>;
 
@@ -58,7 +61,7 @@ export function look(item: Leaf, ctx: Context): { has: (c: string) => boolean; w
 export function linesMark(
   item: Extract<Leaf, { type: 'lines' }>,
   style: { size: number; weight: number; fill: string },
-  anchor: 'middle' | 'start',
+  anchor: Anchor,
 ): Mark {
   const top = item.cy - ((item.lines.length - 1) * item.lineHeight) / 2;
   return { k: 'text', x: item.x, y: top + 0.35 * style.size, lines: item.lines, lh: item.lineHeight, anchor, ...style };
