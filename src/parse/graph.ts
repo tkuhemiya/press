@@ -31,14 +31,14 @@ export interface DraftNode {
   line: number;
 }
 
-export interface DraftEdge {
+interface DraftEdge {
   edge: Edge;
   from: End;
   to: End;
   attrs: Attrs;
 }
 
-export interface DraftProp {
+interface DraftProp {
   node: NodeId;
   key: NodeId;
   value?: string;
@@ -55,7 +55,7 @@ export interface DraftGraph {
   groups: Group[];
 }
 
-export type Ensure = (id: NodeId, line: number, group: GroupId | undefined) => DraftNode;
+type Ensure = (id: NodeId, line: number, group: GroupId | undefined) => DraftNode;
 
 export interface GraphRules {
   label(id: NodeId): string;

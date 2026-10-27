@@ -38,7 +38,7 @@ export interface TextLines {
   h: number;
 }
 
-export const FONT = 14;
+const FONT = 14;
 const LINE = 18;
 const NOTE_FONT = 11.5;
 const NOTE_LINE = 15;

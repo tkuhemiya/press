@@ -26,14 +26,14 @@ interface Meaning {
   line: number;
 }
 
-export type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; label?: string };
-export type Mention = Meaning & { type: 'mention'; id: NodeId };
+type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; label?: string };
+type Mention = Meaning & { type: 'mention'; id: NodeId };
 export type Chain = Meaning & { type: 'chain'; ends: [End, End, ...End[]]; arrows: NonEmpty<Arrow>; label?: string };
 export type Prop = Meaning & { type: 'prop'; node: NodeId; key: NodeId; value?: string };
-export type Event = Meaning & { type: 'event'; at: Time; id: NodeId; label?: string };
-export type LoopLine = { type: 'loop'; name: string; ends: [NodeId, NodeId, ...NodeId[]]; line: number };
+type Event = Meaning & { type: 'event'; at: Time; id: NodeId; label?: string };
+type LoopLine = { type: 'loop'; name: string; ends: [NodeId, NodeId, ...NodeId[]]; line: number };
 
-export type Statement = Declare | Mention | Chain | Prop | Event | LoopLine;
+type Statement = Declare | Mention | Chain | Prop | Event | LoopLine;
 
 export interface RawStep {
   from: End;
@@ -43,7 +43,7 @@ export interface RawStep {
   line: number;
 }
 
-export interface FenceGroup {
+interface FenceGroup {
   label: string;
   parent?: GroupId;
   line: number;
