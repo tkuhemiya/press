@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.2)
+# Press language spec (draft, v0.3)
 
 ## Document
 
@@ -47,6 +47,19 @@ group "Name" { ... }           nesting
 | `happy` | The intended / success path      |
 | `muted` | Present for context, not central |
 
+### Properties
+
+*New in v0.3, used by `er` and `tradeoffs`.* A property is a named value that belongs to a node:
+
+```
+node.key : value {attrs}
+```
+
+- `node` is created by first use, like any node. `key` is an id. The value is a single word or a quoted string, and it is optional where the type allows it.
+- In `er` a property is a field of an entity (`orders.user_id : uuid`). In `tradeoffs` it is a cell: what one option offers on one criterion (`redis.ops : "another service"`).
+- Roles work on properties as on nodes: `{role=happy}` marks a favourable value, `{role=error}` an unfavourable one.
+- A type that has no properties reports `a.b` as an error that names the types that do.
+
 ## Steps
 
 A `steps:` section at the end of a fence walks the reader through the diagram in order. Each line references an existing edge or a single node and gives a caption. A node step highlights that node, for example to point at a state before any transition happens.
@@ -59,6 +72,8 @@ steps:
   failed -> submitted    "They retry with a new card"
 ```
 
+In types with properties, a step can also name one (`redis.ops "caption"`), and in `er` an edge between two fields (`orders.user_id -> users.id "caption"`).
+
 When more than one edge joins the same two nodes, as with repeated messages in a `sequence`, the step names the edge by its label: `api -> db : insert "caption"`. If the step is still ambiguous, the parser reports an error that lists the matching edges. `->` and `-->` are interchangeable in a step.
 
 ## Prose references
@@ -68,6 +83,8 @@ Prose links into a diagram with standard Markdown link syntax: `[text](#<diagram
 ```
 When the card is declined, [the failed state](#order.failed) loops back.
 ```
+
+In types with properties, a reference can name one: `[the foreign key](#shop.orders.user_id)`.
 
 ## Rendering targets
 
@@ -226,6 +243,112 @@ group "Impact window" {
 }
 
 deploy -> alerts : caused
+```
+
+## Diagram types in v0.3
+
+### `decision-tree`
+
+Questions, the answers that branch from them, and the outcomes they lead to. Edges are answers, and the label is the answer (`yes`, `under 1 GB`). `direction` defaults to `down`.
+
+- **Questions and outcomes follow from structure.** A node with outgoing edges is a question; a node with none is an outcome and draws as one. There are no kinds to declare.
+- There is exactly one root, the node nothing leads to. Two roots is an error that names both.
+- Branches may rejoin (two answers can lead to the same outcome), but a path may not loop back: that is an error that suggests a `state-machine`.
+- Every edge from a question with more than one answer needs a label. A missing one is an error, since the reader cannot tell the branches apart.
+- `-->` marks a weaker or rarer branch and draws dashed. `<->` is an error.
+- Roles mark the outcomes: `{role=happy}` for the recommended one, `{role=error}` for one to avoid. `steps` walk one path from the root.
+
+```decision-tree id=cache title="Should this be cached?"
+reads: "Read far more than written?"
+stale: "Can readers see stale data?"
+cost: "Slow or costly to compute?"
+cache: "Cache it" {role=happy}
+skip: "Don't cache"
+fix: "Fix the query first"
+
+reads -> stale : yes
+reads -> skip : no
+stale -> cost : yes
+stale -> skip : no
+cost -> cache : yes
+cost --> fix : no
+
+steps:
+  reads -> stale   "Caching only pays when reads dominate."
+  stale -> cost    "A cache serves old data for a while; the product must allow that."
+  cost -> cache    "And it must save real work."
+```
+
+### `er`
+
+Entities, their fields, and the references between them. Fields are properties: `entity.field : type {attrs}`. The type is free text (`uuid`, `text`, `"numeric(10,2)"`), shown in small type beside the field name. `direction` defaults to `right`.
+
+- Field attributes: `{key=yes}` marks the primary key, `{unique=yes}` a unique field, `{null=yes}` a field that may be empty. Fields draw in source order, keys first.
+- **A reference is an edge between two fields**, from the field that refers to the field it refers to: `orders.user_id -> users.id`. Press works out the cardinality instead of asking for it: the referring side is *many*, or *one* when its field is `unique`; it is optional (zero allowed) when its field is `null=yes`. Ends are drawn with crow's-foot marks. The referred-to field must be a key or unique; otherwise it is an error that says which attribute to add.
+- **Entity-level edges** are for conceptual models that have no fields yet: `users -> teams : member of {card=N:M}`. `card` is `1:1`, `1:N`, `N:1` or `N:M`, read from the first entity to the second, and is required on an entity-level edge.
+- An edge label is the relationship's name (`places`, `belongs to`).
+- `<->` is an error: a reference has a direction. Groups are schemas or bounded contexts.
+- A declaration gives an entity its display name: `users: "User"`. Node kinds: none.
+
+```er id=shop title="Orders"
+users: "User"
+orders: "Order"
+items: "Line item"
+
+users.id : uuid {key=yes}
+users.email : text {unique=yes}
+orders.id : uuid {key=yes}
+orders.user_id : uuid
+orders.coupon_id : uuid {null=yes}
+orders.placed_at : timestamp
+items.order_id : uuid
+items.sku : text
+items.qty : int
+
+coupons.id : uuid {key=yes}
+coupons.code : text {unique=yes}
+
+orders.user_id -> users.id : placed by
+orders.coupon_id -> coupons.id
+items.order_id -> orders.id : belongs to
+```
+
+Here an order belongs to exactly one user (many orders per user), a coupon is optional on an order, and an order has many line items.
+
+### `tradeoffs`
+
+Options compared across criteria. Each cell is a property: `option.criterion : value {attrs}`. The node on the left of the dot is an option, the key on the right a criterion; declarations give either a display name. There are no edges: an edge is an error that says so.
+
+- The value is short text: `"<1 ms"`, `yes`, `"another service"`. A cell's role says how it compares: `{role=happy}` favourable, `{role=error}` unfavourable, no role neutral, `{role=muted}` not relevant. Favourable and unfavourable cells stay distinct in grayscale: a filled mark and a hatched cell.
+- `{role=focus}` on an option marks the recommendation, and its column is drawn as chosen.
+- Options and criteria appear in order of first use. A declared id that no cell uses is a warning. A missing cell draws as a dash and is a warning that names it, since a comparison with gaps is usually unfinished.
+- A group of criteria is a category (`group "Operations" { ops  revoke }`) and draws as a band of rows.
+- `direction=right` (the default) puts options across the top and criteria down the side; `direction=down` swaps them, for many options.
+- Steps and prose references can name an option, a criterion or a cell (`redis.ops`).
+
+```tradeoffs id=sessions title="Where to keep sessions"
+redis: "Redis"
+postgres: "Postgres" {role=focus}
+cookie: "Signed cookie"
+
+latency: "Read latency"
+ops: "Running cost"
+revoke: "Revoke at once"
+
+redis.latency : "<1 ms" {role=happy}
+redis.ops : "another service" {role=error}
+redis.revoke : yes {role=happy}
+postgres.latency : "~2 ms"
+postgres.ops : "already running" {role=happy}
+postgres.revoke : yes {role=happy}
+cookie.latency : none {role=happy}
+cookie.ops : none {role=happy}
+cookie.revoke : "not before expiry" {role=error}
+
+steps:
+  revoke             "The deciding question: can we log someone out right now?"
+  cookie.revoke      "A signed cookie stays valid until it expires."
+  postgres           "Postgres revokes at once and is already running."
 ```
 
 ## Node kinds

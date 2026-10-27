@@ -8,7 +8,8 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 - **v0.1:** core grammar, parser, HTML + print renderers, `state-machine`, `sequence`, steps, prose references
 - **v0.2:** `architecture`, `causal-loop`, `timeline`
-- **v0.3 and later:** the rest, prioritized by what explanations need most
+- **v0.3:** properties in the shared grammar, `decision-tree`, `er`, `tradeoffs`, and a skill file that teaches agents to write Press
+- **v0.4 and later:** the rest, prioritized by what explanations need most
 
 ## Software
 
@@ -18,7 +19,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 | `sequence`      | Messages between participants over time | 0.1     | done    |
 | `architecture`  | Components, boundaries, connections     | 0.2     | done    |
 | `data-flow`     | How data moves and transforms           | —       | planned |
-| `er`            | Entities and relationships              | —       | planned |
+| `er`            | Entities and relationships              | 0.3     | spec    |
 | `call-stack`    | Stack frames over time                  | —       | planned |
 | `memory-layout` | Bytes, pointers, structs                | —       | planned |
 
@@ -64,5 +65,5 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 | Type            | Shows                               | Version | Status  |
 |-----------------|-------------------------------------|---------|---------|
 | `argument-map`  | Claims, support, objections         | —       | planned |
-| `decision-tree` | Choices and outcomes                | —       | planned |
-| `tradeoffs`     | Options compared across criteria    | —       | planned |
+| `decision-tree` | Choices and outcomes                | 0.3     | spec    |
+| `tradeoffs`     | Options compared across criteria    | 0.3     | spec    |
