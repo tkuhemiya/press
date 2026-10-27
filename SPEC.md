@@ -26,9 +26,11 @@ group "Name" { ... }           nesting
 # comment
 ```
 
-- Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id.
+- Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`.
+- A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are `[a-z0-9_-]+`. Labels are quoted strings.
 - Values containing spaces are quoted: `{note="retried up to 3 times"}`.
+- `steps` is a reserved word in every diagram type, and each type may reserve more (see its keywords). Using one as a node id is an error.
 
 ### Roles
 
@@ -53,6 +55,8 @@ steps:
   failed -> submitted    "They retry with a new card"
 ```
 
+When more than one edge joins the same two nodes, as with repeated messages in a `sequence`, the step names the edge by its label: `api -> db : insert "caption"`. If the step is still ambiguous, the parser reports an error that lists the matching edges. `->` and `-->` are interchangeable in a step.
+
 ## Prose references
 
 Prose links into a diagram with standard Markdown link syntax: `[text](#<diagram-id>.<node-id>)`.
@@ -73,7 +77,7 @@ When the card is declined, [the failed state](#order.failed) loops back.
 Paper is a budget. A diagram should not take more space on paper than it does on screen, and print must never expand one diagram into a frame per step.
 
 - **Steps compress into one frame.** Each step's edge gets a small numbered marker, and the captions become a compact numbered legend beside or under the diagram.
-- **Prose references become markers.** A reference prints as the text plus a superscript marker that matches a marker on the node.
+- **Prose references become markers.** A reference prints as the text plus a superscript marker that matches a marker on the node. Step markers are numbers (1, 2, 3); prose reference markers are letters (a, b, c), so the two never collide.
 - **`muted` elements may shrink or drop** when the diagram would otherwise exceed its space.
 - **Diagrams never split across pages.**
 
@@ -85,7 +89,9 @@ See `VISUALIZATIONS.md` for the full list and status.
 
 ### `state-machine`
 
-Keywords: `start`, `end` (pseudo-states).
+Keywords: `start`, `end` (pseudo-states). Both are reserved and cannot be used as state ids.
+
+Node kinds: none in v0.1. A declaration gives only a label: `paid: "Paid in full"`.
 
 ```state-machine id=order title="Order lifecycle"
 start -> draft
@@ -100,6 +106,8 @@ shipped -> end
 ### `sequence`
 
 Participants appear left to right in order of first use. Edges are messages, top to bottom. `-->` is a reply or async message.
+
+Node kinds: `user`, `service`, `database`, `queue`, `external`, the same names as in `architecture`. `group "Name" { ... }` draws a labelled box around the participants it contains. `direction` has no meaning here; the parser ignores it with a warning.
 
 ```sequence
 client -> api : POST /orders
