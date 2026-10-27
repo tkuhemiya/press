@@ -1,6 +1,6 @@
-import type { Diagram, DiagramType, Html, NodeId, NodeTarget, PropTarget } from './model.ts';
-import type { Fence, Grammar } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
+import type { Diagram, DiagramType, Html, NodeId, NodeTarget, PropTarget } from '../model.ts';
+import type { Fence, Grammar } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
 import { ARCHITECTURE } from './architecture.ts';
 import { CAUSAL_LOOP } from './causal-loop.ts';
 import { DECISION_TREE } from './decision-tree.ts';

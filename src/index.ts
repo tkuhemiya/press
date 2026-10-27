@@ -1,12 +1,12 @@
-import { parseDocument, type Document } from './next/document.ts';
+import { parseDocument, type Document } from './parse/document.ts';
 import { renderHtml, type HtmlOptions } from './render/html.ts';
-import type { Diagnostic } from './next/model.ts';
+import type { Diagnostic } from './model.ts';
 
-export { parseDocument, renderDocument } from './next/document.ts';
-export { formatDiagnostic } from './next/diagnostics.ts';
+export { parseDocument, renderDocument } from './parse/document.ts';
+export { formatDiagnostic } from './diagnostics.ts';
 export { renderHtml } from './render/html.ts';
-export type * from './next/model.ts';
-export type { Document, Figure, Weave } from './next/document.ts';
+export type * from './model.ts';
+export type { Document, Figure, Weave } from './parse/document.ts';
 export type { HtmlOptions } from './render/html.ts';
 
 export interface BuildResult {

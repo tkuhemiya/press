@@ -1,7 +1,7 @@
-import { ROLES } from './model.ts';
-import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, Role, Time } from './model.ts';
-import { diagramId, groupId, nodeId } from './brand.ts';
-import { closest, list, type Reporter } from './diagnostics.ts';
+import { ROLES } from '../model.ts';
+import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, Role, Time } from '../model.ts';
+import { diagramId, groupId, nodeId } from '../brand.ts';
+import { closest, list, type Reporter } from '../diagnostics.ts';
 import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
 
 export type Attrs = ReadonlyMap<string, string>;

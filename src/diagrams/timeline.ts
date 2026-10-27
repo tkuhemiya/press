@@ -1,8 +1,8 @@
-import type { DatedEvent, Group, Node, Time, Timeline } from './model.ts';
+import type { DatedEvent, Group, Node, Time, Timeline } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
-import type { Fence } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
-import { GRAMMARS } from './grammars.ts';
+import type { Fence } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
+import { GRAMMARS } from '../parse/grammars.ts';
 import {
   buildGraph,
   groupDepth,
@@ -13,10 +13,10 @@ import {
   resolveSteps,
   toNode,
   type DraftNode,
-} from './graph.ts';
-import { parseTime } from './time.ts';
-import { trusted } from './brand.ts';
-import { drawText, edgeSvg, labelSvg, markers, measureLabel, type Box, type TextLines } from '../diagrams/graph.ts';
+} from '../parse/graph.ts';
+import { parseTime } from '../parse/time.ts';
+import { trusted } from '../brand.ts';
+import { drawText, edgeSvg, labelSvg, markers, measureLabel, type Box, type TextLines } from './graph.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 

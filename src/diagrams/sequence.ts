@@ -5,16 +5,16 @@ import {
   type Participant,
   type Sequence,
   type SequenceKind,
-} from './model.ts';
+} from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
-import type { Fence } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
-import { GRAMMARS } from './grammars.ts';
-import { buildGraph, header, inGroup, lean, resolveSteps, toNode } from './graph.ts';
-import { groupId, trusted } from './brand.ts';
+import type { Fence } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
+import { GRAMMARS } from '../parse/grammars.ts';
+import { buildGraph, header, inGroup, lean, resolveSteps, toNode } from '../parse/graph.ts';
+import { groupId, trusted } from '../brand.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock } from '../render/svg.ts';
-import { GLYPH_W, glyph, kindShape } from '../diagrams/kinds.ts';
+import { GLYPH_W, glyph, kindShape } from './kinds.ts';
 
 export const SEQUENCE: DiagramDef<'sequence'> = {
   type: 'sequence',

@@ -1,12 +1,12 @@
-import { ARCHITECTURE_KINDS, type Architecture, type ArchitectureKind, type Component } from './model.ts';
+import { ARCHITECTURE_KINDS, type Architecture, type ArchitectureKind, type Component } from '../model.ts';
 import type { DiagramDef } from './diagram.ts';
-import type { Fence } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
-import { GRAMMARS } from './grammars.ts';
-import { buildGraph, header, lean, resolveSteps, toNode } from './graph.ts';
+import type { Fence } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
+import { GRAMMARS } from '../parse/grammars.ts';
+import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from '../diagrams/graph.ts';
-import { GLYPH_W, glyph, kindShape } from '../diagrams/kinds.ts';
+import { drawText, measureLabel, type NodeShape } from './graph.ts';
+import { GLYPH_W, glyph, kindShape } from './kinds.ts';
 import { n } from '../render/svg.ts';
 
 export const ARCHITECTURE: DiagramDef<'architecture'> = {

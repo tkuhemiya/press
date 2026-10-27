@@ -24,7 +24,7 @@
   },
   "overrides": [
     {
-      "files": ["src/next/brand.ts"],
+      "files": ["src/brand.ts"],
       "rules": {
         "typescript/consistent-type-assertions": "off"
       }

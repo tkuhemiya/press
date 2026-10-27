@@ -1,11 +1,11 @@
 import MarkdownIt from 'markdown-it';
 import type { Token } from 'markdown-it';
-import type { Diagnostic, Diagram, DiagramId, DiagramType, Html, NodeTarget, PropTarget, Ref, Role } from './model.ts';
-import { definition } from './diagram.ts';
+import type { Diagnostic, Diagram, DiagramId, DiagramType, Html, NodeTarget, PropTarget, Ref, Role } from '../model.ts';
+import { definition } from '../diagrams/diagram.ts';
 import { formsElsewhere, GRAMMARS, isDiagramType } from './grammars.ts';
 import { parseFence } from './grammar.ts';
-import { closest, into, list } from './diagnostics.ts';
-import { diagramId, nodeId, trusted } from './brand.ts';
+import { closest, into, list } from '../diagnostics.ts';
+import { diagramId, nodeId, trusted } from '../brand.ts';
 
 export interface Figure {
   domId: string;

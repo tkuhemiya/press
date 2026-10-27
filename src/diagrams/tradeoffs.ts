@@ -1,11 +1,11 @@
-import type { Cell, GroupId, Node, NodeId, NodeTarget, PropTarget, Step, Tradeoffs } from './model.ts';
+import type { Cell, GroupId, Node, NodeId, NodeTarget, PropTarget, Step, Tradeoffs } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
-import type { Fence } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
-import { GRAMMARS } from './grammars.ts';
-import { buildGraph, header, resolvePartSteps, toNode } from './graph.ts';
-import { trusted } from './brand.ts';
-import { markers, type Box } from '../diagrams/graph.ts';
+import type { Fence } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
+import { GRAMMARS } from '../parse/grammars.ts';
+import { buildGraph, header, resolvePartSteps, toNode } from '../parse/graph.ts';
+import { trusted } from '../brand.ts';
+import { markers, type Box } from './graph.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
 

@@ -1,4 +1,4 @@
-import type { Role } from '../next/model.ts';
+import type { Role } from '../model.ts';
 
 export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

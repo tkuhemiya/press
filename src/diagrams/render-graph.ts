@@ -1,7 +1,7 @@
-import type { Direction, Edge, EdgeTarget, Group, Node, NodeId, NodeTarget, Step } from './model.ts';
+import type { Direction, Edge, EdgeTarget, Group, Node, NodeId, NodeTarget, Step } from '../model.ts';
 import type { RenderContext, Rendered } from './diagram.ts';
-import { trusted } from './brand.ts';
-import { edgeSvg, labelSvg, markers, type Box, type NodeShape } from '../diagrams/graph.ts';
+import { trusted } from '../brand.ts';
+import { edgeSvg, labelSvg, markers, type Box, type NodeShape } from './graph.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
 import { loopPath, routePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';

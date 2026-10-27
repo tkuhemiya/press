@@ -1,5 +1,5 @@
-import type { Arrow, EdgeTarget, NodeId, NodeTarget, PropTarget, Role } from '../next/model.ts';
-import type { RenderContext } from '../next/diagram.ts';
+import type { Arrow, EdgeTarget, NodeId, NodeTarget, PropTarget, Role } from '../model.ts';
+import type { RenderContext } from './diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badge, esc, n, roleAttr, textBlock } from '../render/svg.ts';

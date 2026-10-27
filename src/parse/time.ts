@@ -1,4 +1,4 @@
-import type { Time, TimeForm } from './model.ts';
+import type { Time, TimeForm } from '../model.ts';
 
 const FORMS: [TimeForm, RegExp][] = [
   ['year', /^(\d{4})$/],

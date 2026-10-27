@@ -13,10 +13,10 @@ import type {
   Role,
   Step,
   Time,
-} from './model.ts';
+} from '../model.ts';
 import type { Attrs, Chain, End, Fence, Prop, RawStep } from './grammar.ts';
-import { edgeIndex, groupId } from './brand.ts';
-import { closest, list, type Reporter } from './diagnostics.ts';
+import { edgeIndex, groupId } from '../brand.ts';
+import { closest, list, type Reporter } from '../diagnostics.ts';
 
 export interface DraftNode {
   id: NodeId;

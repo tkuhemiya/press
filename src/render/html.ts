@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
-import type { Diagram, Direction, EdgeIndex, NodeId } from '../next/model.ts';
-import { renderDocument, targetName, targetRole, type Document, type Figure } from '../next/document.ts';
-import { definition, renderAny, withoutMutedAny, type Rendered } from '../next/diagram.ts';
-import { GRAMMARS } from '../next/grammars.ts';
-import { trusted } from '../next/brand.ts';
+import type { Diagram, Direction, EdgeIndex, NodeId } from '../model.ts';
+import { renderDocument, targetName, targetRole, type Document, type Figure } from '../parse/document.ts';
+import { definition, renderAny, withoutMutedAny, type Rendered } from '../diagrams/diagram.ts';
+import { GRAMMARS } from '../parse/grammars.ts';
+import { trusted } from '../brand.ts';
 import { esc } from './svg.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));

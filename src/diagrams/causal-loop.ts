@@ -1,12 +1,12 @@
-import type { CausalLoop, Link, Loop, NodeId, Polarity } from './model.ts';
+import type { CausalLoop, Link, Loop, NodeId, Polarity } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
-import type { Fence } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
-import { GRAMMARS } from './grammars.ts';
-import { buildGraph, header, lean, resolveSteps, toNode } from './graph.ts';
-import { trusted } from './brand.ts';
-import { closest, list } from './diagnostics.ts';
-import { drawText, edgeSvg, markers, measureLabel, refMarkers, type Box } from '../diagrams/graph.ts';
+import type { Fence } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
+import { GRAMMARS } from '../parse/grammars.ts';
+import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
+import { trusted } from '../brand.ts';
+import { closest, list } from '../diagnostics.ts';
+import { drawText, edgeSvg, markers, measureLabel, refMarkers, type Box } from './graph.ts';
 import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 import { textWidth } from '../text/measure.ts';
 
