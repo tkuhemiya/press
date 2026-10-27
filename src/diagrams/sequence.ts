@@ -3,6 +3,7 @@
 import type { Diagram, DiagramEdge, DiagramNode } from '../model.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock, type Rendered } from '../render/svg.ts';
+import { glyph, kindShape } from './kinds.ts';
 
 const FONT = 14;
 const LABEL_FONT = 12.5;
@@ -28,8 +29,8 @@ interface Column {
 export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domId: string): Rendered {
   const order = participantOrder(d);
   const cols: Column[] = order.map((node) => {
-    const glyph = node.kind === 'user' || node.kind === 'queue' ? 20 : 0;
-    return { node, w: Math.max(MIN_HEADER, Math.ceil(textWidth(node.label, FONT, 'sans500') + 2 * HEADER_PAD + glyph)), x: 0 };
+    const glyphW = node.kind === 'user' || node.kind === 'queue' ? 20 : 0;
+    return { node, w: Math.max(MIN_HEADER, Math.ceil(textWidth(node.label, FONT, 'sans500') + 2 * HEADER_PAD + glyphW)), x: 0 };
   });
   const at = new Map(cols.map((c, i) => [c.node.id, i]));
 
@@ -111,7 +112,7 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     const attrs = ` data-node="${esc(c.node.id)}" id="${domId}-node-${esc(c.node.id)}"${roleAttr(c.node.role)}${c.node.kind ? ` data-kind="${c.node.kind}"` : ''}`;
     let s = `<g class="pr-node pr-participant"${attrs}>`;
     s += `<line class="pr-lifeline" x1="${n(c.x)}" y1="${headerBottom}" x2="${n(c.x)}" y2="${n(bottom)}"/>`;
-    s += headerShape(c.node.kind, left, headerTop, c.w, HEADER_H);
+    s += kindShape(c.node.kind, left, headerTop, c.w, HEADER_H);
     const glyphW = c.node.kind === 'user' || c.node.kind === 'queue' ? 20 : 0;
     const tx = c.x + glyphW / 2;
     if (glyphW) s += glyph(c.node.kind!, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 12, headerTop + HEADER_H / 2);
@@ -206,24 +207,6 @@ function participantOrder(d: Diagram): DiagramNode[] {
     return [...own, ...sub].sort((a, b) => a.at - b.at);
   };
   return items(-1).flatMap((it) => it.nodes);
-}
-
-function headerShape(kind: string | undefined, x: number, y: number, w: number, h: number): string {
-  if (kind === 'database') {
-    const ry = 5;
-    return `<path class="pr-box" d="M${n(x)},${n(y + ry)}A${n(w / 2)},${ry} 0 0 1 ${n(x + w)},${n(y + ry)}V${n(y + h - ry)}A${n(w / 2)},${ry} 0 0 1 ${n(x)},${n(y + h - ry)}Z"/><path class="pr-box-detail" d="M${n(x)},${n(y + ry)}A${n(w / 2)},${ry} 0 0 0 ${n(x + w)},${n(y + ry)}"/>`;
-  }
-  const cls = kind === 'external' ? 'pr-box pr-external' : 'pr-box';
-  return `<rect class="${cls}" x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${h}" rx="9"/>`;
-}
-
-// Small glyphs beside a participant's label, centred on (x, y).
-function glyph(kind: string, x: number, y: number): string {
-  if (kind === 'user')
-    return `<g class="pr-glyph"><circle cx="${n(x)}" cy="${n(y - 4)}" r="3.2"/><path d="M${n(x - 5.5)},${n(y + 6.5)}C${n(x - 5.5)},${n(y + 1)} ${n(x + 5.5)},${n(y + 1)} ${n(x + 5.5)},${n(y + 6.5)}"/></g>`;
-  if (kind === 'queue')
-    return `<g class="pr-glyph"><rect x="${n(x - 6)}" y="${n(y - 4.5)}" width="12" height="9" rx="2"/><path d="M${n(x - 2)},${n(y - 4.5)}V${n(y + 4.5)}M${n(x + 2)},${n(y - 4.5)}V${n(y + 4.5)}"/></g>`;
-  return '';
 }
 
 function leftBlock(lines: string[], x: number, cy: number): string {

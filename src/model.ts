@@ -54,7 +54,7 @@ export interface Step {
   line: number;
 }
 
-export const DIAGRAM_TYPES = ['state-machine', 'sequence'] as const;
+export const DIAGRAM_TYPES = ['state-machine', 'sequence', 'architecture'] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
 export interface Diagram {

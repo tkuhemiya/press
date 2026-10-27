@@ -16,7 +16,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 |-----------------|-----------------------------------------|---------|---------|
 | `state-machine` | States and transitions                  | 0.1     | done    |
 | `sequence`      | Messages between participants over time | 0.1     | done    |
-| `architecture`  | Components, boundaries, connections     | 0.2     | planned |
+| `architecture`  | Components, boundaries, connections     | 0.2     | done    |
 | `data-flow`     | How data moves and transforms           | —       | planned |
 | `er`            | Entities and relationships              | —       | planned |
 | `call-stack`    | Stack frames over time                  | —       | planned |
@@ -26,7 +26,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 | Type             | Shows                              | Version | Status  |
 |------------------|------------------------------------|---------|---------|
-| `causal-loop`    | Feedback loops with polarity       | 0.2     | planned |
+| `causal-loop`    | Feedback loops with polarity       | 0.2     | spec    |
 | `stock-and-flow` | Accumulations and rates            | —       | planned |
 | `supply-demand`  | Curves, equilibrium, shifts        | —       | planned |
 
@@ -34,7 +34,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 | Type       | Shows                  | Version | Status  |
 |------------|------------------------|---------|---------|
-| `timeline` | Events in order        | 0.2     | planned |
+| `timeline` | Events in order        | 0.2     | spec    |
 
 ## ML
 

@@ -1,7 +1,8 @@
 // Renders a parsed Press document to one self-contained HTML page.
 import { readFileSync } from 'node:fs';
-import type { Diagram } from '../model.ts';
+import type { Diagram, DiagramType } from '../model.ts';
 import type { PressDocument } from '../parse/document.ts';
+import { renderArchitecture } from '../diagrams/architecture.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
 import { renderStateMachine } from '../diagrams/state-machine.ts';
 import { esc, type Rendered } from './svg.ts';
@@ -80,16 +81,23 @@ ${js}
 `;
 }
 
+const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, domId: string) => Rendered> = {
+  'state-machine': renderStateMachine,
+  sequence: renderSequence,
+  architecture: renderArchitecture,
+};
+const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture' };
+
 function figure(doc: PressDocument, d: Diagram, figId: string): string {
   const markers = new Map<string, string>();
   for (const r of doc.refs) if (r.diagram === d.id) markers.set(r.node, r.marker);
   let drawn: Rendered;
   try {
-    drawn = d.type === 'sequence' ? renderSequence(d, markers, figId) : renderStateMachine(d, markers, figId);
+    drawn = RENDERERS[d.type](d, markers, figId);
   } catch (err) {
     return `<pre class="pr-error">Press could not draw the ${d.type} on line ${d.line}: ${esc(String((err as Error).message ?? err))}</pre>\n`;
   }
-  const label = d.title ?? `${d.type === 'sequence' ? 'Sequence' : 'State machine'} diagram`;
+  const label = d.title ?? `${TYPE_NAMES[d.type]} diagram`;
   const anchor = d.id ?? figId.replace(/^press-/, '');
   const steps = d.steps.map((s) => {
     const html = doc.md.renderInline(s.caption);

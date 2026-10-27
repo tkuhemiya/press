@@ -10,7 +10,7 @@ Status: `taking` (in use or being built in) · `later` (planned for a later vers
 |---|---|---|---|
 | [obsidianmd/pele](https://github.com/obsidianmd/pele) | Mermaid to SVG, synchronous, no runtime dependencies, MIT | Its layered layout, vendored in `src/layout/pele` for state machines. It beat elkjs side by side: reading order kept, fewer crossings, cleaner curves, compound groups ([comparison](docs/decisions/layout-pele-vs-elk.png)). Text measured from a table of character widths instead of a DOM. | taking (in use) |
 | [lukilabs/beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid) | Mermaid to SVG or ASCII, built on elkjs | A full theme derived from two colours. ASCII output as a possible future target, which fits "source readable without rendering". | later |
-| [blushft/go-diagrams](https://github.com/blushft/go-diagrams) | Architecture diagrams from Go code, a port of mingrammer/diagrams | Icon sets for `architecture` node kinds. Cloud vendor logos need a licence check. | later (v0.2) |
+| [blushft/go-diagrams](https://github.com/blushft/go-diagrams) | Architecture diagrams from Go code, a port of mingrammer/diagrams | Considered for `architecture` node kinds. We drew our own line glyphs instead, so every kind shares one visual language with the rest of Press. Vendor logos would also need a licence check. | reference |
 
 ## Rejected
 
