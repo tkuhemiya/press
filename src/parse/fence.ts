@@ -285,6 +285,10 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     }
     if (ids.some((id) => reservedSteps(id, line) || reservedLoop(id, line))) continue;
     if (input.type === 'causal-loop' && !causalEdge(arrows, label, ids, line)) continue;
+    if (input.type === 'er' && arrows.includes('<->')) {
+      error(line, '`<->` is not allowed in an er diagram: a reference has a direction.', `Draw it from the field that refers to the field it refers to: \`${ids[0]} -> ${ids[1]} {card=N:1}\`.`);
+      continue;
+    }
     if (input.type === 'decision-tree' && arrows.includes('<->')) {
       error(line, '`<->` is not allowed in a decision tree: an answer leads one way.', `Write the answer as \`${ids[0]} -> ${ids[1]} : yes\`.`);
       continue;
@@ -314,6 +318,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
   if (input.type === 'timeline') checkTimeline(diagram, error, warn);
   if (input.type === 'decision-tree') checkTree(diagram, error);
   if (input.type === 'tradeoffs') checkTradeoffs(diagram, error, warn);
+  if (input.type === 'er') checkEr(diagram, error);
   for (const l of rawLoops) resolveLoop(l);
 
   for (const s of rawSteps) {
@@ -523,6 +528,35 @@ function checkTradeoffs(d: Diagram, error: (l: number, m: string, h?: string) =>
     if (!missing.length) continue;
     const last = Math.max(...d.props.filter((p) => p.node === o).map((p) => p.line));
     warn(last, `\`${o}\` has no value for ${missing.map((c) => `\`${c}\``).join(', ')}; ${missing.length > 1 ? 'those cells draw' : 'that cell draws'} as a dash.`, `Add ${missing.map((c) => `\`${o}.${c} : value\``).join(', ')}, or a value such as \`n/a\` with \`{role=muted}\`.`);
+  }
+}
+
+const CARD_END = '(1|0\\.\\.1|N|1\\.\\.N)';
+const CARD = new RegExp(`^${CARD_END}:${CARD_END}$`);
+
+// An er diagram: every edge states its cardinality, and a reference joins declared fields.
+function checkEr(d: Diagram, error: (l: number, m: string, h?: string) => void): void {
+  const field = (id: string, key: string) => d.props.some((p) => p.node === id && p.key === key);
+  for (const e of d.edges) {
+    const pair = `${e.fromKey ? `${e.from}.${e.fromKey}` : e.from} -> ${e.toKey ? `${e.to}.${e.toKey}` : e.to}`;
+    const card = e.attrs.card;
+    if (card === undefined) error(e.line, `\`${pair}\` needs a cardinality.`, `Add \`{card=N:1}\` and adjust it: each end is \`1\`, \`0..1\`, \`N\` (zero or more) or \`1..N\`, read from \`${e.from}\` to \`${e.to}\`.`);
+    else if (!CARD.test(card)) {
+      const fixed = card.toUpperCase().replace(/ONE/g, '1').replace(/MANY|M/g, 'N').replace(/-TO-/g, ':').replace(/\*/g, 'N');
+      error(e.line, `\`card=${card}\` is not a cardinality.`, `${CARD.test(fixed) ? `Did you mean \`card=${fixed}\`? ` : ''}Write two ends joined by \`:\`, each \`1\`, \`0..1\`, \`N\` or \`1..N\`: \`{card=N:1}\`.`);
+    }
+    if (!e.fromKey !== !e.toKey) {
+      error(e.line, `\`${pair}\` joins a field to a whole entity.`, `Join two fields, as in \`orders.user_id -> users.id\`, or two entities, as in \`orders -> users\`.`);
+    }
+    for (const [id, key] of [[e.from, e.fromKey], [e.to, e.toKey]] as const) {
+      if (key && !field(id, key)) error(e.line, `\`${id}.${key}\` is not a field in the diagram.`, `Declare it with its type first: \`${id}.${key} : uuid\`.`);
+    }
+  }
+  for (const p of d.props) {
+    for (const k of ['key', 'unique', 'null']) {
+      if (p.attrs[k] !== undefined && p.attrs[k] !== 'yes') error(p.line, `\`${k}=${p.attrs[k]}\` is not understood.`, `Write \`{${k}=yes}\`, or leave it out.`);
+    }
+    if (p.attrs.card !== undefined) error(p.line, '`card` belongs on an edge, not a field.', `Move it to the reference: \`${p.node}.${p.key} -> other.id {card=${p.attrs.card}}\`.`);
   }
 }
 

@@ -26,15 +26,17 @@
     const nodes = (id) => svg.querySelectorAll(`.pr-node[data-node="${CSS.escape(id)}"]`);
     // Parts that belong to a node, such as the cells of a tradeoffs option, stay in view with it.
     const parts = (id) => svg.querySelectorAll(`[data-in~="${CSS.escape(id)}"]`);
+    // A property (`node.key`) keeps the node it belongs to in view.
+    const owner = (id) => (id.includes('.') ? nodes(id.slice(0, id.indexOf('.'))) : []);
     const edgeParts = (i) => svg.querySelectorAll(`.pr-edge[data-edge="${i}"], .pr-edge-label[data-edge="${i}"]`);
     const mark = (step, cls) => {
-      if (step.edge !== undefined) {
-        edgeParts(step.edge).forEach((el) => el.classList.add(cls));
-        nodes(step.from).forEach((el) => el.classList.add(cls));
-        nodes(step.to).forEach((el) => el.classList.add(cls));
-      } else {
-        nodes(step.node).forEach((el) => el.classList.add(cls));
-        parts(step.node).forEach((el) => el.classList.add(cls === 'is-current' ? 'is-near' : cls));
+      const near = cls === 'is-current' ? 'is-near' : cls;
+      const ids = step.edge !== undefined ? [step.from, step.to] : [step.node];
+      if (step.edge !== undefined) edgeParts(step.edge).forEach((el) => el.classList.add(cls));
+      for (const id of ids) {
+        nodes(id).forEach((el) => el.classList.add(cls));
+        parts(id).forEach((el) => el.classList.add(near));
+        owner(id).forEach((el) => el.classList.add(near));
       }
     };
 

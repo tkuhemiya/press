@@ -459,3 +459,38 @@ describe('tradeoffs', () => {
     expect(w.map((x) => x.message).join(' ')).toMatch(/`z` is declared but no cell uses it.*`a` is an option/);
   });
 });
+
+describe('er', () => {
+  const schema = 'users.id : uuid {key=yes}\norders.id : uuid {key=yes}\norders.user_id : uuid {null=yes}';
+
+  it('reads fields and references between them', () => {
+    const doc = parse('er', `${schema}\norders.user_id -> users.id : placed by {card=N:0..1}`);
+    expect(doc.diagnostics).toEqual([]);
+    const [e] = doc.diagrams[0].edges;
+    expect([e.from, e.fromKey, e.to, e.toKey, e.label, e.attrs.card]).toEqual(['orders', 'user_id', 'users', 'id', 'placed by', 'N:0..1']);
+  });
+
+  it('reads entity-level edges, and steps over field edges', () => {
+    const doc = parse('er', `${schema}\nusers -> teams : member of {card=N:N}\norders.user_id -> users.id {card=N:1}\n\nsteps:\n  orders.user_id -> users.id "Placed by"`);
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'edge', index: 1 });
+  });
+
+  const cases: [string, string, RegExp, RegExp][] = [
+    ['missing card', 'orders.user_id -> users.id', /needs a cardinality/, /card=N:1/],
+    ['card in words', 'orders.user_id -> users.id {card=many-to-one}', /not a cardinality/, /card=N:1/],
+    ['an undeclared field', 'orders.user_id -> users.uuid {card=N:1}', /`users\.uuid` is not a field/, /users\.uuid : uuid/],
+    ['field to entity', 'orders.user_id -> users {card=N:1}', /joins a field to a whole entity/, /orders -> users/],
+    ['two-way arrow', 'orders <-> users {card=N:1}', /`<->` is not allowed/, /card=N:1/],
+    ['key=true', 'users.name : text {key=true}', /`key=true` is not understood/, /key=yes/],
+    ['card on a field', 'users.name : text {card=1:1}', /belongs on an edge/, /card=1:1/],
+  ];
+  for (const [name, body, message, hint] of cases) {
+    it(name, () => {
+      const e = errors(parse('er', `${schema}\n${body}`))[0];
+      expect(e, name).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+    });
+  }
+});

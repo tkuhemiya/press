@@ -201,6 +201,28 @@ waiting -> end
     expect(html).toMatch(/pr-missing" data-node="b\.y"[\s\S]*?>—</);
   });
 
+  it('draws an er diagram: entities of fields, crow\'s feet from the written cardinality', () => {
+    const src = readFileSync(new URL('../examples/orders-schema.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-er"');
+    expect(count(svg, /class="pr-node pr-entity"/g)).toBe(4);
+    expect(count(svg, /class="pr-node pr-field/g)).toBe(14);
+    expect(count(svg, /class="pr-node pr-field pr-key"/g)).toBe(4);
+    expect(svg).toMatch(/data-node="orders\.coupon_id" data-in="orders"/);
+    expect(svg).toContain('uuid · null');
+    // N:1, N:0..1 and 1..N:1: rings for each zero end (N, N, 0..1).
+    expect(count(svg, /class="pr-crow-ring"/g)).toBe(3);
+    expect(count(svg, /class="pr-step-marker"/g)).toBe(3);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('lights the fields of a reference in the walkthrough', () => {
+    const { html } = build('```er\na.id : uuid {key=yes}\nb.a_id : uuid\nb.a_id -> a.id {card=N:1}\n\nsteps:\n  b.a_id -> a.id "x"\n```', { embedFonts: false });
+    expect(html).toContain('"from":"b.a_id","to":"a.id"');
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);

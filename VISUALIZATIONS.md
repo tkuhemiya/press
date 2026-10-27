@@ -19,7 +19,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 | `sequence`      | Messages between participants over time | 0.1     | done    |
 | `architecture`  | Components, boundaries, connections     | 0.2     | done    |
 | `data-flow`     | How data moves and transforms           | —       | planned |
-| `er`            | Entities and relationships              | 0.3     | spec    |
+| `er`            | Entities and relationships              | 0.3     | done    |
 | `call-stack`    | Stack frames over time                  | —       | planned |
 | `memory-layout` | Bytes, pointers, structs                | —       | planned |
 
