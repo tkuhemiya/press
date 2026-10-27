@@ -87,6 +87,7 @@ th { font-weight: 600; }
 .pr-body { display: block; }
 .pr-canvas { overflow-x: auto; }
 .pr-svg { display: block; max-width: 100%; height: auto; margin: 0 auto; overflow: visible; }
+.pr-print-only { display: none; }
 .pr-legend { display: none; }
 
 /* ---------- Diagram vocabulary ---------- */
@@ -316,6 +317,8 @@ a.pr-ref:hover, a.pr-ref:focus-visible { background: color-mix(in srgb, var(--si
   .pr-body { display: flex; flex-wrap: wrap; align-items: center; gap: 10pt 20pt; }
   .pr-canvas { flex: 1 1 auto; min-width: 0; overflow: visible; }
   .pr-svg { max-height: 62vh; width: auto; max-width: 100%; }
+  .pr-screen-only { display: none; }
+  .pr-svg.pr-print-only { display: block; }
   .pr-legend {
     display: block; flex: 1 1 190pt; columns: 190pt; column-gap: 20pt; list-style: none; margin: 0; padding: 0;
     font: 400 9pt/1.4 var(--sans); color: var(--ink-2); counter-reset: none;

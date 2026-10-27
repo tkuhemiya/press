@@ -10,6 +10,8 @@ const LABEL_FONT = 12.5;
 const LABEL_LINE = 16;
 const MAX_LABEL = 220;
 const HEADER_H = 42;
+const NOTE_FONT = 11.5;
+const NOTE_LINE = 15;
 const HEADER_PAD = 16;
 const MIN_HEADER = 84;
 const GAP = 32;
@@ -22,6 +24,7 @@ const GROUP_TITLE = 26;
 
 interface Column {
   node: DiagramNode;
+  note: string[];
   w: number;
   x: number;
 }
@@ -30,7 +33,9 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   const order = participantOrder(d);
   const cols: Column[] = order.map((node) => {
     const glyphW = hasGlyph(node) ? GLYPH_W : 0;
-    return { node, w: Math.max(MIN_HEADER, Math.ceil(textWidth(node.label, FONT, 'sans500') + 2 * HEADER_PAD + glyphW)), x: 0 };
+    const note = node.attrs.note ? wrap(node.attrs.note, NOTE_FONT, MAX_LABEL) : [];
+    const w = Math.max(textWidth(node.label, FONT, 'sans500') + glyphW, ...note.map((l) => textWidth(l, NOTE_FONT)));
+    return { node, note, w: Math.max(MIN_HEADER, Math.ceil(w + 2 * HEADER_PAD)), x: 0 };
   });
   const at = new Map(cols.map((c, i) => [c.node.id, i]));
 
@@ -75,7 +80,10 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
   const width = Math.ceil((last ? last.x + last.w / 2 + Math.max(outerPad, rightOverflow) : 0) + MARGIN);
 
   const headerTop = MARGIN + (d.groups.length ? GROUP_TITLE + (Math.max(...depthBelow)) * 18 : 0);
-  const headerBottom = headerTop + HEADER_H;
+  // A note under a participant's name makes every header taller, so the lifelines start level.
+  const noteH = Math.max(0, ...cols.map((c) => c.note.length)) * NOTE_LINE;
+  const headH = HEADER_H + (noteH ? noteH - 4 : 0);
+  const headerBottom = headerTop + headH;
 
   // Rows.
   let y = headerBottom + 18;
@@ -112,11 +120,13 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     const attrs = ` data-node="${esc(c.node.id)}" id="${domId}-node-${esc(c.node.id)}"${roleAttr(c.node.role)}${c.node.kind ? ` data-kind="${c.node.kind}"` : ''}`;
     let s = `<g class="pr-node pr-participant"${attrs}>`;
     s += `<line class="pr-lifeline" x1="${n(c.x)}" y1="${headerBottom}" x2="${n(c.x)}" y2="${n(bottom)}"/>`;
-    s += kindShape(c.node.kind, left, headerTop, c.w, HEADER_H);
+    s += kindShape(c.node.kind, left, headerTop, c.w, headH);
     const glyphW = hasGlyph(c.node) ? GLYPH_W : 0;
     const tx = c.x + glyphW / 2;
-    if (glyphW) s += glyph(c.node.kind!, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, headerTop + HEADER_H / 2);
-    s += `<text class="pr-label" x="${n(tx)}" y="${n(headerTop + HEADER_H / 2)}" dy="0.35em">${esc(c.node.label)}</text>`;
+    const labelY = headerTop + HEADER_H / 2 - (c.note.length ? 3 : 0);
+    if (glyphW) s += glyph(c.node.kind!, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, labelY);
+    s += `<text class="pr-label" x="${n(tx)}" y="${n(labelY)}" dy="0.35em">${esc(c.node.label)}</text>`;
+    if (c.note.length) s += textBlock(c.note, c.x, labelY + 17 + ((c.note.length - 1) * NOTE_LINE) / 2, NOTE_LINE, 'pr-note');
     out.push(s + '</g>');
   }
 

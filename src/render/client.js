@@ -79,8 +79,8 @@
         setCaption(intro);
         return;
       }
-      for (let k = 0; k < i - 1; k++) mark(steps[k], 'is-visited');
       const step = steps[i - 1];
+      for (const k of step.trail ?? steps.keys()) if (k < i - 1) mark(steps[k], 'is-visited');
       mark(step, 'is-current');
       setCaption(step.html);
       if (step.edge !== undefined) travel(step, forward);
