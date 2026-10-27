@@ -143,7 +143,12 @@ describe.skipIf(!playwright)('every example in the browser', () => {
     await page.setViewportSize({ width: Math.floor(PAGE_W), height: Math.floor(PAGE_H) });
     await page.emulateMedia({ media: 'print' });
     const figures = await page.$$eval('.pr-figure', (els: Element[]) =>
-      els.map((el) => ({ height: el.getBoundingClientRect().height, markers: el.querySelectorAll('.pr-step-marker').length, steps: el.querySelectorAll('.pr-legend li').length }))
+      els.map((el) => ({
+        height: el.getBoundingClientRect().height,
+        // Only the drawing that prints: a figure may carry a second layout for paper.
+        markers: [...el.querySelectorAll('.pr-step-marker')].filter((m) => m.closest('svg')!.checkVisibility()).length,
+        steps: el.querySelectorAll('.pr-legend li').length,
+      }))
     );
     expect(figures.length).toBeGreaterThan(0);
     for (const f of figures) {

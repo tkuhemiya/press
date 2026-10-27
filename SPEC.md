@@ -32,7 +32,7 @@ group "Name" { ... }           nesting
 - A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are lowercase letters, digits, `_` and `-`. A `-` must sit between two other characters, so `a-->b` reads as an edge, never as an id. Labels are quoted strings.
 - Values containing spaces are quoted: `{note="retried up to 3 times"}`.
-- `note` is the one attribute besides `role` that every type accepts. In `state-machine` and `architecture` a node's note prints in small type under its label; it is for a short qualifier, not a sentence. Other types keep it in the source but do not draw it yet.
+- `note` is the one attribute besides `role` that every type accepts. A node's note prints in small type under its label; it is for a short qualifier, not a sentence. `er` and `tradeoffs` keep it in the source but do not draw it.
 - Chains may mix arrows (`a -> b --> c`). Attributes at the end of a chain apply to every segment, so `start -> draft -> paid {role=happy}` marks a whole path. A label is ambiguous on a chain and is an error; give the labelled edge its own line.
 - `steps` is a reserved word in every diagram type, and each type may reserve more (see its keywords). Using one as a node id is an error.
 
@@ -99,7 +99,7 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 
 - **Steps compress into one frame.** Each step's edge gets a small numbered marker, and the captions become a compact numbered legend beside or under the diagram.
 - **Prose references become markers.** A reference prints as the text plus a superscript marker that matches a marker on the node. Step markers are numbers (1, 2, 3); prose reference markers are letters (a, b, c), so the two never collide.
-- **`muted` elements may shrink or drop** when the diagram would otherwise exceed its space.
+- **A figure that would print small may print differently.** Press tries it in the other direction (only when the author gave no `direction`) and without its `muted` elements (only when no step or prose reference points at one), and prints whichever layout keeps the text largest. The screen always shows the diagram as written.
 - **Diagrams never split across pages.**
 
 Small multiples (several frames) are allowed only when the author asks for them explicitly. This is not part of v0.1.

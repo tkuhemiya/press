@@ -172,7 +172,7 @@ export function renderTimeline(d: Diagram, refMarkers: Map<string, string>, domI
     const cardsAt = axis + near;
     const cardW = Math.max(0, ...events.map((e) => e.w));
     for (const e of events) e.box = { x: cardsAt, y: origin + e.box.y, w: e.w, h: e.h };
-    const titles = Math.max(0, ...bands.filter(Boolean).map((b) => textWidth(b!.label.toUpperCase(), 10.5, 'sans600') * 1.08 + 20));
+    const titles = Math.max(0, ...bands.filter(Boolean).map((b) => textWidth(b!.label.toUpperCase(), 10.5, 'sans600') * 1.18 + 28));
     width = Math.ceil(cardsAt + cardW + Math.max(MARGIN, titles + 8));
     height = Math.ceil(origin + bottom + MARGIN);
   }
