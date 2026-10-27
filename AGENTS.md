@@ -10,12 +10,12 @@ Press is a small Markdown-like language for writing explanations that mix prose 
 
 These were settled deliberately. Don't reopen them without a good reason.
 
-- **HTML first, print as a first-class target.** HTML supports interactivity, LLMs write it fluently, and it shows up wherever people read. Print matters for long-term use, so every visualization must have a good static form. A Typst backend may come later from the same source.
+- **HTML first, print as a first-class target.** HTML supports interactivity, LLMs write it fluently, and it shows up wherever people read. Print matters for long-term use, so every visualization must have a good static form. PDF is typeset by Typst from the same source.
 - **Markdown host, fenced blocks for visualizations.** The fence language tag is the diagram type (` ```state-machine `).
 - **One shared grammar across all diagram types.** Nodes, edges, attributes, groups and comments look the same everywhere. Each type only adds a few keywords.
 - **Meaning, not styling.** Authors write `{role=error}`, never colors or sizes. The visual language belongs to the library.
 - **Explicit attributes:** `{key=value, ...}`.
-- **Layout hints are limited to `direction`.** The layout engine handles everything else.
+- **Layout hints are limited to `direction` on diagrams and `page` on headings.** The layout engine handles everything else.
 - **No raw SVG/HTML escape hatch.** The constraint forces the vocabulary to grow.
 - **Steps live inside the fence.**
 - **Paper is a budget.** Print should compress (annotate a single frame), not expand (one frame per step). See `docs/SPEC.md`.
