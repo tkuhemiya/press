@@ -1,6 +1,7 @@
 import type { Token } from 'markdown-it';
 import { targetName, type Direction } from '../model.ts';
 import { walkDocument, type Document, type Figure, type Walk } from '../parse/document.ts';
+import type { PageHint } from '../parse/heading.ts';
 import { view, type RenderContext, type Rendered, type View } from '../diagrams/diagram.ts';
 import { printScene, type PrintScene } from '../scene/print.ts';
 
@@ -13,7 +14,7 @@ type Inline =
   | { t: 'br' };
 
 type Block =
-  | { t: 'heading'; level: number; c: Inline[] }
+  | { t: 'heading'; level: number; c: Inline[]; page?: PageHint }
   | { t: 'para'; c: Inline[] }
   | { t: 'list'; ordered: boolean; items: Block[][] }
   | { t: 'code'; s: string; lang: string }
@@ -30,6 +31,7 @@ interface Variant {
 
 interface Section {
   heading?: Block;
+  title?: string;
   blocks: Block[];
   keep: boolean;
   fresh: boolean;
@@ -56,11 +58,31 @@ export function typstDocument(doc: Document): TypstDocument {
 
 function sectionsOf(blocks: Block[]): Section[] {
   return blocks.reduce<Section[]>((out, b) => {
-    if (b.t === 'heading') return [...out, { heading: b, blocks: [], keep: false, fresh: false }];
+    if (b.t === 'heading')
+      return [...out, { heading: b, title: plain(b.c), blocks: [], keep: b.page === 'keep', fresh: b.page === 'new' }];
     const last = out.at(-1);
     if (last === undefined) return [{ blocks: [b], keep: false, fresh: false }];
     return [...out.slice(0, -1), { ...last, blocks: [...last.blocks, b] }];
   }, []);
+}
+
+function plain(inlines: Inline[]): string {
+  return inlines
+    .map((x) => {
+      switch (x.t) {
+        case 'text':
+        case 'code':
+          return x.s;
+        case 'br':
+          return ' ';
+        case 'strong':
+        case 'em':
+        case 'link':
+        case 'ref':
+          return plain(x.c);
+      }
+    })
+    .join('');
 }
 
 function blockRun(walk: Walk, from: number, close: string | undefined): [Block[], number] {
@@ -71,7 +93,7 @@ function blockRun(walk: Walk, from: number, close: string | undefined): [Block[]
     const t = tokens[i];
     switch (t.type) {
       case 'heading_open':
-        out.push({ t: 'heading', level: Number(t.tag.slice(1)), c: inlines(walk, tokens[i + 1]) });
+        out.push(heading(t, Number(t.tag.slice(1)), inlines(walk, tokens[i + 1]), walk));
         i += 3;
         continue;
       case 'paragraph_open':
@@ -130,6 +152,11 @@ function blockRun(walk: Walk, from: number, close: string | undefined): [Block[]
     }
   }
   return [out, i];
+}
+
+function heading(open: Token, level: number, c: Inline[], walk: Walk): Block {
+  const page = walk.page(open);
+  return page === undefined ? { t: 'heading', level, c } : { t: 'heading', level, c, page };
 }
 
 function inlines(walk: Walk, token: Token | undefined): Inline[] {

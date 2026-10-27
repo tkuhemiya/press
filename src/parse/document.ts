@@ -15,6 +15,7 @@ import {
 import { definition, view } from '../diagrams/diagram.ts';
 import { formsElsewhere, GRAMMARS, isDiagramType } from './grammars.ts';
 import { parseFence } from './grammar.ts';
+import { headingHint, type PageHint } from './heading.ts';
 import { closest, into, list, type Reporter } from '../diagnostics.ts';
 import { diagramId, edgeIndex, trusted } from '../brand.ts';
 
@@ -41,6 +42,7 @@ interface Parsed {
   tokens: Token[];
   figures: WeakMap<Token, Figure>;
   refs: WeakMap<Token, Ref>;
+  pages: WeakMap<Token, PageHint>;
 }
 
 const parsed = new WeakMap<Document, Parsed>();
@@ -54,6 +56,7 @@ export function parseDocument(source: string): Document {
   const report = into(diagnostics);
   const inline = (text: string): Html => trusted(md.renderInline(text));
   const tokens = md.parse(source, {});
+  const pages = takeHeadingHints(tokens, report);
   const figures: Figure[] = [];
   const figureAt = new WeakMap<Token, Figure>();
   const byId = new Map<DiagramId, Figure>();
@@ -165,7 +168,7 @@ export function parseDocument(source: string): Document {
   diagnostics.sort((a, b) => a.line - b.line);
   const doc: Document = { figures, refs, diagnostics };
   if (title !== undefined) doc.title = title;
-  parsed.set(doc, { md, tokens, figures: figureAt, refs: refAt });
+  parsed.set(doc, { md, tokens, figures: figureAt, refs: refAt, pages });
   return doc;
 }
 
@@ -173,12 +176,18 @@ export interface Walk {
   tokens: readonly Token[];
   figure(token: Token): Figure | undefined;
   ref(token: Token): Ref | undefined;
+  page(token: Token): PageHint | undefined;
 }
 
 export function walkDocument(doc: Document): Walk {
   const p = parsed.get(doc);
   if (!p) throw new Error('walkDocument needs a document from parseDocument.');
-  return { tokens: p.tokens, figure: (t) => p.figures.get(t), ref: (t) => p.refs.get(t) };
+  return {
+    tokens: p.tokens,
+    figure: (t) => p.figures.get(t),
+    ref: (t) => p.refs.get(t),
+    page: (t) => p.pages.get(t),
+  };
 }
 
 export function renderDocument(doc: Document, weave: Weave): Html {
@@ -206,6 +215,23 @@ export function renderDocument(doc: Document, weave: Weave): Html {
     rules.fence = defaultFence;
     rules.link_open = defaultLink;
   }
+}
+
+function takeHeadingHints(tokens: Token[], report: Reporter): WeakMap<Token, PageHint> {
+  const pages = new WeakMap<Token, PageHint>();
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const open = tokens[i];
+    const inline = tokens[i + 1];
+    if (open.type !== 'heading_open' || inline.type !== 'inline') continue;
+    const hint = headingHint(inline.content, (open.map?.[0] ?? 0) + 1, report);
+    if (!hint) continue;
+    inline.content = hint.text;
+    const last = inline.children?.at(-1);
+    if (last?.type === 'text' && last.content.endsWith(hint.suffix))
+      last.content = last.content.slice(0, last.content.length - hint.suffix.length);
+    if (hint.page) pages.set(open, hint.page);
+  }
+  return pages;
 }
 
 function safeDecode(s: string): string {

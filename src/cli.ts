@@ -7,11 +7,14 @@ import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, formatDiagnostic } from './index.ts';
 import { typstDocument } from './render/typst.ts';
+import { parseReports, settle, unfitSections, type Choices, type Report } from './render/settle.ts';
 
 const USAGE = `Usage:
   press build <file.md> -o out.html | out.pdf               Render to HTML, or typeset to PDF (needs typst)
   press build <file.md...> --out-dir dir                    Render each file to HTML
   press check <file.md...>                                  Report problems only`;
+
+const MAX_ROUNDS = 50;
 
 const args = process.argv.slice(2);
 const command = args.shift();
@@ -67,21 +70,50 @@ function typeset(json: string, target: string): void {
   try {
     writeFileSync(join(dir, 'doc.json'), json);
     copyFileSync(here('./render/press.typ'), join(dir, 'press.typ'));
+    const entry = join(dir, 'press.typ');
+    const common = ['--root', dir, '--font-path', here('../assets/fonts/ttf'), '--ignore-system-fonts'];
+    const settled = settleChoices(entry, common);
+    for (const title of unfitSections(settled.reports)) {
+      console.error(`warning: section "${title}" is too long to keep on one page; it flows normally.`);
+    }
     execFileSync(
       'typst',
-      [
-        'compile',
-        '--root',
-        dir,
-        '--font-path',
-        here('../assets/fonts/ttf'),
-        '--ignore-system-fonts',
-        join(dir, 'press.typ'),
-        target,
-      ],
+      ['compile', ...common, '--input', `choices=${JSON.stringify(settled.choices)}`, entry, target],
       { stdio: 'inherit' },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function settleChoices(entry: string, common: string[]): { choices: Choices; reports: Report[] } {
+  let choices: Choices = {};
+  let reports = fitReports(entry, common, choices);
+  for (let round = 1; ; round++) {
+    const next = settle(reports, choices);
+    if (next === 'settled') return { choices, reports };
+    if (round === MAX_ROUNDS) {
+      console.error('warning: the layout did not settle; the last layout is used.');
+      return { choices, reports };
+    }
+    choices = next;
+    reports = fitReports(entry, common, choices);
+  }
+}
+
+function fitReports(entry: string, common: string[], choices: Choices): Report[] {
+  const out = execFileSync(
+    'typst',
+    [
+      'eval',
+      '--in',
+      entry,
+      ...common,
+      '--input',
+      `choices=${JSON.stringify(choices)}`,
+      'query(<press-fit>).map(m => m.value)',
+    ],
+    { encoding: 'utf8' },
+  );
+  return parseReports(out);
 }

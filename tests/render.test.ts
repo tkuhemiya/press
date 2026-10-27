@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { build } from '../src/index.ts';
+import { build, parseDocument } from '../src/index.ts';
+import { typstDocument } from '../src/render/typst.ts';
 import { textWidth } from '../src/text/measure.ts';
 
 const checkout = readFileSync(new URL('../docs/examples/checkout.md', import.meta.url), 'utf8');
@@ -359,5 +360,33 @@ describe('v0.4 drawing', () => {
     const html = draw('```tradeoffs\na.x : yes {note="since 4.0"}\nb.x : no\n```');
     expect(html).toMatch(/class="pr-caveat"/);
     expect(html).toMatch(/pr-cell-note[^>]*>.*since 4\.0/);
+  });
+});
+
+describe('print sections from page hints', () => {
+  const sections = (source: string) =>
+    typstDocument(parseDocument(source)).sections.map((s) => ({
+      title: s.heading?.t === 'heading' ? s.heading.c.map((i) => (i.t === 'text' ? i.s : '')).join('') : '',
+      keep: s.keep,
+      fresh: s.fresh,
+    }));
+
+  it('sets keep and fresh on the section each hint starts, and nowhere else', () => {
+    expect(
+      sections(
+        '# Guide\n\nIntro.\n\n## Kept {page=keep}\n\nBody.\n\n### Under kept\n\nDetail.\n\n## Fresh {page=new}\n\nOne.\n\n## Plain\n\nTwo.\n',
+      ),
+    ).toEqual([
+      { title: 'Guide', keep: false, fresh: false },
+      { title: 'Kept', keep: true, fresh: false },
+      { title: 'Under kept', keep: false, fresh: false },
+      { title: 'Fresh', keep: false, fresh: true },
+      { title: 'Plain', keep: false, fresh: false },
+    ]);
+  });
+
+  it('gives the heading block its page hint', () => {
+    const doc = typstDocument(parseDocument('## Appendix {page=new}\n\nText.\n'));
+    expect(doc.sections[0]?.heading).toMatchObject({ t: 'heading', level: 2, page: 'new' });
   });
 });

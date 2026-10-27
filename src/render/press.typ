@@ -3,6 +3,8 @@
 // file only draws them; the page and prose design live here, as style.css does for HTML.
 
 #let doc = json(sys.inputs.at("data", default: "doc.json"))
+#let choices = json(bytes(sys.inputs.at("choices", default: "{}")))
+#let chosen(key) = choices.at(key, default: 0)
 
 #let ink = rgb("#22211e")
 #let ink2 = rgb("#54514a")
@@ -137,6 +139,19 @@
 #let content-w = 210mm - 2 * 17mm
 #let key-of(f) = "pm-" + f.key
 
+// What a decision saw: its room and each candidate's height, in pt. Press settles the choices
+// from these reports and passes them back in, so no decision is taken inside Typst.
+#let report(key, heights, title: "") = {
+  let data = (
+    key: key,
+    room: room-at(key) / 1pt,
+    heights: heights.map(h => h / 1pt),
+    full: full-h() / 1pt,
+    title: title,
+  )
+  place([#metadata(data) <press-fit>])
+}
+
 #let figure-block(f, i: 0, k: 1.0) = {
   let variant = f.variants.at(i)
   block(breakable: false, width: 100%, above: 1.3em, below: 1.4em, {
@@ -195,16 +210,11 @@
 #let lead-with(lead, body) = if lead == none { body } else { block(breakable: false, width: 100%, { one(lead, none); body }) }
 #let unit-of(f, c, lead) = lead-with(lead, figure-block(f, i: c.i, k: c.k))
 
-// The largest candidate that fits the room left, measured from the marker; otherwise the
-// first that fits a fresh page (the block then moves there), otherwise the smallest.
+// Reports every candidate's height; Press chooses one (settle.ts) and sends it back in.
 #let fig-place(f, key, lead: none) = context {
   let cs = candidates(f)
-  let space = room-at(key)
-  let measured = cs.map(c => (c: c, h: measure(unit-of(f, c, lead), width: content-w).height))
-  let placed = measured.find(m => m.h + 16pt <= space)
-  let whole = measured.find(m => m.h <= full-h())
-  let pick = if placed != none { placed } else if whole != none { whole } else { measured.sorted(key: m => m.h).first() }
-  unit-of(f, pick.c, lead)
+  report(key, cs.map(c => measure(unit-of(f, c, lead), width: content-w).height))
+  unit-of(f, cs.at(calc.min(chosen(key), cs.len() - 1)), lead)
 }
 
 #let fig-flow(f, lead: none) = {
@@ -225,6 +235,7 @@
   }
 }
 
+// A keep section's choice is its level (0-7) kept in place, or 8 + level after a page break.
 #let keep-section(s, i) = {
   let key = "pm-sec-" + str(i)
   let unit(level) = block(breakable: false, width: 100%, {
@@ -238,17 +249,12 @@
   })
   anchor(key, if s.at("heading", default: none) == none { 0.95em } else { 1.7em })
   context {
-    let w = content-w
-    let space = room-at(key)
-    let measured = range(8).map(c => (c: c, h: measure(unit(c), width: w).height))
-    let placed = measured.find(m => m.h + 16pt <= space)
-    let whole = measured.find(m => m.h <= full-h())
-    if placed != none { unit(placed.c) }
-    else if whole != none {
-      pagebreak(weak: true)
-      unit(whole.c)
-    }
-    else { flow-section(s) }
+    let heights = range(8).map(c => measure(unit(c), width: content-w).height)
+    report(key, heights, title: s.at("title", default: ""))
+    let pick = chosen(key)
+    if pick >= 8 { pagebreak(weak: true) }
+    if heights.at(calc.rem(pick, 8)) > full-h() { flow-section(s) }
+    else { unit(calc.rem(pick, 8)) }
   }
 }
 

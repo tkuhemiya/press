@@ -44,6 +44,7 @@ If two types fit, pick the one whose edges mean what you want to say. A sequence
 - **Steps tell the story.** Use three to six steps. Each caption says why the move happens. Step through the path that matters. Leave the other edges out of `steps:`.
 - **Prose and the diagram work together.** Point at a node from the text with `[the failed state](#order.failed)`. Point at an edge with `[the retry](#order.failed->submitted)`, and at a sequence phase or a causal loop by its id. On screen, the reader hovers the link and Press highlights what it names. On paper, the reference is a lettered marker.
 - **`direction` is the only layout hint.** Leave it out unless you have a reason. Press picks the direction that fits the page. Put it in the fence header, as in `` ```architecture direction=down ``. Do not add extra nodes, or reorder lines, to push the layout around.
+- **Page hints are rare.** On paper, Press already keeps a heading with the content under it, so hints are rarely needed. Add `{page=keep}` to a heading only when its section must be read on one page, such as a figure and the explanation that depends on it: `## Where the writes go {page=keep}`. Add `{page=new}` only to start a new major part of the document: `## Appendix: wire formats {page=new}`. Any other value is an error. The hint shows on paper only, so the heading reads the same on screen.
 
 ## The shared grammar
 
