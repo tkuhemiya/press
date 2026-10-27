@@ -1,7 +1,7 @@
-import { ROLES } from './model.ts';
-import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, Role, Time } from './model.ts';
-import { diagramId, groupId, nodeId } from './brand.ts';
-import { closest, list, type Reporter } from './diagnostics.ts';
+import { ROLES } from '../model.ts';
+import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, Role, Time } from '../model.ts';
+import { diagramId, groupId, nodeId } from '../brand.ts';
+import { closest, list, type Reporter } from '../diagnostics.ts';
 import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
 
 export type Attrs = ReadonlyMap<string, string>;
@@ -26,14 +26,14 @@ interface Meaning {
   line: number;
 }
 
-export type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; label?: string };
-export type Mention = Meaning & { type: 'mention'; id: NodeId };
+type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; label?: string };
+type Mention = Meaning & { type: 'mention'; id: NodeId };
 export type Chain = Meaning & { type: 'chain'; ends: [End, End, ...End[]]; arrows: NonEmpty<Arrow>; label?: string };
 export type Prop = Meaning & { type: 'prop'; node: NodeId; key: NodeId; value?: string };
-export type Event = Meaning & { type: 'event'; at: Time; id: NodeId; label?: string };
-export type LoopLine = { type: 'loop'; name: string; ends: [NodeId, NodeId, ...NodeId[]]; line: number };
+type Event = Meaning & { type: 'event'; at: Time; id: NodeId; label?: string };
+type LoopLine = { type: 'loop'; name: string; ends: [NodeId, NodeId, ...NodeId[]]; line: number };
 
-export type Statement = Declare | Mention | Chain | Prop | Event | LoopLine;
+type Statement = Declare | Mention | Chain | Prop | Event | LoopLine;
 
 export interface RawStep {
   from: End;
@@ -43,7 +43,7 @@ export interface RawStep {
   line: number;
 }
 
-export interface FenceGroup {
+interface FenceGroup {
   label: string;
   parent?: GroupId;
   line: number;
@@ -100,11 +100,11 @@ const ROLE_SYNONYMS: Record<string, Role> = {
   context: 'muted',
 };
 
-export function isRole(value: string): value is Role {
+function isRole(value: string): value is Role {
   return ROLES.some((r) => r === value);
 }
 
-export function isArrow(value: string): value is Arrow {
+function isArrow(value: string): value is Arrow {
   return value === '->' || value === '-->' || value === '<->';
 }
 

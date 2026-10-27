@@ -37,9 +37,7 @@ describe('in the browser', () => {
     await page.click(`${fig} [data-act="next"]`);
     expect(await page.$eval(`${fig} .pr-count`, (el: Element) => el.textContent)).toBe('1 / 6');
     expect(
-      await page.$$eval(`${fig} .pr-node.is-current`, (els: Element[]) =>
-        els.map((e) => (e as HTMLElement).dataset.node),
-      ),
+      await page.$$eval(`${fig} .pr-node.is-current`, (els: Element[]) => els.map((e) => e.getAttribute('data-node'))),
     ).toEqual(['draft']);
     await page.keyboard.press('ArrowRight');
     expect(
@@ -60,9 +58,7 @@ describe('in the browser', () => {
     await open();
     await page.hover('a.pr-ref[data-node="cancelled"]');
     expect(
-      await page.$$eval('#press-order .is-pointed', (els: Element[]) =>
-        els.map((e) => (e as HTMLElement).dataset.node),
-      ),
+      await page.$$eval('#press-order .is-pointed', (els: Element[]) => els.map((e) => e.getAttribute('data-node'))),
     ).toEqual(['cancelled']);
   });
 
@@ -150,7 +146,7 @@ describe('every example in the browser', () => {
     const figures = await page.$$eval('.pr-figure', (els: Element[]) =>
       els.map((el) => ({
         height: el.getBoundingClientRect().height,
-        markers: [...el.querySelectorAll('.pr-step-marker')].filter((m) => m.closest('svg')!.checkVisibility()).length,
+        markers: [...el.querySelectorAll('.pr-step-marker')].filter((m) => m.closest('svg')?.checkVisibility()).length,
         steps: el.querySelectorAll('.pr-legend li').length,
       })),
     );

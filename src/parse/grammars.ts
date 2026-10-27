@@ -1,4 +1,4 @@
-import { ARCHITECTURE_KINDS, SEQUENCE_KINDS, type DiagramType } from './model.ts';
+import { ARCHITECTURE_KINDS, SEQUENCE_KINDS, type DiagramType } from '../model.ts';
 import type { Grammar, LineForm } from './grammar.ts';
 
 const plain = { reserved: [], kinds: [], attrs: [], forms: [] } as const;

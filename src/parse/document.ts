@@ -1,80 +1,105 @@
 import MarkdownIt from 'markdown-it';
 import type { Token } from 'markdown-it';
-import { DIAGRAM_TYPES, type Diagnostic, type Diagram, type DiagramType } from '../model.ts';
-import { parseFence } from './fence.ts';
-import { buildMigrated, isMigrated } from '../next/bridge.ts';
-import { trusted } from '../next/brand.ts';
-import { closest, list } from './suggest.ts';
+import {
+  targetName,
+  type Diagnostic,
+  type Diagram,
+  type DiagramId,
+  type DiagramType,
+  type Html,
+  type Ref,
+} from '../model.ts';
+import { definition, view } from '../diagrams/diagram.ts';
+import { formsElsewhere, GRAMMARS, isDiagramType } from './grammars.ts';
+import { parseFence } from './grammar.ts';
+import { closest, into, list } from '../diagnostics.ts';
+import { diagramId, trusted } from '../brand.ts';
 
-export interface ProseRef {
-  diagram: string;
-  node: string;
-  line: number;
-  marker: string;
+export interface Figure {
+  domId: string;
+  diagram: Diagram;
+  refs: Ref[];
 }
 
-export interface PressDocument {
-  tokens: Token[];
-  diagrams: Diagram[];
-  refs: ProseRef[];
+export interface Document {
   title?: string;
+  figures: Figure[];
+  refs: Ref[];
   diagnostics: Diagnostic[];
-  md: Markdown;
 }
+
+export interface Weave {
+  figure(figure: Figure): Html;
+  refOpen(ref: Ref, figure: Figure): Html;
+}
+
+interface Parsed {
+  md: InstanceType<typeof MarkdownIt>;
+  tokens: Token[];
+  figures: WeakMap<Token, Figure>;
+  refs: WeakMap<Token, Ref>;
+}
+
+const parsed = new WeakMap<Document, Parsed>();
 
 const REF = /^#([a-z0-9_]+(?:-[a-z0-9_]+)*)\.(.+)$/;
+const TYPES: DiagramType[] = Object.keys(GRAMMARS).filter(isDiagramType);
 
-export type Markdown = InstanceType<typeof MarkdownIt>;
-
-export function createMarkdown(): Markdown {
-  return new MarkdownIt({ html: false, linkify: false, typographer: true });
-}
-
-export function parseDocument(source: string): PressDocument {
-  const md = createMarkdown();
+export function parseDocument(source: string): Document {
+  const md = new MarkdownIt({ html: false, linkify: false, typographer: true });
   const diagnostics: Diagnostic[] = [];
+  const report = into(diagnostics);
+  const inline = (text: string): Html => trusted(md.renderInline(text));
   const tokens = md.parse(source, {});
-  const diagrams: Diagram[] = [];
-  const byId = new Map<string, Diagram>();
+  const figures: Figure[] = [];
+  const figureAt = new WeakMap<Token, Figure>();
+  const byId = new Map<DiagramId, Figure>();
   let title: string | undefined;
 
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (!title && t.type === 'heading_open' && t.tag === 'h1') title = tokens[i + 1]?.content;
     if (t.type !== 'fence') continue;
-    const lang = t.info.trim().split(/\s+/)[0] ?? '';
+    const info = t.info.trim();
+    const lang = info.split(/\s+/)[0] ?? '';
     const line = (t.map?.[0] ?? 0) + 1;
-    if (!(DIAGRAM_TYPES as readonly string[]).includes(lang)) {
-      const near = closest(lang, DIAGRAM_TYPES);
+    if (!isDiagramType(lang)) {
+      const near = closest(lang, TYPES);
       if (near && lang && near !== lang)
-        diagnostics.push({
-          severity: 'warning',
+        report.warn(
           line,
-          message: `\`${lang}\` is not a Press diagram type, so this fence renders as code.`,
-          hint: `Did you mean \`${near}\`? Diagram types: ${list(DIAGRAM_TYPES)}.`,
-        });
+          `\`${lang}\` is not a Press diagram type, so this fence renders as code.`,
+          `Did you mean \`${near}\`? Diagram types: ${list(TYPES)}.`,
+        );
       continue;
     }
-    const input = { info: t.info.trim(), body: t.content, line };
-    const diagram = isMigrated(lang)
-      ? buildMigrated(lang, input, diagnostics, (text) => trusted(md.renderInline(text)))
-      : parseFence({ type: lang as DiagramType, ...input }, diagnostics);
-    t.meta = { diagram };
-    diagrams.push(diagram);
+    const fence = parseFence(
+      { type: lang, info, body: t.content, line, grammar: GRAMMARS[lang], inline, formsElsewhere },
+      report,
+    );
+    const diagram: Diagram = definition(lang).build(fence, report);
+    const figure: Figure = {
+      domId: diagram.id ? `press-${diagram.id}` : `press-figure-${figures.length + 1}`,
+      diagram,
+      refs: [],
+    };
+    figureAt.set(t, figure);
+    figures.push(figure);
     if (diagram.id) {
-      if (byId.has(diagram.id))
-        diagnostics.push({
-          severity: 'error',
+      const earlier = byId.get(diagram.id);
+      if (earlier)
+        report.error(
           line,
-          message: `Diagram id \`${diagram.id}\` is already used on line ${byId.get(diagram.id)!.line}.`,
-          hint: 'Give each diagram its own id.',
-        });
-      else byId.set(diagram.id, diagram);
+          `Diagram id \`${diagram.id}\` is already used on line ${earlier.diagram.line}.`,
+          'Give each diagram its own id.',
+        );
+      else byId.set(diagram.id, figure);
     }
   }
 
-  const refs: ProseRef[] = [];
-  const markers = new Map<string, Map<string, string>>();
+  const refs: Ref[] = [];
+  const refAt = new WeakMap<Token, Ref>();
+  const letters = new Map<Figure, Map<string, string>>();
   for (const block of tokens) {
     if (block.type !== 'inline' || !block.children) continue;
     let line = (block.map?.[0] ?? 0) + 1;
@@ -84,46 +109,79 @@ export function parseDocument(source: string): PressDocument {
       const href = String(child.attrGet('href') ?? '');
       const m = REF.exec(href);
       if (!m) continue;
-      const [, diagramId, nodeId] = m;
-      const diagram = byId.get(diagramId);
-      if (!diagram) {
-        const near = closest(diagramId, byId.keys());
-        diagnostics.push({
-          severity: 'error',
+      const [, id, name] = m;
+      const figure = byId.get(diagramId(id));
+      if (!figure) {
+        const near = closest(id, byId.keys());
+        report.error(
           line,
-          message: `Reference \`${href}\` names diagram \`${diagramId}\`, which does not exist.`,
-          hint: near
-            ? `Did you mean \`#${near}.${nodeId}\`?`
+          `Reference \`${href}\` names diagram \`${id}\`, which does not exist.`,
+          near
+            ? `Did you mean \`#${near}.${name}\`?`
             : byId.size
               ? `Diagrams with ids: ${list(byId.keys())}.`
               : 'Give the diagram an id in its fence header: ```state-machine id=order```.',
-        });
+        );
         continue;
       }
-      const ids = [...diagram.nodes.map((n) => n.id), ...diagram.props.map((p) => `${p.node}.${p.key}`)];
-      if (!ids.includes(nodeId)) {
-        const near = closest(nodeId, ids);
-        diagnostics.push({
-          severity: 'error',
+      const named = new Map(
+        view(figure.diagram)
+          .targets()
+          .map((p) => [targetName(p.target), p.target]),
+      );
+      const target = named.get(name);
+      if (!target) {
+        const near = closest(name, named.keys());
+        report.error(
           line,
-          message: `Reference \`${href}\` names \`${nodeId}\`, which is not in diagram \`${diagramId}\`.`,
-          hint: near ? `Did you mean \`#${diagramId}.${near}\`?` : `Nodes in \`${diagramId}\`: ${list(ids)}.`,
-        });
+          `Reference \`${href}\` names \`${name}\`, which is not in diagram \`${id}\`.`,
+          near ? `Did you mean \`#${id}.${near}\`?` : `Nodes in \`${id}\`: ${list(named.keys())}.`,
+        );
         continue;
       }
-      let perDiagram = markers.get(diagramId);
-      if (!perDiagram) markers.set(diagramId, (perDiagram = new Map()));
-      let marker = perDiagram.get(nodeId);
-      if (!marker) perDiagram.set(nodeId, (marker = letter(perDiagram.size)));
-      child.meta = { ref: { diagram: diagramId, node: nodeId, marker } };
-      refs.push({ diagram: diagramId, node: nodeId, line, marker });
+      let perFigure = letters.get(figure);
+      if (!perFigure) letters.set(figure, (perFigure = new Map()));
+      let marker = perFigure.get(name);
+      if (!marker) perFigure.set(name, (marker = letter(perFigure.size)));
+      const ref: Ref = { diagram: diagramId(id), target, marker, line };
+      refAt.set(child, ref);
+      refs.push(ref);
+      figure.refs.push(ref);
     }
   }
 
   diagnostics.sort((a, b) => a.line - b.line);
-  return title === undefined
-    ? { tokens, diagrams, refs, diagnostics, md }
-    : { tokens, diagrams, refs, title, diagnostics, md };
+  const doc: Document = { figures, refs, diagnostics };
+  if (title !== undefined) doc.title = title;
+  parsed.set(doc, { md, tokens, figures: figureAt, refs: refAt });
+  return doc;
+}
+
+export function renderDocument(doc: Document, weave: Weave): Html {
+  const p = parsed.get(doc);
+  if (!p) throw new Error('renderDocument needs a document from parseDocument.');
+  const { md, tokens } = p;
+  const byId = new Map(doc.figures.flatMap((f) => (f.diagram.id ? [[f.diagram.id, f] as const] : [])));
+  const rules = md.renderer.rules;
+  const defaultFence = rules.fence;
+  rules.fence = (all, idx, opts, env, self) => {
+    const figure = p.figures.get(all[idx]);
+    if (figure) return weave.figure(figure);
+    return defaultFence ? defaultFence(all, idx, opts, env, self) : self.renderToken(all, idx, opts);
+  };
+  const defaultLink = rules.link_open;
+  rules.link_open = (all, idx, opts, env, self) => {
+    const ref = p.refs.get(all[idx]);
+    const figure = ref && byId.get(ref.diagram);
+    if (ref && figure) return weave.refOpen(ref, figure);
+    return defaultLink ? defaultLink(all, idx, opts, env, self) : self.renderToken(all, idx, opts);
+  };
+  try {
+    return trusted(md.renderer.render(tokens, md.options, {}));
+  } finally {
+    rules.fence = defaultFence;
+    rules.link_open = defaultLink;
+  }
 }
 
 function letter(n: number): string {
@@ -135,8 +193,4 @@ function letter(n: number): string {
     n = Math.floor(n / 26);
   }
   return s;
-}
-
-export function formatDiagnostic(d: Diagnostic, file = 'input'): string {
-  return `${file}:${d.line}: ${d.severity}: ${d.message}${d.hint ? `\n  fix: ${d.hint}` : ''}`;
 }

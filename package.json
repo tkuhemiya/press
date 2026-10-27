@@ -12,15 +12,15 @@
     "typecheck": "tsc",
     "lint": "oxlint",
     "format": "oxfmt",
-    "check": "oxfmt --check && oxlint && tsc",
+    "check": "oxfmt --check && oxlint && tsc && knip",
     "test": "vitest run"
   },
   "dependencies": {
     "markdown-it": "^15.0.3"
   },
   "devDependencies": {
-    "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.5",
+    "knip": "^6.43.0",
     "oxfmt": "^0.75.0",
     "oxlint": "^1.90.0",
     "oxlint-tsgolint": "^7.0.2005",

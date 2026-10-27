@@ -1,7 +1,7 @@
-import type { Direction, Edge, EdgeTarget, Group, Node, NodeId, NodeTarget, Step } from './model.ts';
+import type { Direction, Edge, EdgeTarget, Group, Node, NodeId, NodeTarget, Step } from '../model.ts';
 import type { RenderContext, Rendered } from './diagram.ts';
-import { trusted } from './brand.ts';
-import { edgeSvg, labelSvg, markers, type Box, type NodeShape } from '../diagrams/graph.ts';
+import { trusted } from '../brand.ts';
+import { edgeSvg, labelSvg, markers, refMarkers, type Box, type NodeShape } from './draw.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
 import { loopPath, routePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -46,7 +46,7 @@ export function renderGraph<N extends Node>(
   style: GraphStyle<N>,
 ): Rendered {
   const { domId } = context;
-  const dir = (d.direction ?? style.direction) === 'right' ? 'LR' : 'TB';
+  const dir = (context.direction ?? d.direction ?? style.direction) === 'right' ? 'LR' : 'TB';
   const across = dir === 'TB';
 
   const cnodes: CNode[] = d.groups.map((g) => {
@@ -179,13 +179,7 @@ export function renderGraph<N extends Node>(
   }
   out.push(...labels);
   const boxes = new Map(placed.map((p) => [p.node.id, p.box]));
-  const refs = new Map(
-    placed.flatMap((p) => {
-      const letter = context.marker({ type: 'node', id: p.node.id });
-      return letter === undefined ? [] : [[p.node.id, letter] as const];
-    }),
-  );
-  out.push(...markers(d, boxes, anchors, refs));
+  out.push(...markers(d, boxes, anchors, refMarkers(context, d.nodes)));
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }

@@ -36,9 +36,3 @@ export function badge(cls: string, attrs: string, x: number, y: number, label: s
   const r = label.length > 1 ? 9 : 8;
   return `<g class="${cls}"${attrs}><circle cx="${n(x)}" cy="${n(y)}" r="${r}"/><text x="${n(x)}" y="${n(y)}" dy="0.35em">${esc(label)}</text></g>`;
 }
-
-export interface Rendered {
-  svg: string;
-  width: number;
-  height: number;
-}

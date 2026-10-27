@@ -284,7 +284,7 @@ describe('print layout', () => {
         (_, i) => `n${i}: service "A component with a long name ${i}"\nn${i} -> n${i + 1}`,
       ).join('\n') +
       '\n```';
-    const width = (html: string) => Number(/<svg class="pr-svg[^"]*"[^>]*width="(\d+)"/.exec(html)![1]);
+    const width = (html: string) => Number(/<svg class="pr-svg[^"]*"[^>]*width="(\d+)"/.exec(html)?.[1]);
     expect(width(build(chain(''), { embedFonts: false }).html)).toBeLessThan(900);
     expect(width(build(chain(' direction=right'), { embedFonts: false }).html)).toBeGreaterThan(1500);
   });
@@ -320,8 +320,8 @@ describe('walkthrough on a decision tree', () => {
     const src = readFileSync(new URL('../docs/examples/caching.md', import.meta.url), 'utf8');
     const json = build(src, { embedFonts: false }).html.match(
       /<script type="application\/json" class="pr-steps">(.*?)<\/script>/,
-    )![1];
-    expect(JSON.parse(json).map((s: { trail: number[] }) => s.trail)).toEqual([[], [0], [0, 1], [0, 1]]);
+    )?.[1];
+    expect(JSON.parse(json ?? '[]').map((s: { trail: number[] }) => s.trail)).toEqual([[], [0], [0, 1], [0, 1]]);
   });
 });
 

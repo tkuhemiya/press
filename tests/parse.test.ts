@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { parseDocument } from '../src/parse/document.ts';
+import { parseDocument, type Diagram, type DiagramType, type Document } from '../src/index.ts';
 
 const fence = (type: string, body: string, header = '') =>
   `# Doc\n\n\`\`\`${type}${header ? ' ' + header : ''}\n${body}\n\`\`\`\n`;
 const parse = (type: string, body: string, header = '') => parseDocument(fence(type, body, header));
+const is = <T extends DiagramType>(d: Diagram, type: T): d is Diagram<T> => d.type === type;
+const first = <T extends DiagramType>(doc: Document, type: T): Diagram<T> => {
+  const d = doc.figures[0]?.diagram;
+  if (!d || !is(d, type)) throw new Error(`expected a ${type}`);
+  return d;
+};
 const errors = (doc: ReturnType<typeof parseDocument>) => doc.diagnostics.filter((d) => d.severity === 'error');
 
 describe('shared grammar', () => {
@@ -20,7 +26,7 @@ shipped -> end`,
       'id=order title="Order lifecycle"',
     );
     expect(doc.diagnostics).toEqual([]);
-    const d = doc.diagrams[0];
+    const d = first(doc, 'state-machine');
     expect(d.id).toBe('order');
     expect(d.title).toBe('Order lifecycle');
     expect(d.nodes.map((n) => n.id)).toEqual(['start', 'draft', 'submitted', 'paid', 'failed', 'shipped', 'end']);
@@ -44,7 +50,7 @@ api --> client : 200 OK
 a <-> b`,
     );
     expect(doc.diagnostics).toEqual([]);
-    const d = doc.diagrams[0];
+    const d = first(doc, 'sequence');
     expect(d.nodes[0]).toMatchObject({ id: 'client', kind: 'user', label: 'Browser' });
     expect(d.nodes[1]).toMatchObject({ id: 'api', role: 'focus' });
     expect(d.edges.map((e) => e.arrow)).toEqual(['->', '-->', '<->']);
@@ -52,12 +58,12 @@ a <-> b`,
   });
 
   it('keeps hyphens inside ids apart from arrows', () => {
-    const d = parse('state-machine', 'a-b-->c-d').diagrams[0];
+    const d = first(parse('state-machine', 'a-b-->c-d'), 'state-machine');
     expect(d.edges[0]).toMatchObject({ from: 'a-b', to: 'c-d', arrow: '-->' });
   });
 
   it('expands chains and applies attributes to every segment', () => {
-    const d = parse('state-machine', 'start -> draft -> paid --> end {role=happy}').diagrams[0];
+    const d = first(parse('state-machine', 'start -> draft -> paid --> end {role=happy}'), 'state-machine');
     expect(d.edges.map((e) => [e.from, e.to, e.arrow, e.role])).toEqual([
       ['start', 'draft', '->', 'happy'],
       ['draft', 'paid', '->', 'happy'],
@@ -72,16 +78,19 @@ a <-> b`,
   });
 
   it('nests groups', () => {
-    const d = parse(
+    const d = first(
+      parse(
+        'state-machine',
+        'group "Active" {\n  playing -> paused\n  group "Inner" {\n    x\n  }\n}\nidle -> playing',
+      ),
       'state-machine',
-      'group "Active" {\n  playing -> paused\n  group "Inner" {\n    x\n  }\n}\nidle -> playing',
-    ).diagrams[0];
+    );
     expect(d.groups).toEqual([
-      { label: 'Active', parent: -1, line: 4 },
+      { label: 'Active', line: 4 },
       { label: 'Inner', parent: 0, line: 6 },
     ]);
-    expect(d.nodes.find((n) => n.id === 'x')!.group).toBe(1);
-    expect(d.nodes.find((n) => n.id === 'idle')!.group).toBe(-1);
+    expect(d.nodes.find((n) => n.id === 'x')?.group).toBe(1);
+    expect(d.nodes.find((n) => n.id === 'idle')?.group).toBeUndefined();
   });
 });
 
@@ -99,9 +108,9 @@ web -> api : HTTPS
 api --> db`,
     );
     expect(doc.diagnostics).toEqual([]);
-    const d = doc.diagrams[0];
+    const d = first(doc, 'architecture');
     expect(d.nodes.map((n) => [n.id, n.kind, n.group])).toEqual([
-      ['web', 'client', -1],
+      ['web', 'client', undefined],
       ['api', 'service', 0],
       ['db', 'database', 0],
     ]);
@@ -113,7 +122,7 @@ api --> db`,
       { severity: 'warning', line: 4, message: expect.stringContaining('Group "A" has no members') },
       { severity: 'warning', line: 8, message: expect.stringContaining('already in group "A"') },
     ]);
-    expect(doc.diagrams[0].nodes[0].group).toBe(1);
+    expect(first(doc, 'architecture').nodes[0].group).toBe(1);
   });
 
   it('suggests a known kind', () => {
@@ -170,7 +179,7 @@ describe('diagnostics name the line and suggest a fix', () => {
   it('suggests a diagram type for a near miss', () => {
     const doc = parseDocument('```state-machin\na -> b\n```\n');
     expect(doc.diagnostics[0].hint).toContain('state-machine');
-    expect(doc.diagrams).toHaveLength(0);
+    expect(doc.figures).toHaveLength(0);
   });
 });
 
@@ -179,7 +188,7 @@ describe('steps', () => {
     const d = parse(
       'state-machine',
       'start -> draft\ndraft -> paid : pay\nsteps:\n  draft "Starts here"\n  draft -> paid "Pays"',
-    ).diagrams[0];
+    ).figures[0].diagram;
     expect(d.steps).toEqual([
       { target: { type: 'node', id: 'draft' }, caption: 'Starts here', line: 7 },
       { target: { type: 'edge', index: 1 }, caption: 'Pays', line: 8 },
@@ -187,12 +196,12 @@ describe('steps', () => {
   });
 
   it('treats -> and --> as the same in a step', () => {
-    const d = parse('sequence', 'db --> api : ok\nsteps:\n  db -> api "Replies"').diagrams[0];
+    const d = parse('sequence', 'db --> api : ok\nsteps:\n  db -> api "Replies"').figures[0].diagram;
     expect(d.steps[0].target).toEqual({ type: 'edge', index: 0 });
   });
 
   it('matches <-> edges in either direction', () => {
-    const d = parse('sequence', 'a <-> b : sync\nsteps:\n  b -> a "Syncs"').diagrams[0];
+    const d = parse('sequence', 'a <-> b : sync\nsteps:\n  b -> a "Syncs"').figures[0].diagram;
     expect(d.steps[0].target).toEqual({ type: 'edge', index: 0 });
   });
 
@@ -202,7 +211,7 @@ describe('steps', () => {
       'api -> db : insert\napi -> db : update\nsteps:\n  api -> db : update "Second write"',
     );
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'edge', index: 1 });
+    expect(doc.figures[0].diagram.steps[0].target).toEqual({ type: 'edge', index: 1 });
   });
 
   it('lists the candidates when a step is ambiguous', () => {
@@ -243,10 +252,10 @@ Broken: [x](#ordr.failed) and
 
   it('assigns one letter per node, in reading order', () => {
     const doc = parseDocument(src);
-    expect(doc.refs.map((r) => [r.node, r.marker])).toEqual([
-      ['failed', 'a'],
-      ['draft', 'b'],
-      ['failed', 'a'],
+    expect(doc.refs.map((r) => [r.target, r.marker])).toEqual([
+      [{ type: 'node', id: 'failed' }, 'a'],
+      [{ type: 'node', id: 'draft' }, 'b'],
+      [{ type: 'node', id: 'failed' }, 'a'],
     ]);
   });
 
@@ -266,8 +275,8 @@ Broken: [x](#ordr.failed) and
 describe('timeline', () => {
   const warnings = (doc: ReturnType<typeof parseDocument>) => doc.diagnostics.filter((d) => d.severity === 'warning');
   const dated = (doc: ReturnType<typeof parseDocument>) => {
-    const d = doc.diagrams[0].typed;
-    if (d?.type !== 'timeline' || d.dating === 'undated') throw new Error('expected a dated timeline');
+    const d = first(doc, 'timeline');
+    if (d.dating === 'undated') throw new Error('expected a dated timeline');
     return d;
   };
 
@@ -308,7 +317,7 @@ describe('timeline', () => {
   it('spaces an undated timeline in source order', () => {
     const doc = parse('timeline', 'a: "One"\nb: "Two"\na -> b');
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].typed).toMatchObject({ type: 'timeline', dating: 'undated' });
+    expect(first(doc, 'timeline')).toMatchObject({ type: 'timeline', dating: 'undated' });
   });
 
   const cases: [string, string, RegExp, RegExp][] = [
@@ -357,10 +366,10 @@ describe('causal-loop', () => {
   it('reads polarities, delays and loops, and works out each loop type', () => {
     const doc = parse('causal-loop', growth);
     expect(doc.diagnostics).toEqual([]);
-    const [d] = doc.diagrams;
-    expect(d.edges.map((e) => e.label)).toEqual(['+', '+', '+', '-', '-']);
-    expect(d.edges[4].attrs.delay).toBe('yes');
-    expect(d.loops.map((l) => [l.label, l.name, l.nodes])).toEqual([
+    const d = first(doc, 'causal-loop');
+    expect(d.edges.map((e) => e.polarity)).toEqual(['+', '+', '+', '-', '-']);
+    expect(d.edges.map((e) => e.delay)).toEqual([false, false, false, false, true]);
+    expect(d.loops.map((l) => [l.label, l.name, l.edges.map((i) => d.edges[i].from)])).toEqual([
       ['R1', 'Word of mouth', ['customers', 'referrals']],
       ['B1', 'Saturation', ['customers', 'saturation', 'referrals']],
     ]);
@@ -371,7 +380,7 @@ describe('causal-loop', () => {
       'causal-loop',
       'a -> b : +\nb -> a : +\nb -> c : -\nc -> b : +\nloop "One": a -> b -> a\nloop "Two": b -> c -> b\nloop "Three": b -> a -> b',
     );
-    expect(doc.diagrams[0].loops.map((l) => l.label)).toEqual(['R1', 'B1', 'R2']);
+    expect(first(doc, 'causal-loop').loops.map((l) => l.label)).toEqual(['R1', 'B1', 'R2']);
   });
 
   const cases: [string, string, RegExp, RegExp][] = [
@@ -424,7 +433,7 @@ describe('properties', () => {
       'redis.ops : "another service" {role=error}\nredis.revoke : yes\nredis.latency {role=happy}',
     );
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].props.map((p) => [p.node, p.key, p.value, p.role])).toEqual([
+    expect(first(doc, 'tradeoffs').cells.map((c) => [c.option, c.criterion, c.value, c.role])).toEqual([
       ['redis', 'ops', 'another service', 'error'],
       ['redis', 'revoke', 'yes', undefined],
       ['redis', 'latency', undefined, 'happy'],
@@ -440,7 +449,7 @@ describe('properties', () => {
   it('warns when a property is given twice', () => {
     const doc = parse('er', 'a.id : uuid\na.id : int');
     expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringMatching(/given twice/) });
-    expect(doc.diagrams[0].props).toHaveLength(1);
+    expect(first(doc, 'er').nodes[0].fields).toHaveLength(1);
   });
 
   it('steps and prose references can name a property', () => {
@@ -448,8 +457,8 @@ describe('properties', () => {
       '```tradeoffs id=t\nredis.ops : x\n\nsteps:\n  redis.ops "Costs"\n```\n\nSee [ops](#t.redis.ops).\n',
     );
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'node', id: 'redis.ops' });
-    expect(doc.refs[0].node).toBe('redis.ops');
+    expect(first(doc, 'tradeoffs').steps[0].target).toEqual({ type: 'prop', node: 'redis', key: 'ops' });
+    expect(doc.refs[0].target).toEqual({ type: 'prop', node: 'redis', key: 'ops' });
   });
 
   it('only er edges join fields', () => {
@@ -493,7 +502,9 @@ describe('tradeoffs', () => {
   it('reads options, criteria and cells', () => {
     const doc = parse('tradeoffs', 'a: "A" {role=focus}\na.x : 1\na.y : 2 {role=happy}\nb.x : 3\nb.y : 4');
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].nodes.map((n) => n.id)).toEqual(['a', 'x', 'y', 'b']);
+    const d = first(doc, 'tradeoffs');
+    expect(d.options.map((n) => n.id)).toEqual(['a', 'b']);
+    expect(d.criteria.map((n) => n.id)).toEqual(['x', 'y']);
   });
 
   it('rejects edges, suggesting a cell', () => {
@@ -524,15 +535,14 @@ describe('er', () => {
   it('reads fields and references between them', () => {
     const doc = parse('er', `${schema}\norders.user_id -> users.id : placed by {card=N:0..1}`);
     expect(doc.diagnostics).toEqual([]);
-    const [e] = doc.diagrams[0].edges;
-    expect([e.from, e.fromKey, e.to, e.toKey, e.label, e.attrs.card]).toEqual([
-      'orders',
-      'user_id',
-      'users',
-      'id',
-      'placed by',
-      'N:0..1',
-    ]);
+    const [e] = first(doc, 'er').edges;
+    expect(e).toMatchObject({
+      level: 'field',
+      from: { entity: 'orders', field: 'user_id' },
+      to: { entity: 'users', field: 'id' },
+      label: 'placed by',
+      cardinality: ['N', '0..1'],
+    });
   });
 
   it('reads entity-level edges, and steps over field edges', () => {
@@ -541,7 +551,7 @@ describe('er', () => {
       `${schema}\nusers -> teams : member of {card=N:N}\norders.user_id -> users.id {card=N:1}\n\nsteps:\n  orders.user_id -> users.id "Placed by"`,
     );
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'edge', index: 1 });
+    expect(doc.figures[0].diagram.steps[0].target).toEqual({ type: 'edge', index: 1 });
   });
 
   const cases: [string, string, RegExp, RegExp][] = [
@@ -570,14 +580,16 @@ describe('er', () => {
 
 describe('fixes from the authoring eval', () => {
   it('reads an undeclared id as words, except an er table name', () => {
-    expect(parse('causal-loop', 'wage_demands -> prices : +').diagrams[0].nodes[0].label).toBe('wage demands');
-    expect(parse('er', 'channel_members.id : uuid {key=yes}').diagrams[0].nodes[0].label).toBe('channel_members');
+    expect(first(parse('causal-loop', 'wage_demands -> prices : +'), 'causal-loop').nodes[0].label).toBe(
+      'wage demands',
+    );
+    expect(first(parse('er', 'channel_members.id : uuid {key=yes}'), 'er').nodes[0].label).toBe('channel_members');
   });
 
   it('puts the criterion of a cell written inside a group into that category', () => {
     const doc = parse('tradeoffs', 'group "Cost" {\n  a.ops : cheap\n  b.ops : dear\n}');
     expect(doc.diagnostics).toEqual([]);
-    expect(doc.diagrams[0].nodes.find((n) => n.id === 'ops')!.group).toBe(0);
+    expect(first(doc, 'tradeoffs').criteria.find((n) => n.id === 'ops')?.group).toBe(0);
   });
 
   it('warns about a group with no members', () => {

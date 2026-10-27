@@ -1,18 +1,16 @@
-import { ARCHITECTURE_KINDS, type Architecture, type ArchitectureKind, type Component } from './model.ts';
+import { ARCHITECTURE_KINDS, type Architecture, type ArchitectureKind, type Component } from '../model.ts';
 import type { DiagramDef } from './diagram.ts';
-import type { Fence } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
-import { GRAMMARS } from './grammars.ts';
-import { buildGraph, header, lean, resolveSteps, toNode } from './graph.ts';
+import type { Fence } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
+import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from '../diagrams/graph.ts';
-import { GLYPH_W, glyph, kindShape } from '../diagrams/kinds.ts';
+import { drawText, measureLabel, type NodeShape } from './draw.ts';
+import { GLYPH_W, glyph, kindShape } from './kinds.ts';
 import { n } from '../render/svg.ts';
 
 export const ARCHITECTURE: DiagramDef<'architecture'> = {
   type: 'architecture',
   name: 'Architecture',
-  grammar: GRAMMARS.architecture,
   build,
   render: (d, context) =>
     renderGraph(d, context, {
@@ -21,6 +19,9 @@ export const ARCHITECTURE: DiagramDef<'architecture'> = {
       kind: (node) => node.kind,
       svgClass: 'pr-architecture',
     }),
+  targets: (d) => nodeParts(d.nodes),
+  ends: (d, edge) => edgeEnds(d.edges, edge),
+  turnable: (d) => d.direction === undefined,
   withoutMuted(d, pinned) {
     const kept = lean(d, pinned);
     return kept && { ...d, ...kept };

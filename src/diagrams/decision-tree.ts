@@ -1,17 +1,15 @@
-import type { DecisionTree, Edge, Node, NodeId } from './model.ts';
+import type { DecisionTree, Edge, Node, NodeId } from '../model.ts';
 import type { DiagramDef } from './diagram.ts';
-import type { Fence } from './grammar.ts';
-import type { Reporter } from './diagnostics.ts';
-import { GRAMMARS } from './grammars.ts';
-import { buildGraph, header, lean, resolveSteps, toNode } from './graph.ts';
+import type { Fence } from '../parse/grammar.ts';
+import type { Reporter } from '../diagnostics.ts';
+import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from '../diagrams/graph.ts';
+import { drawText, measureLabel, type NodeShape } from './draw.ts';
 import { n } from '../render/svg.ts';
 
 export const DECISION_TREE: DiagramDef<'decision-tree'> = {
   type: 'decision-tree',
   name: 'Decision tree',
-  grammar: GRAMMARS['decision-tree'],
   build,
   render(d, context) {
     const outcomes = new Set(d.nodes.filter((node) => !d.edges.some((e) => e.from === node.id)).map((node) => node.id));
@@ -22,11 +20,39 @@ export const DECISION_TREE: DiagramDef<'decision-tree'> = {
       svgClass: 'pr-decision-tree',
     });
   },
+  targets: (d) => nodeParts(d.nodes),
+  ends: (d, edge) => edgeEnds(d.edges, edge),
+  turnable: (d) => d.direction === undefined,
+  trail,
   withoutMuted(d, pinned) {
     const kept = lean(d, pinned);
     return kept && { ...d, ...kept };
   },
 };
+
+function trail(d: DecisionTree, i: number): number[] {
+  const at = (t: (typeof d.steps)[number]['target']): { from: NodeId; to: NodeId } | undefined => {
+    if (t.type === 'node') return { from: t.id, to: t.id };
+    const e = d.edges[t.index];
+    return e && { from: e.from, to: e.to };
+  };
+  const step = d.steps[i];
+  const here = step && at(step.target)?.from;
+  if (here === undefined) return [];
+  const above = new Set([here]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const e of d.edges)
+      if (above.has(e.to) && !above.has(e.from)) {
+        above.add(e.from);
+        grew = true;
+      }
+  }
+  return d.steps.slice(0, i).flatMap((s, k) => {
+    const ends = at(s.target);
+    return ends && above.has(ends.to) ? [k] : [];
+  });
+}
 
 type Answer = Edge<'->' | '-->'>;
 const isAnswer = (e: Edge): e is Answer => e.arrow !== '<->';
