@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { Diagram, DiagramType } from '../model.ts';
 import type { PressDocument } from '../parse/document.ts';
 import { renderArchitecture } from '../diagrams/architecture.ts';
+import { renderCausalLoop } from '../diagrams/causal-loop.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
 import { renderStateMachine } from '../diagrams/state-machine.ts';
 import { renderTimeline } from '../diagrams/timeline.ts';
@@ -86,7 +87,7 @@ const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, 
   'state-machine': renderStateMachine,
   sequence: renderSequence,
   architecture: renderArchitecture,
-  'causal-loop': renderArchitecture,
+  'causal-loop': renderCausalLoop,
   timeline: renderTimeline,
 };
 const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline' };

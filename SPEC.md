@@ -158,9 +158,11 @@ Variables and the causal links between them, for feedback. In this type **the ed
 
 Keyword: `loop`, reserved.
 
-- `{delay=yes}` on an edge marks a delay, drawn with the standard ‖ mark.
+- `{delay=yes}` on an edge marks a delay, drawn with the standard ‖ mark. `yes` is the only value; leave the attribute out when there is no delay.
+- A variable cannot link to itself (`a -> a`). Name what carries the effect and route the link through it.
 - `loop "Name": a -> b -> a` names a feedback loop. The chain must close (it ends where it starts) and each segment must be an edge in the diagram. **Press works out the loop's type from the edge polarities**: an even number of `-` makes it reinforcing (R), an odd number balancing (B). Loops are numbered in order (R1, R2, B1) and marked inside the diagram with their name.
 - `direction` has no meaning here; the parser ignores it with a warning.
+- Layout keeps each named loop open, with its mark inside: a circular arrow turning the way the loop runs, its number, and its name. A two-variable loop draws as a lens.
 
 Node kinds: none. A declaration gives only a label.
 

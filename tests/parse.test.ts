@@ -310,3 +310,59 @@ describe('timeline', () => {
     expect(w[0].message).toMatch(/Unknown attribute `until`/);
   });
 });
+
+describe('causal-loop', () => {
+  const growth = [
+    'customers -> referrals : +',
+    'referrals -> customers : +',
+    'customers -> saturation : +',
+    'saturation -> referrals : -',
+    'price -> customers : - {delay=yes}',
+    'loop "Word of mouth": customers -> referrals -> customers',
+    'loop "Saturation": customers -> saturation -> referrals -> customers',
+  ].join('\n');
+
+  it('reads polarities, delays and loops, and works out each loop type', () => {
+    const doc = parse('causal-loop', growth);
+    expect(doc.diagnostics).toEqual([]);
+    const [d] = doc.diagrams;
+    expect(d.edges.map((e) => e.label)).toEqual(['+', '+', '+', '-', '-']);
+    expect(d.edges[4].attrs.delay).toBe('yes');
+    expect(d.loops.map((l) => [l.label, l.name, l.nodes])).toEqual([
+      ['R1', 'Word of mouth', ['customers', 'referrals']],
+      ['B1', 'Saturation', ['customers', 'saturation', 'referrals']],
+    ]);
+  });
+
+  it('numbers loops per type', () => {
+    const doc = parse('causal-loop', 'a -> b : +\nb -> a : +\nb -> c : -\nc -> b : +\nloop "One": a -> b -> a\nloop "Two": b -> c -> b\nloop "Three": b -> a -> b');
+    expect(doc.diagrams[0].loops.map((l) => l.label)).toEqual(['R1', 'B1', 'R2']);
+  });
+
+  const cases: [string, string, RegExp, RegExp][] = [
+    ['missing polarity', 'a -> b', /needs a polarity/, /a -> b : \+/],
+    ['a word for polarity', 'a -> b : positive', /not a polarity/, /a -> b : \+/],
+    ['a sentence as label', 'a -> b : drives up', /not a polarity/, /prose/],
+    ['two-way arrow', 'a <-> b : +', /`<->` is not allowed/, /b -> a/],
+    ['self link', 'a -> a : +', /cannot influence itself/, /outflow/],
+    ['loop that does not close', 'a -> b : +\nb -> c : +\nloop "Open": a -> b -> c', /does not close/, /a -> b -> c -> a/],
+    ['loop over a missing edge', 'a -> b : +\nb -> c : +\nloop "L": a -> b -> a', /not an edge/, /Edges from `b`: `b -> c`/],
+    ['loop with an unknown node', 'a -> b : +\nb -> a : +\nloop "L": a -> bb -> a', /not in the diagram/, /Did you mean `b`/],
+    ['loop without a name', 'a -> b : +\nb -> a : +\nloop: a -> b -> a', /quoted name/, /loop "Word of mouth"/],
+    ['loop as an id', 'loop -> b : +', /quoted name|reserved/, /loop "/],
+    ['delay with another value', 'a -> b : + {delay=long}', /not understood/, /delay=yes/],
+  ];
+  for (const [name, body, message, hint] of cases) {
+    it(name, () => {
+      const e = errors(parse('causal-loop', body))[0];
+      expect(e, name).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+    });
+  }
+
+  it('warns that direction means nothing in a causal loop', () => {
+    const doc = parse('causal-loop', 'a -> b : +', 'direction=down');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringContaining('no meaning') });
+  });
+});

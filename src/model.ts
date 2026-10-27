@@ -66,6 +66,19 @@ export interface Step {
   line: number;
 }
 
+// A named feedback loop in a causal-loop diagram. Its kind comes from the edge polarities:
+// an even number of `-` reinforces (R), an odd number balances (B).
+export interface Loop {
+  name: string;
+  kind: 'R' | 'B';
+  // R1, R2, B1… numbered per kind in source order.
+  label: string;
+  // The nodes in loop order, without repeating the first.
+  nodes: string[];
+  edges: number[];
+  line: number;
+}
+
 export const DIAGRAM_TYPES = ['state-machine', 'sequence', 'architecture', 'causal-loop', 'timeline'] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
@@ -79,5 +92,7 @@ export interface Diagram {
   edges: DiagramEdge[];
   groups: DiagramGroup[];
   steps: Step[];
+  // causal-loop only.
+  loops: Loop[];
   line: number;
 }

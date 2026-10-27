@@ -142,6 +142,31 @@ waiting -> end
     expect(html).toMatch(/class="pr-tick-label"[^>]*>2020</);
   });
 
+  it('draws a causal loop: signed links, a delay mark and a mark for each loop', () => {
+    const src = readFileSync(new URL('../examples/word-of-mouth.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-causal-loop"');
+    expect(count(svg, /class="pr-polarity"[^>]*>\+</g)).toBe(3);
+    expect(count(svg, /class="pr-polarity"[^>]*>−</g)).toBe(2);
+    expect(count(svg, /class="pr-delay"/g)).toBe(1);
+    expect(svg).toMatch(/class="pr-loop" data-loop="R1" data-kind="R">.*?Word of mouth/);
+    expect(svg).toMatch(/class="pr-loop" data-loop="B1" data-kind="B">.*?Saturation/);
+    expect(count(svg, /class="pr-step-marker"/g)).toBe(4);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('lays a causal loop out the same way every time, without overlapping variables', () => {
+    const src = '```causal-loop\na -> b : +\nb -> c : +\nc -> a : -\nc -> d : +\nd -> b : -\nloop "L": a -> b -> c -> a\n```';
+    const first = build(src, { embedFonts: false }).html;
+    expect(build(src, { embedFonts: false }).html).toBe(first);
+    const boxes = [...first.matchAll(/<rect class="pr-box pr-variable" x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    expect(boxes).toHaveLength(4);
+    for (const [i, [x, y, w, h]] of boxes.entries())
+      for (const [x2, y2, w2, h2] of boxes.slice(i + 1)) expect(x < x2 + w2 && x2 < x + w && y < y2 + h2 && y2 < y + h).toBe(false);
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);
