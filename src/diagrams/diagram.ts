@@ -1,14 +1,4 @@
-import type {
-  Diagram,
-  DiagramType,
-  Direction,
-  EdgeIndex,
-  Html,
-  NodeId,
-  NodeTarget,
-  Part,
-  PropTarget,
-} from '../model.ts';
+import type { Diagram, DiagramType, Direction, EdgeIndex, Html, NodeId, Part, Target } from '../model.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { ARCHITECTURE } from './architecture.ts';
@@ -26,10 +16,15 @@ export interface Rendered {
   height: number;
 }
 
+interface Members {
+  edges: EdgeIndex[];
+  nodes: NodeId[];
+}
+
 export interface RenderContext {
   domId: string;
   direction?: Direction;
-  marker(target: NodeTarget | PropTarget): string | undefined;
+  marker(target: Target): string | undefined;
 }
 
 export interface DiagramDef<T extends DiagramType> {
@@ -39,6 +34,7 @@ export interface DiagramDef<T extends DiagramType> {
   render(diagram: Diagram<T>, context: RenderContext): Rendered;
   targets(diagram: Diagram<T>): Part[];
   ends?(diagram: Diagram<T>, edge: EdgeIndex): [string, string] | undefined;
+  members?(diagram: Diagram<T>, id: NodeId): Members | undefined;
   turnable?(diagram: Diagram<T>): boolean;
   trail?(diagram: Diagram<T>, step: number): number[];
   withoutMuted?(diagram: Diagram<T>, pinned: (id: NodeId) => boolean): Diagram<T> | undefined;
@@ -64,6 +60,7 @@ export interface View {
   render(context: RenderContext): Rendered;
   targets(): Part[];
   ends(edge: EdgeIndex): [string, string] | undefined;
+  members(id: NodeId): Members | undefined;
   turnable(): boolean;
   trail(step: number): number[] | undefined;
   withoutMuted(pinned: (id: NodeId) => boolean): Diagram | undefined;
@@ -80,6 +77,7 @@ function bind<T extends DiagramType>(d: Diagram<T> & { type: T }): View {
     render: (context) => def.render(d, context),
     targets: () => def.targets(d),
     ends: (edge) => def.ends?.(d, edge),
+    members: (id) => def.members?.(d, id),
     turnable: () => def.turnable?.(d) ?? false,
     trail: (step) => def.trail?.(d, step),
     withoutMuted: (pinned) => def.withoutMuted?.(d, pinned),

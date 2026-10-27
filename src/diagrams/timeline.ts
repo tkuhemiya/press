@@ -1,4 +1,4 @@
-import type { DatedEvent, Group, Node, Time, Timeline } from '../model.ts';
+import type { DatedEvent, Dating, Group, Moment, Node, NodeId, Time, Timeline } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
@@ -16,8 +16,21 @@ import {
   type DraftNode,
 } from '../parse/graph.ts';
 import { parseTime } from '../parse/time.ts';
+import type { EdgePath } from '../layout/pele/route.ts';
 import { trusted } from '../brand.ts';
-import { drawText, edgeSvg, labelSvg, markers, measureLabel, refMarkers, type Box, type TextLines } from './draw.ts';
+import {
+  drawText,
+  edgeSvg,
+  labelSvg,
+  markers,
+  measureLabel,
+  refMarkers,
+  type Box,
+  type TextLines,
+  nodeTargets,
+  edgeTargets,
+  type Anchor,
+} from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 
@@ -28,7 +41,7 @@ export const TIMELINE: DiagramDef<'timeline'> = {
   render,
   targets: (d) => nodeParts(d.nodes),
   ends: (d, edge) => edgeEnds(d.edges, edge),
-  turnable: (d) => d.direction === undefined,
+  turnable: (d) => d.direction === undefined && !d.lanes.length,
   withoutMuted(d, pinned) {
     if (d.dating === 'undated') {
       const kept = lean(d, pinned);
@@ -40,6 +53,33 @@ export const TIMELINE: DiagramDef<'timeline'> = {
 };
 
 type Dated = DraftNode & { at: Time };
+
+function lanes(fence: Fence, nodes: readonly DraftNode[], { error, warn }: Reporter): Map<NodeId, number> {
+  const laneOf = new Map<NodeId, number>();
+  if (!fence.lanes.length) return laneOf;
+  for (const s of fence.statements) {
+    if (s.type === 'loop' || s.lane === undefined) continue;
+    if (s.type === 'chain') {
+      for (const end of s.ends) if (!laneOf.has(end.node)) laneOf.set(end.node, s.lane);
+    } else if (s.type !== 'prop') laneOf.set(s.id, s.lane);
+  }
+  for (const node of nodes)
+    if (!laneOf.has(node.id))
+      error(
+        node.line,
+        `\`${node.id}\` is in no lane, but this timeline has lanes.`,
+        `Move its line inside a lane, e.g. \`lane "${fence.lanes[0].label}" {\`. In a timeline with lanes, every event belongs to one.`,
+      );
+  fence.lanes.forEach((l, i) => {
+    if (![...laneOf.values()].includes(i))
+      warn(
+        l.line,
+        `Lane "${l.label}" has no events, so it is not drawn.`,
+        'Put its events inside the braces, or delete it.',
+      );
+  });
+  return laneOf;
+}
 const isDated = (node: DraftNode): node is Dated => node.at !== undefined;
 
 function build(fence: Fence, report: Reporter): Timeline {
@@ -48,7 +88,20 @@ function build(fence: Fence, report: Reporter): Timeline {
     label: (id) => id.replace(/_/g, ' '),
     empty: 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.',
   });
-  const top = header(fence, 'timeline');
+  const top = { ...header(fence, 'timeline'), lanes: fence.lanes.map((l) => ({ ...l })) };
+  const laneOf = lanes(fence, graph.nodes, report);
+  const laned = <N extends Node>(node: N): N & { lane?: number } => {
+    const lane = laneOf.get(node.id);
+    return lane === undefined ? node : { ...node, lane };
+  };
+  if (fence.lanes.length && top.direction === 'down') {
+    warn(
+      fence.line,
+      'A timeline with lanes runs left to right; `direction=down` is ignored.',
+      'Delete `direction=down` from the header.',
+    );
+    delete top.direction;
+  }
 
   const events = [...graph.nodes].sort((a, b) => a.line - b.line);
   for (const node of events)
@@ -73,7 +126,7 @@ function build(fence: Fence, report: Reporter): Timeline {
     return {
       ...top,
       dating: 'undated',
-      nodes: graph.nodes.map(toNode),
+      nodes: graph.nodes.map((node) => laned(toNode(node))),
       edges: graph.edges,
       groups: graph.groups,
       steps,
@@ -87,28 +140,29 @@ function build(fence: Fence, report: Reporter): Timeline {
         `\`${e.id}\` has no time, but other events in this timeline do.`,
         `Give it one, e.g. \`${first.at.text} ${e.id}: "${e.label}"\`. A timeline is either dated or undated throughout.`,
       );
-  const dating = first.at.form === 'clock' ? 'clock' : 'calendar';
-  const clock = dated.find((e) => e.at.form === 'clock');
-  const calendar = dated.find((e) => e.at.form !== 'clock');
+  const dating = datingOf(first.at);
+  const odd = dated.find((e) => datingOf(e.at) !== dating);
   const lasting = new Map<Dated, number>();
-  if (clock && calendar) {
-    const [late, early] = clock.line > calendar.line ? [clock, calendar] : [calendar, clock];
-    const kind = (e: Dated) => (e === clock ? 'clock time' : 'date');
+  if (odd) {
+    const kind = (e: Dated) => DATING_NAMES[datingOf(e.at)];
     error(
-      late.line,
-      `\`${late.at.text}\` is a ${kind(late)}, but \`${early.at.text}\` above is a ${kind(early)}.`,
-      'Use one kind throughout: clock times like `14:02`, or dates like `2019-03-14` and `2019-03-14T14:02`.',
+      odd.line,
+      `\`${odd.at.text}\` is a ${kind(odd)}, but \`${first.at.text}\` above is a ${kind(first)}.`,
+      'Use one kind throughout: clock times like `14:02`, dates like `2019-03-14` and `2019-03-14T14:02`, or times since the start like `0ms` and `+150ms`.',
     );
   } else {
-    let prev: Dated | undefined;
+    const previous = new Map<number | undefined, Dated>();
     for (const e of dated) {
+      const prev = previous.get(laneOf.get(e.id));
       if (prev && e.at.value < prev.at.value)
         warn(
           e.line,
           `\`${e.id}\` (${e.at.text}) is earlier than \`${prev.id}\` (${prev.at.text}) above it.`,
-          'Events are listed in order. Move the line up, or check the time for a typo.',
+          fence.lanes.length
+            ? 'Events in a lane are listed in order. Move the line up, or check the time for a typo.'
+            : 'Events are listed in order. Move the line up, or check the time for a typo.',
         );
-      prev = e;
+      previous.set(laneOf.get(e.id), e);
       const until = e.attrs.get('until');
       if (until === undefined) continue;
       const t = parseTime(until);
@@ -131,12 +185,12 @@ function build(fence: Fence, report: Reporter): Timeline {
   }
 
   const steps = resolveSteps(fence.steps, graph.nodes, graph.edges, report);
-  const fits = (e: Dated) => (e.at.form === 'clock') === (dating === 'clock');
+  const fits = (e: Dated) => datingOf(e.at) === dating;
   const nodes = graph.nodes
     .filter(isDated)
     .filter(fits)
     .map((e): DatedEvent => {
-      const event: DatedEvent = { ...toNode(e), at: e.at };
+      const event: DatedEvent = { ...laned(toNode(e)), at: e.at };
       const lasts = lasting.get(e);
       if (lasts !== undefined) event.lastsMs = lasts;
       return event;
@@ -193,6 +247,7 @@ function card(node: Node, time: string): Card {
 }
 
 function render(d: Timeline, context: RenderContext): Rendered {
+  if (d.lanes.length) return renderLanes(d, context);
   const { domId } = context;
   const across = (context.direction ?? d.direction ?? 'right') === 'right';
 
@@ -215,12 +270,10 @@ function render(d: Timeline, context: RenderContext): Rendered {
       if (e.lastsMs !== undefined) events[i].end = (e.at.value + e.lastsMs - t0) * scale;
     });
     if (t1 > t0)
-      ticks = makeTicks(
-        t0,
-        t1,
-        d.dating === 'clock',
-        Math.floor(length / (across ? TICK_GAP_ACROSS : TICK_GAP_DOWN)),
-      ).map((t) => ({ at: (t.value - t0) * scale, label: t.label }));
+      ticks = makeTicks(t0, t1, d.dating, Math.floor(length / (across ? TICK_GAP_ACROSS : TICK_GAP_DOWN))).map((t) => ({
+        at: (t.value - t0) * scale,
+        label: t.label,
+      }));
   } else {
     events = d.nodes.map((node) => card(node, ''));
     const step = across
@@ -243,20 +296,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
   const cardH = Math.max(0, ...events.map((e) => e.h));
   let cardLanes = 0;
   if (across) {
-    const covers = (c: Card, at: number) => at > c.box.x - 6 && at < c.box.x + c.w + 6;
-    for (let i = events.length - 1; i >= 0; i--) {
-      const e = events[i];
-      e.box = { x: e.at - FLAG, y: 0, w: e.w, h: e.h };
-      const later = events.slice(i + 1);
-      let lane = Math.max(0, ...later.filter((o) => covers(e, o.at)).map((o) => o.box.y + 1));
-      const below = Math.min(Infinity, ...later.filter((o) => covers(o, e.at)).map((o) => o.box.y));
-      const clash = (k: number) =>
-        later.some((o) => o.box.y === k && o.box.x < e.box.x + e.w + CARD_GAP && e.box.x < o.box.x + o.w + CARD_GAP);
-      while (clash(lane)) lane++;
-      if (lane >= below) for (const o of later) if (covers(o, e.at) && o.box.y <= lane) o.box.y = lane + 1;
-      e.box.y = lane;
-    }
-    cardLanes = Math.max(0, ...events.map((e) => e.box.y + 1));
+    cardLanes = stack(events);
   } else {
     let bottom = -Infinity;
     for (const e of events) {
@@ -362,7 +402,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
   out.push('</g>');
 
   const labels: string[] = [];
-  const anchors = new Map<number, { x: number; y: number }>();
+  const anchors = new Map<number, Anchor>();
   for (const { edge: e, a, b } of arcs) {
     const k = depth(a, b);
     const [x1, y1] = pt(a, -DOT - 2);
@@ -395,41 +435,313 @@ function render(d: Timeline, context: RenderContext): Rendered {
       const [lw, lh] = labelBox(e.label);
       const [lx, ly] = across ? [mx, my + lh / 2 - 2] : [mx - lw / 2 + 2, my];
       labels.push(labelSvg(e, lx, ly, false));
-      anchors.set(e.index, { x: lx - lw / 2 - 4, y: ly });
+      anchors.set(e.index, { x: lx - lw / 2 - 4, y: ly, w: lw + 8 });
     } else anchors.set(e.index, { x: mx, y: my });
   }
 
   for (const e of events) {
-    const node = e.node;
-    const attrs = ` data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}`;
     const b = e.box;
     const [dx, dy] = pt(e.at, 0);
-    let s = `<g class="pr-node pr-event${e.end !== undefined ? ' pr-lasting' : ''}"${attrs}>`;
     const [cx, cy] = across ? [dx, b.y + b.h] : [b.x, Math.min(Math.max(dy, b.y + 10), b.y + b.h - 10)];
-    s += `<path class="pr-stem" d="M${n(dx)},${n(dy)}${across ? `V${n(cy)}` : `L${n(cx - 6)},${n(cy)}H${n(cx)}`}"/>`;
+    const stem = `M${n(dx)},${n(dy)}${across ? `V${n(cy)}` : `L${n(cx - 6)},${n(cy)}H${n(cx)}`}`;
+    let span = '';
     if (e.end !== undefined) {
       const [sx, sy] = pt(e.at, 6 + e.lane * SPAN_LANE + SPAN_H / 2);
       const [ex, ey] = pt(e.end, 6 + e.lane * SPAN_LANE + SPAN_H / 2);
-      s += across
+      span = across
         ? `<rect class="pr-span" x="${n(sx)}" y="${n(sy - SPAN_H / 2)}" width="${n(Math.max(SPAN_H, ex - sx))}" height="${SPAN_H}" rx="${SPAN_H / 2}"/>`
         : `<rect class="pr-span" x="${n(sx - SPAN_H / 2)}" y="${n(sy)}" width="${SPAN_H}" height="${n(Math.max(SPAN_H, ey - sy))}" rx="${SPAN_H / 2}"/>`;
     }
-    s += `<circle class="pr-event-dot" cx="${n(dx)}" cy="${n(dy)}" r="${DOT}"/>`;
-    s += `<rect class="pr-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8"/>`;
-    if (node.role === 'error')
-      s += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8" fill="url(#${domId}-hatch)"/>`;
-    let top = b.y + PAD_Y;
-    if (e.time) {
-      s += `<text class="pr-when" x="${n(b.x + PAD_X)}" y="${n(top + TIME_H / 2 - 1)}" dy="0.35em">${esc(e.time)}</text>`;
-      top += TIME_H;
-    }
-    s += drawText(e.text, b.x + PAD_X, top + e.text.h / 2, 'start');
-    out.push(s + '</g>');
+    out.push(eventSvg(e, domId, dx, dy, stem, span));
   }
   out.push(...labels);
-  out.push(...markers(d, new Map(events.map((e) => [e.node.id, e.box])), anchors, refMarkers(context, d.nodes)));
+  out.push(
+    ...markers(
+      d,
+      new Map(events.map((e) => [e.node.id, e.box])),
+      anchors,
+      refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)]),
+    ),
+  );
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
+}
+
+function stack(events: readonly Card[]): number {
+  const covers = (c: Card, at: number) => at > c.box.x - 6 && at < c.box.x + c.w + 6;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    e.box = { x: e.at - FLAG, y: 0, w: e.w, h: e.h };
+    const later = events.slice(i + 1);
+    let lane = Math.max(0, ...later.filter((o) => covers(e, o.at)).map((o) => o.box.y + 1));
+    const below = Math.min(Infinity, ...later.filter((o) => covers(o, e.at)).map((o) => o.box.y));
+    const clash = (k: number) =>
+      later.some((o) => o.box.y === k && o.box.x < e.box.x + e.w + CARD_GAP && e.box.x < o.box.x + o.w + CARD_GAP);
+    while (clash(lane)) lane++;
+    if (lane >= below) for (const o of later) if (covers(o, e.at) && o.box.y <= lane) o.box.y = lane + 1;
+    e.box.y = lane;
+  }
+  return Math.max(0, ...events.map((e) => e.box.y + 1));
+}
+
+function spanLanes(events: readonly Card[]): number {
+  const ends: number[] = [];
+  for (const e of events) {
+    if (e.end === undefined) continue;
+    let lane = ends.findIndex((end) => end + 6 < e.at);
+    if (lane < 0) lane = ends.push(0) - 1;
+    ends[lane] = e.end;
+    e.lane = lane;
+  }
+  return ends.length;
+}
+
+const LANE_GAP = 26;
+const LANE_FONT = 12.5;
+const UNDATED_STEP = 96;
+
+function renderLanes(d: Timeline, context: RenderContext): Rendered {
+  const { domId } = context;
+  const laneOf = new Map(d.nodes.map((node) => [node.id, node.lane]));
+  const used = d.lanes.flatMap((lane, i) => (d.nodes.some((node) => node.lane === i) ? [{ lane, i }] : []));
+
+  let cards: Card[];
+  let length: number;
+  let ticks: { at: number; label: string }[] = [];
+  if (d.dating !== 'undated' && d.nodes.length) {
+    const sorted = [...d.nodes].sort((a, b) => a.at.value - b.at.value || a.line - b.line);
+    cards = sorted.map((e) => card(e, formatTime(e.at)));
+    const t0 = Math.min(...sorted.map((e) => e.at.value));
+    const t1 = Math.max(...sorted.map((e) => e.at.value + (e.lastsMs ?? 0)));
+    const room = Math.max(
+      0,
+      ...used.map(({ i }) => cards.filter((c) => laneOf.get(c.node.id) === i).reduce((s, c) => s + c.w + CARD_GAP, 0)),
+    );
+    length = Math.round(Math.min(860, Math.max(520, room * 1.1)));
+    const scale = t1 > t0 ? length / (t1 - t0) : 0;
+    if (t1 === t0) length = 0;
+    sorted.forEach((e, k) => {
+      cards[k].at = (e.at.value - t0) * scale;
+      if (e.lastsMs !== undefined) cards[k].end = (e.at.value + e.lastsMs - t0) * scale;
+    });
+    if (t1 > t0)
+      ticks = makeTicks(t0, t1, d.dating, Math.floor(length / TICK_GAP_ACROSS)).map((t) => ({
+        at: (t.value - t0) * scale,
+        label: t.label,
+      }));
+  } else {
+    cards = causalOrder(d).map((node) => card(node, ''));
+    cards.forEach((c, k) => (c.at = k * UNDATED_STEP));
+    length = Math.max(0, cards.length - 1) * UNDATED_STEP;
+  }
+
+  const byId = new Map(cards.map((c) => [c.node.id, c]));
+  const sameLane = d.edges.filter((e) => e.from !== e.to && laneOf.get(e.from) === laneOf.get(e.to));
+  const arcDepth = (a: number, b: number): number => Math.min(44, 22 + Math.abs(b - a) * 0.12);
+  const labelH = (label?: string): number => (label ? wrap(label, LABEL_FONT, 150).length * LABEL_LINE + 4 : 0);
+
+  const labelW = Math.max(0, ...used.map(({ lane }) => textWidth(lane.label, LANE_FONT, 'sans600'))) + 28;
+  const bandsAll = groupBands(d.groups, cards);
+  const groupRoom = bandsAll.length ? GROUP_TITLE : 0;
+  const left = Math.min(0, ...cards.map((c) => c.at - FLAG), ...bandsAll.map((b) => b.from));
+  const origin = MARGIN + labelW - left;
+  const cardH = Math.max(0, ...cards.map((c) => c.h));
+
+  let y = MARGIN + groupRoom;
+  const rows = used.map(({ lane, i }) => {
+    const mine = cards.filter((c) => laneOf.get(c.node.id) === i);
+    const spans = spanLanes(mine);
+    const levels = stack(mine);
+    const near = (spans ? spans * SPAN_LANE + 6 : 0) + STEM;
+    const line = y + levels * (cardH + CARD_GAP) - CARD_GAP + near;
+    for (const c of mine)
+      c.box = { x: origin + c.box.x, y: line - near - c.box.y * (cardH + CARD_GAP) - c.h, w: c.w, h: c.h };
+    const below = Math.max(
+      0,
+      ...sameLane
+        .filter((e) => laneOf.get(e.from) === i)
+        .map((e) => {
+          const a = byId.get(e.from);
+          const b = byId.get(e.to);
+          return a && b ? arcDepth(a.at, b.at) + labelH(e.label) / 2 + 4 : 0;
+        }),
+    );
+    const top = y;
+    y = line + Math.max(LANE_GAP, below + 12);
+    return { lane, i, line, top, mine };
+  });
+  const lineOf = new Map(rows.map((r) => [r.i, r.line]));
+  const lastLine = rows.at(-1)?.line ?? y;
+  const bottom = rows.length ? y - Math.max(LANE_GAP, 0) : y;
+  const tickY = Math.max(lastLine + 22, bottom);
+  const right = Math.max(length + 14, ...cards.map((c) => c.box.x + c.w - origin), ...bandsAll.map((b) => b.to));
+  const width = Math.ceil(origin + right + MARGIN);
+  const height = Math.ceil(tickY + (ticks.length ? 14 : 0) + MARGIN);
+
+  const out: string[] = [];
+  out.push(
+    `<svg class="pr-svg pr-timeline pr-lanes" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
+  );
+  out.push(
+    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
+  );
+  for (const b of bandsAll) {
+    const top = MARGIN + b.depth * 16;
+    out.push(
+      `<g class="pr-group pr-band"><rect x="${n(origin + b.from)}" y="${n(top)}" width="${n(b.to - b.from)}" height="${n(lastLine + 10 - top)}" rx="8"/><text x="${n(origin + b.from + 10)}" y="${n(top + 17)}">${esc(b.label)}</text></g>`,
+    );
+  }
+  const firstTop = rows[0]?.top ?? MARGIN;
+  for (const t of ticks)
+    out.push(
+      `<path class="pr-grid" d="M${n(origin + t.at)},${n(firstTop)}V${n(lastLine)}"/><text class="pr-tick-label" x="${n(origin + t.at)}" y="${n(tickY)}">${esc(t.label)}</text>`,
+    );
+  for (const r of rows) {
+    const x0 = origin - 8;
+    const x1 = origin + length + 14;
+    out.push(
+      `<g class="pr-lane"><text class="pr-lane-label" x="${MARGIN}" y="${n(r.line)}" dy="0.35em">${esc(r.lane.label)}</text><path class="pr-axis-line" d="M${n(x0)},${n(r.line)}H${n(x1)}"/></g>`,
+    );
+  }
+
+  const labels: string[] = [];
+  const taken: Box[] = [];
+  const anchors = new Map<number, Anchor>();
+  const dot = (c: Card): [number, number] => [origin + c.at, lineOf.get(laneOf.get(c.node.id) ?? -1) ?? 0];
+  for (const e of d.edges) {
+    const a = byId.get(e.from);
+    const b = byId.get(e.to);
+    if (!a || !b || a === b) continue;
+    const [ax, ay] = dot(a);
+    const [bx, by] = dot(b);
+    const both = e.arrow === '<->';
+    const gap = DOT + 2;
+    let path: EdgePath;
+    let mid: [number, number];
+    if (ay === by) {
+      const k = arcDepth(a.at, b.at);
+      const sy = ay + gap;
+      const ey = by + gap + HEAD - 1;
+      path = {
+        d: `M${n(ax)},${n(both ? ey : sy)}C${n(ax)},${n(ay + k * 1.33)} ${n(bx)},${n(by + k * 1.33)} ${n(bx)},${n(ey)}`,
+        sx: ax,
+        sy,
+        sdx: 0,
+        sdy: -1,
+        ex: bx,
+        ey: by + gap,
+        edx: 0,
+        edy: -1,
+      };
+      mid = [(ax + bx) / 2, ay + k + labelH(e.label) / 2 - 2];
+    } else {
+      const dir = Math.sign(by - ay);
+      const sy = ay + dir * gap;
+      const ey = by - dir * (gap + HEAD - 1);
+      const my = (ay + by) / 2;
+      path = {
+        d: `M${n(ax)},${n(both ? ay + dir * (gap + HEAD - 1) : sy)}C${n(ax)},${n(my)} ${n(bx)},${n(my)} ${n(bx)},${n(ey)}`,
+        sx: ax,
+        sy,
+        sdx: 0,
+        sdy: -dir,
+        ex: bx,
+        ey: by - dir * gap,
+        edx: 0,
+        edy: dir,
+      };
+      mid = [(ax + bx) / 2, my];
+    }
+    out.push(edgeSvg(e, path, both));
+    if (e.label) {
+      const lw = Math.max(...wrap(e.label, LABEL_FONT, 150).map((l) => textWidth(l, LABEL_FONT)));
+      const lh = labelH(e.label);
+      const free = (x: number, y: number): boolean =>
+        [...cards.map((c) => c.box), ...taken].every(
+          (b) => x + lw / 2 + 4 < b.x || x - lw / 2 - 4 > b.x + b.w || y + lh / 2 < b.y || y - lh / 2 > b.y + b.h,
+        );
+      const along = ay === by ? [0.5] : [0.5, 0.35, 0.65, 0.2, 0.8];
+      const spot = along.map((t) => (ay === by ? mid : bezier(ax, ay, bx, by, t))).find(([x, y]) => free(x, y));
+      if (spot) mid = spot;
+      taken.push({ x: mid[0] - lw / 2 - 4, y: mid[1] - lh / 2, w: lw + 8, h: lh });
+      labels.push(labelSvg(e, mid[0], mid[1], false));
+      anchors.set(e.index, { x: mid[0] - lw / 2 - 8, y: mid[1], w: lw + 16 });
+    } else anchors.set(e.index, { x: mid[0], y: mid[1] });
+  }
+
+  for (const r of rows)
+    for (const c of r.mine) {
+      const b = c.box;
+      const [dx, dy] = dot(c);
+      let span = '';
+      if (c.end !== undefined) {
+        const sy = dy - 6 - c.lane * SPAN_LANE - SPAN_H;
+        span = `<rect class="pr-span" x="${n(dx)}" y="${n(sy)}" width="${n(Math.max(SPAN_H, c.end - c.at))}" height="${SPAN_H}" rx="${SPAN_H / 2}"/>`;
+      }
+      out.push(eventSvg(c, domId, dx, dy, `M${n(dx)},${n(dy)}V${n(b.y + b.h)}`, span));
+    }
+  out.push(...labels);
+  out.push(
+    ...markers(
+      d,
+      new Map(cards.map((c) => [c.node.id, c.box])),
+      anchors,
+      refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)]),
+    ),
+  );
+  out.push('</svg>');
+  return { svg: trusted(out.join('')), width, height };
+}
+
+function bezier(ax: number, ay: number, bx: number, by: number, t: number): [number, number] {
+  const my = (ay + by) / 2;
+  const u = 1 - t;
+  const x = u * u * u * ax + 3 * u * u * t * ax + 3 * u * t * t * bx + t * t * t * bx;
+  const y = u * u * u * ay + 3 * u * u * t * my + 3 * u * t * t * my + t * t * t * by;
+  return [x, y];
+}
+
+function causalOrder(d: Timeline): Moment[] {
+  const nodes = [...d.nodes].sort((a, b) => a.line - b.line);
+  const before = new Map<NodeId, NodeId[]>(nodes.map((node) => [node.id, []]));
+  const lastIn = new Map<number | undefined, NodeId>();
+  for (const node of nodes) {
+    const prev = lastIn.get(node.lane);
+    if (prev !== undefined) before.get(node.id)?.push(prev);
+    lastIn.set(node.lane, node.id);
+  }
+  for (const e of d.edges) if (e.from !== e.to) before.get(e.to)?.push(e.from);
+  const placed = new Set<NodeId>();
+  const out: Moment[] = [];
+  while (out.length < nodes.length) {
+    const next =
+      nodes.find((node) => !placed.has(node.id) && (before.get(node.id) ?? []).every((id) => placed.has(id))) ??
+      nodes.find((node) => !placed.has(node.id));
+    if (!next) break;
+    placed.add(next.id);
+    out.push(next);
+  }
+  return out;
+}
+
+function eventSvg(e: Card, domId: string, dx: number, dy: number, stem: string, span: string): string {
+  const node = e.node;
+  const b = e.box;
+  const attrs = ` data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}`;
+  let s = `<g class="pr-node pr-event${e.end !== undefined ? ' pr-lasting' : ''}"${attrs}>`;
+  s += `<path class="pr-stem" d="${stem}"/>`;
+  s += span;
+  s += `<circle class="pr-event-dot" cx="${n(dx)}" cy="${n(dy)}" r="${DOT}"/>`;
+  s += `<rect class="pr-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8"/>`;
+  if (node.role === 'error')
+    s += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8" fill="url(#${domId}-hatch)"/>`;
+  let top = b.y + PAD_Y;
+  if (e.time) {
+    s += `<text class="pr-when" x="${n(b.x + PAD_X)}" y="${n(top + TIME_H / 2 - 1)}" dy="0.35em">${esc(e.time)}</text>`;
+    top += TIME_H;
+  }
+  s += drawText(e.text, b.x + PAD_X, top + e.text.h / 2, 'start');
+  return s + '</g>';
 }
 
 function groupBands(groups: readonly Group[], events: readonly Card[]): Band[] {
@@ -445,6 +757,7 @@ function groupBands(groups: readonly Group[], events: readonly Card[]): Band[] {
 
 function formatTime(t: Time): string {
   if (t.form === 'clock') return t.text.replace(/^(\d):/, '0$1:');
+  if (t.form === 'elapsed') return formatElapsed(t.value);
   const date = new Date(t.value);
   const y = date.getUTCFullYear();
   const mon = MONTHS[date.getUTCMonth()];
@@ -463,7 +776,43 @@ function formatTime(t: Time): string {
   }
 }
 
-function makeTicks(t0: number, t1: number, clock: boolean, most: number): { value: number; label: string }[] {
+const DATING_NAMES: Record<Dating, string> = {
+  clock: 'clock time',
+  calendar: 'date',
+  elapsed: 'time since the start',
+};
+
+function datingOf(t: Time): Dating {
+  if (t.form === 'clock') return 'clock';
+  return t.form === 'elapsed' ? 'elapsed' : 'calendar';
+}
+
+const ELAPSED_UNITS: [number, string][] = [
+  [86_400_000, 'd'],
+  [3_600_000, 'h'],
+  [60_000, 'min'],
+  [1000, 's'],
+  [1, 'ms'],
+];
+
+function formatElapsed(ms: number): string {
+  if (ms === 0) return '0 ms';
+  const [size, unit] = ELAPSED_UNITS.find(([u]) => ms >= u) ?? [1, 'ms'];
+  return `+${Math.round((ms / size) * 100) / 100} ${unit}`;
+}
+
+function elapsedTicks(t0: number, t1: number, most: number): { value: number; label: string }[] {
+  const count = Math.max(2, most);
+  const p = 10 ** Math.floor(Math.log10((t1 - t0) / count));
+  const step = [1, 2, 5, 10].map((k) => k * p).find((s) => (t1 - t0) / s <= count) ?? 10 * p;
+  const out: { value: number; label: string }[] = [];
+  for (let v = Math.ceil(t0 / step) * step; v <= t1; v += step) out.push({ value: v, label: formatElapsed(v) });
+  return out.length >= 2 ? out : [];
+}
+
+function makeTicks(t0: number, t1: number, dating: Dating, most: number): { value: number; label: string }[] {
+  if (dating === 'elapsed') return elapsedTicks(t0, t1, most);
+  const clock = dating === 'clock';
   const MIN = 60_000;
   const HOUR = 60 * MIN;
   const DAY = 24 * HOUR;

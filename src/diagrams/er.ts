@@ -5,7 +5,7 @@ import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, leanBy, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
-import { labelSvg, markers, refMarkers, type Box } from './draw.ts';
+import { labelSvg, markers, refMarkers, type Box, nodeTargets, edgeTargets, propTargets, type Anchor } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
 
@@ -311,7 +311,7 @@ function render(d: Er, context: RenderContext): Rendered {
   const out: string[] = [];
   const edgeSvgs: string[] = [];
   const labels: string[] = [];
-  const anchors = new Map<number, { x: number; y: number }>();
+  const anchors = new Map<number, Anchor>();
   for (const { e, from: fromId, to: toId, ends: pair } of placed) {
     const [p, q] = pair;
     const reach = Math.max(LEAD + 20, (p.ux ? Math.abs(q.x - p.x) : Math.abs(q.y - p.y)) / 2);
@@ -327,7 +327,7 @@ function render(d: Er, context: RenderContext): Rendered {
     const my = 0.125 * p.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * q.y;
     if (e.label) {
       labels.push(labelSvg(e, mx, my, onGroup(mx, my)));
-      anchors.set(e.index, { x: mx - labelSize(e)[0] / 2 - 4, y: my });
+      anchors.set(e.index, { x: mx - labelSize(e)[0] / 2 - 4, y: my, w: labelSize(e)[0] + 8 });
     } else anchors.set(e.index, { x: mx, y: my });
   }
 
@@ -387,7 +387,14 @@ function render(d: Er, context: RenderContext): Rendered {
   }
   out.push(...labels);
   const fields = d.nodes.flatMap((node) => node.fields.map((f) => ({ node: node.id, key: f.name })));
-  out.push(...markers(d, boxes, anchors, refMarkers(context, d.nodes, fields)));
+  out.push(
+    ...markers(
+      d,
+      boxes,
+      anchors,
+      refMarkers(context, [...nodeTargets(d.nodes), ...propTargets(fields), ...edgeTargets(d.edges)]),
+    ),
+  );
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }

@@ -256,7 +256,7 @@ describe('the Press skill', () => {
     const body = skill.replace(/^---[\s\S]*?---\n/, '');
     const { diagnostics, html } = build(body, { embedFonts: false });
     expect(diagnostics).toEqual([]);
-    expect(count(html, /<figure class="pr-figure"/g)).toBe(8);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(9);
   });
 });
 
@@ -331,5 +331,33 @@ describe('notes', () => {
       embedFonts: false,
     });
     expect(html).toMatch(/class="pr-note"[^>]*>.*stateless/);
+  });
+});
+
+describe('v0.4 drawing', () => {
+  const draw = (src: string) => build(src, { embedFonts: false }).html;
+
+  it('draws a phase as a labelled frame, with nested phases inside', () => {
+    const html = draw('```sequence\nphase outer "Outer" {\n  phase inner "Inner" {\n    a -> b\n  }\n  b -> a\n}\n```');
+    expect(count(html, /<g class="pr-phase"/g)).toBe(2);
+    expect(html).toMatch(/data-node="inner"[^>]*>.*Inner/);
+  });
+
+  it('marks an edge named from prose beside its label', () => {
+    const html = draw('```state-machine id=m\na -> b : go\n```\n\nSee [go](#m.a->b).');
+    expect(html).toMatch(/class="pr-ref-marker" data-edge="0"/);
+    expect(html).toContain('data-edge="0" data-marker="a" data-near-nodes="a b"');
+  });
+
+  it('draws one track per lane on a shared axis', () => {
+    const html = draw('```timeline\nlane "A" {\n  0ms x: "X"\n}\nlane "B" {\n  +2s y: "Y"\n}\nx -> y\n```');
+    expect(count(html, /class="pr-lane"/g)).toBe(2);
+    expect(html).toMatch(/pr-tick-label[^>]*>\+2 s</);
+  });
+
+  it('marks a tradeoffs caveat and prints its note', () => {
+    const html = draw('```tradeoffs\na.x : yes {note="since 4.0"}\nb.x : no\n```');
+    expect(html).toMatch(/class="pr-caveat"/);
+    expect(html).toMatch(/pr-cell-note[^>]*>.*since 4\.0/);
   });
 });

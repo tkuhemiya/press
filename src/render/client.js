@@ -4,6 +4,10 @@
   const figures = new Map();
 
   const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const named = (root, id) =>
+    root.querySelectorAll(`:is(.pr-node, .pr-phase, .pr-loop)[data-node="${CSS.escape(id)}"]`);
+  const edgeParts = (root, i) => root.querySelectorAll(`.pr-edge[data-edge="${i}"], .pr-edge-label[data-edge="${i}"]`);
+  const words = (s) => (s ? s.split(' ').filter(Boolean) : []);
 
   for (const fig of document.querySelectorAll('.pr-figure[data-steps]')) figures.set(fig.id, walkthrough(fig));
 
@@ -22,14 +26,15 @@
     let motion = 0;
     bar.hidden = false;
 
-    const nodes = (id) => svg.querySelectorAll(`.pr-node[data-node="${CSS.escape(id)}"]`);
+    const nodes = (id) => named(svg, id);
     const parts = (id) => svg.querySelectorAll(`[data-in~="${CSS.escape(id)}"]`);
     const owner = (id) => (id.includes('.') ? nodes(id.slice(0, id.indexOf('.'))) : []);
-    const edgeParts = (i) => svg.querySelectorAll(`.pr-edge[data-edge="${i}"], .pr-edge-label[data-edge="${i}"]`);
     const mark = (step, cls) => {
       const near = cls === 'is-current' ? 'is-near' : cls;
       const ids = step.edge !== undefined ? [step.from, step.to] : [step.node];
-      if (step.edge !== undefined) edgeParts(step.edge).forEach((el) => el.classList.add(cls));
+      if (step.edge !== undefined) edgeParts(svg, step.edge).forEach((el) => el.classList.add(cls));
+      for (const i of step.edges ?? []) edgeParts(svg, i).forEach((el) => el.classList.add(near));
+      for (const id of step.nodes ?? []) nodes(id).forEach((el) => el.classList.add(near));
       for (const id of ids) {
         nodes(id).forEach((el) => el.classList.add(cls));
         parts(id).forEach((el) => el.classList.add(near));
@@ -140,8 +145,13 @@
   for (const ref of document.querySelectorAll('a.pr-ref')) {
     const fig = document.getElementById(ref.dataset.figure);
     if (!fig) continue;
-    const targets = () => fig.querySelectorAll(`.pr-node[data-node="${CSS.escape(ref.dataset.node)}"]`);
-    const parts = () => fig.querySelectorAll(`[data-in~="${CSS.escape(ref.dataset.node)}"]`);
+    const { node, edge } = ref.dataset;
+    const targets = () => [...(node ? named(fig, node) : []), ...(edge !== undefined ? edgeParts(fig, edge) : [])];
+    const parts = () => [
+      ...(node ? fig.querySelectorAll(`[data-in~="${CSS.escape(node)}"]`) : []),
+      ...words(ref.dataset.nearEdges).flatMap((i) => [...edgeParts(fig, i)]),
+      ...words(ref.dataset.nearNodes).flatMap((id) => [...named(fig, id)]),
+    ];
     const on = () => {
       fig.classList.add('pr-pointing');
       targets().forEach((el) => el.classList.add('is-pointed'));

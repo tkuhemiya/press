@@ -1,12 +1,12 @@
 import { ROLES } from '../model.ts';
-import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, Role, Time } from '../model.ts';
-import { diagramId, groupId, nodeId } from '../brand.ts';
+import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, PhaseIndex, Role, Time } from '../model.ts';
+import { diagramId, groupId, nodeId, phaseIndex } from '../brand.ts';
 import { closest, list, type Reporter } from '../diagnostics.ts';
 import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
 
 export type Attrs = ReadonlyMap<string, string>;
 
-export type LineForm = 'event' | 'loop' | 'prop' | 'field';
+export type LineForm = 'event' | 'loop' | 'prop' | 'field' | 'phase' | 'lane';
 
 export interface Grammar {
   reserved: readonly string[];
@@ -23,6 +23,8 @@ interface Meaning {
   note?: string;
   attrs: Attrs;
   group?: GroupId;
+  phase?: PhaseIndex;
+  lane?: number;
   line: number;
 }
 
@@ -31,7 +33,7 @@ type Mention = Meaning & { type: 'mention'; id: NodeId };
 export type Chain = Meaning & { type: 'chain'; ends: [End, End, ...End[]]; arrows: NonEmpty<Arrow>; label?: string };
 export type Prop = Meaning & { type: 'prop'; node: NodeId; key: NodeId; value?: string };
 type Event = Meaning & { type: 'event'; at: Time; id: NodeId; label?: string };
-type LoopLine = { type: 'loop'; name: string; ends: [NodeId, NodeId, ...NodeId[]]; line: number };
+type LoopLine = { type: 'loop'; id?: NodeId; name: string; ends: [NodeId, NodeId, ...NodeId[]]; line: number };
 
 type Statement = Declare | Mention | Chain | Prop | Event | LoopLine;
 
@@ -49,6 +51,13 @@ interface FenceGroup {
   line: number;
 }
 
+interface FencePhase {
+  id?: NodeId;
+  label: string;
+  parent?: PhaseIndex;
+  line: number;
+}
+
 export interface Fence {
   type: string;
   id?: DiagramId;
@@ -56,6 +65,8 @@ export interface Fence {
   direction?: Direction;
   line: number;
   groups: FenceGroup[];
+  phases: FencePhase[];
+  lanes: { label: string; line: number }[];
   statements: Statement[];
   steps: RawStep[];
 }
@@ -110,15 +121,28 @@ function isArrow(value: string): value is Arrow {
 
 export function parseFence(input: FenceInput, report: Reporter): Fence {
   const { grammar, type } = input;
-  const fence: Fence = { type, line: input.line, groups: [], statements: [], steps: [] };
+  const fence: Fence = { type, line: input.line, groups: [], phases: [], lanes: [], statements: [], steps: [] };
   const has = (form: LineForm) => grammar.forms.includes(form);
   const knownAttrs = new Set(['role', 'note', ...grammar.attrs]);
   const { error, warn } = report;
 
   parseHeader(input, fence, report);
 
-  const open: GroupId[] = [];
-  const current = (): GroupId | undefined => open.at(-1);
+  type Open = { kind: 'group'; at: GroupId } | { kind: 'phase'; at: PhaseIndex } | { kind: 'lane'; at: number };
+  const open: Open[] = [];
+  const top = (): Open | undefined => open.at(-1);
+  const current = (): GroupId | undefined => {
+    const o = top();
+    return o?.kind === 'group' ? o.at : undefined;
+  };
+  const currentPhase = (): PhaseIndex | undefined => {
+    const o = top();
+    return o?.kind === 'phase' ? o.at : undefined;
+  };
+  const currentLane = (): number | undefined => {
+    const o = top();
+    return o?.kind === 'lane' ? o.at : undefined;
+  };
   let inSteps = false;
   const lines = input.body.split('\n');
   for (let k = 0; k < lines.length; k++) {
@@ -133,7 +157,9 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
           'A fence has only one `steps:` section.',
           'Delete this line; the steps above and below it belong to the same section.',
         );
-      if (open.length) error(line, '`steps:` cannot be inside a group.', 'Close the group with `}` before `steps:`.');
+      const o = top();
+      if (o)
+        error(line, `\`steps:\` cannot be inside a ${o.kind}.`, `Close the ${o.kind} with \`}\` before \`steps:\`.`);
       inSteps = true;
       continue;
     }
@@ -148,8 +174,102 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
       else open.pop();
       continue;
     }
+    const reservedSteps = (id: string): boolean => {
+      if (id !== 'steps') return false;
+      error(
+        line,
+        '`steps` is a reserved word and cannot be a node id.',
+        'Rename the node, e.g. `stages`. To start the walkthrough, write `steps:` alone on its line.',
+      );
+      return true;
+    };
+    const phase = /^phase\b\s*(.*)$/.exec(text);
+    if (phase && (has('phase') || /\{\s*$/.test(text))) {
+      if (!has('phase')) {
+        error(
+          line,
+          `A ${type} has no phases.`,
+          `Phases bracket messages in ${list(input.formsElsewhere('phase'))}. Here, use \`group "Name" {\` to box nodes together.`,
+        );
+        continue;
+      }
+      const m = /^(?:([a-z0-9_]+(?:-[a-z0-9_]+)*)\s+)?"([^"]*)"\s*\{$/.exec(phase[1]);
+      if (!m) {
+        error(
+          line,
+          'A phase needs a quoted name and an opening brace.',
+          'Write it as `phase "TLS handshake" {`, or `phase tls "TLS handshake" {` to point at it, with messages on the lines below and `}` on its own line.',
+        );
+        continue;
+      }
+      if (current() !== undefined) {
+        error(
+          line,
+          'A phase cannot be inside a group.',
+          'Groups box participants and phases bracket messages. Close the group with `}` before the phase.',
+        );
+        continue;
+      }
+      const [, id, label] = m;
+      if (id !== undefined && reservedSteps(id)) continue;
+      const p: FencePhase = { label, line };
+      if (id !== undefined) p.id = nodeId(id);
+      const parent = currentPhase();
+      if (parent !== undefined) p.parent = parent;
+      fence.phases.push(p);
+      open.push({ kind: 'phase', at: phaseIndex(fence.phases.length - 1) });
+      continue;
+    }
+    const lane = /^lane\b\s*(.*)$/.exec(text);
+    if (lane && (has('lane') || /\{\s*$/.test(text))) {
+      if (!has('lane')) {
+        error(
+          line,
+          `A ${type} has no lanes.`,
+          `Lanes put events on parallel tracks in ${list(input.formsElsewhere('lane'))}. Here, use \`group "Name" {\` to box nodes together.`,
+        );
+        continue;
+      }
+      const m = /^"([^"]*)"\s*\{$/.exec(lane[1]);
+      if (!m) {
+        error(
+          line,
+          'A lane needs a quoted name and an opening brace.',
+          'Write it as `lane "Server A" {`, with its events on the lines below and `}` on its own line.',
+        );
+        continue;
+      }
+      const o = top();
+      if (o) {
+        error(
+          line,
+          `A lane cannot be inside a ${o.kind}.`,
+          `Close the ${o.kind} with \`}\` first. Lanes sit side by side at the top level.`,
+        );
+        continue;
+      }
+      fence.lanes.push({ label: m[1], line });
+      open.push({ kind: 'lane', at: fence.lanes.length - 1 });
+      continue;
+    }
     const group = /^group\b\s*(.*)$/.exec(text);
     if (group) {
+      if (currentLane() !== undefined) {
+        error(
+          line,
+          'A group cannot be inside a lane.',
+          'Put the group after the lanes, and list its members by id: `group "Name" {`, then `a`, `b`, then `}`.',
+        );
+        continue;
+      }
+      if (currentPhase() !== undefined) {
+        error(
+          line,
+          'A group cannot be inside a phase.',
+          'Groups box participants and phases bracket messages. Put the group above the first phase.',
+        );
+        continue;
+      }
       const m = /^"([^"]*)"\s*\{$/.exec(group[1]);
       if (!m) {
         error(
@@ -160,7 +280,7 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
         continue;
       }
       fence.groups.push(withParent({ label: m[1], line }, current()));
-      open.push(groupId(fence.groups.length - 1));
+      open.push({ kind: 'group', at: groupId(fence.groups.length - 1) });
       continue;
     }
     const meaning = (attrs: Record<string, string>): Meaning => {
@@ -197,25 +317,38 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
       out.attrs = kept;
       const g = current();
       if (g !== undefined) out.group = g;
+      const p = currentPhase();
+      if (p !== undefined) out.phase = p;
+      const l = currentLane();
+      if (l !== undefined) out.lane = l;
       return out;
     };
-    const reservedSteps = (id: string): boolean => {
-      if (id !== 'steps') return false;
-      error(
-        line,
-        '`steps` is a reserved word and cannot be a node id.',
-        'Rename the node, e.g. `stages`. To start the walkthrough, write `steps:` alone on its line.',
-      );
-      return true;
-    };
     const reservedLoop = (id: string): boolean => {
-      if (!has('loop') || id !== 'loop') return false;
-      error(
-        line,
-        `\`loop\` is a reserved word in a ${type} and cannot be a node id.`,
-        'Rename the node. To name a feedback loop, write `loop "Name": a -> b -> a`.',
-      );
-      return true;
+      if (has('loop') && id === 'loop') {
+        error(
+          line,
+          `\`loop\` is a reserved word in a ${type} and cannot be a node id.`,
+          'Rename the node. To name a feedback loop, write `loop "Name": a -> b -> a`.',
+        );
+        return true;
+      }
+      if (has('lane') && id === 'lane') {
+        error(
+          line,
+          `\`lane\` is a reserved word in a ${type} and cannot be a node id.`,
+          'Rename the node. To start a parallel track, write `lane "Name" {` with its events on the lines below.',
+        );
+        return true;
+      }
+      if (has('phase') && id === 'phase') {
+        error(
+          line,
+          `\`phase\` is a reserved word in a ${type} and cannot be a node id.`,
+          'Rename the node. To bracket messages, write `phase "Name" {` with the messages on the lines below.',
+        );
+        return true;
+      }
+      return false;
     };
 
     const prop = PROP.exec(text);
@@ -252,26 +385,30 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
     }
 
     if (has('loop') && /^loop\b/.test(text)) {
-      const m = /^loop\s+"([^"]*)"\s*:\s*(.*)$/.exec(text);
+      const m = /^loop\s+(?:([a-z0-9_]+(?:-[a-z0-9_]+)*)\s+)?"([^"]*)"\s*:\s*(.*)$/.exec(text);
       if (!m) {
         error(
           line,
           'A loop needs a quoted name, a colon and a closed chain.',
-          'Write it as `loop "Word of mouth": customers -> referrals -> customers`.',
+          'Write it as `loop "Word of mouth": customers -> referrals -> customers`, or `loop wom "Word of mouth": …` to point at it.',
         );
         continue;
       }
-      const ids = m[2].split(/\s*(?:<->|-->|->)\s*/).map((t) => t.trim());
+      const [, loopId, name, chain] = m;
+      if (loopId !== undefined && reservedSteps(loopId)) continue;
+      const ids = chain.split(/\s*(?:<->|-->|->)\s*/).map((t) => t.trim());
       const [a, b, ...more] = ids;
       if (ids.length < 3 || ids.some((t) => ID.exec(t)?.[0] !== t)) {
         error(
           line,
-          `Cannot read the loop chain \`${m[2]}\`.`,
+          `Cannot read the loop chain \`${chain}\`.`,
           'A loop is a chain of node ids that ends where it starts: `a -> b -> a`.',
         );
         continue;
       }
-      fence.statements.push({ type: 'loop', name: m[1], ends: [nodeId(a), nodeId(b), ...more.map(nodeId)], line });
+      const loop: LoopLine = { type: 'loop', name, ends: [nodeId(a), nodeId(b), ...more.map(nodeId)], line };
+      if (loopId !== undefined) loop.id = nodeId(loopId);
+      fence.statements.push(loop);
       continue;
     }
 
@@ -280,8 +417,8 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
       if (/^\+?\d+(?:\.\d+)?(?:ms|s|sec|min|m|h|d)?$/.test(word) && !looksLikeTime(word) && /^\s+[a-z]/.test(after)) {
         error(
           line,
-          `\`${word}\` is a duration or a number, and a ${type} places events at dates or clock times.`,
-          `Write a time (${TIME_EXAMPLES}); to show seconds use \`00:00:05\`. For finer steps, leave every time off (\`${after.trim().split(/[\s:]/)[0]}: "Label"\`) and put the duration in the label.`,
+          `\`${word}\` has no unit Press knows, so it is not a time.`,
+          `Write a time since the start with a unit: \`${word.replace(/(sec|m)$/, (u) => (u === 'm' ? 'min' : 's')).replace(/^(\+?[\d.]+)$/, '$1ms')}\`. Units are \`ms\`, \`s\`, \`min\`, \`h\` and \`d\`. Other forms: ${TIME_EXAMPLES}.`,
         );
         continue;
       }
@@ -457,10 +594,16 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
     if (label !== undefined) chain.label = label;
     fence.statements.push(chain);
   }
-  const unclosed = open.at(-1);
-  if (unclosed !== undefined) {
-    const g = fence.groups[unclosed];
+  const unclosed = top();
+  if (unclosed?.kind === 'group') {
+    const g = fence.groups[unclosed.at];
     error(g.line, `Group "${g.label}" is never closed.`, 'Add `}` on its own line after the last member.');
+  } else if (unclosed?.kind === 'phase') {
+    const p = fence.phases[unclosed.at];
+    error(p.line, `Phase "${p.label}" is never closed.`, 'Add `}` on its own line after its last message.');
+  } else if (unclosed?.kind === 'lane') {
+    const l = fence.lanes[unclosed.at];
+    error(l.line, `Lane "${l.label}" is never closed.`, 'Add `}` on its own line after its last event.');
   }
   return fence;
 }

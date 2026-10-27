@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
-import { markers, refMarkers, type Box } from './draw.ts';
+import { markers, refMarkers, type Box, nodeTargets, propTargets } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
 
@@ -95,6 +95,7 @@ function build(fence: Fence, report: Reporter): Tradeoffs {
     cells: props.map((p): Cell => {
       const cell: Cell = { option: p.node, criterion: p.key, line: p.line };
       if (p.value !== undefined) cell.value = p.value;
+      if (p.note !== undefined) cell.note = p.note;
       if (p.role) cell.role = p.role;
       return cell;
     }),
@@ -114,6 +115,8 @@ const MAX_CELL = 150;
 const MIN_COL = 104;
 const BAND = 26;
 const MARK = 10;
+const NOTE_FONT = 11.5;
+const NOTE_LINE = 15;
 
 interface Item {
   node: Node;
@@ -140,6 +143,8 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
     : d.options.map((node) => item(node, MAX_ROW_HEAD, false, true));
   const at = (r: Item, c: Item): Cell | undefined => (across ? cell(c.node.id, r.node.id) : cell(r.node.id, c.node.id));
   const valueLines = (p: Cell | undefined): string[] => (p?.value ? wrap(p.value, CELL_FONT, MAX_CELL) : ['—']);
+  const noteLines = (p: Cell | undefined): string[] => (p?.note ? wrap(p.note, NOTE_FONT, MAX_CELL) : []);
+  const cellH = (p: Cell | undefined): number => valueLines(p).length * LINE + noteLines(p).length * NOTE_LINE;
   const lineW = (lines: string[], size: number, face: 'sans400' | 'sans500' | 'sans600' = 'sans400') =>
     Math.max(0, ...lines.map((l) => textWidth(l, size, face)));
 
@@ -150,14 +155,13 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
         MIN_COL,
         lineW(c.lines, FONT, 'sans600'),
         ...rows.map((r) => lineW(valueLines(at(r, c)), CELL_FONT) + MARK + 6),
+        ...rows.map((r) => lineW(noteLines(at(r, c)), NOTE_FONT)),
       ) +
         2 * PAD_X,
     ),
   );
   const headH = Math.max(0, ...cols.map((c) => c.lines.length)) * LINE + 2 * PAD_Y + 2;
-  const rowH = rows.map(
-    (r) => Math.max(r.lines.length * LINE, ...cols.map((c) => valueLines(at(r, c)).length * LINE)) + 2 * PAD_Y,
-  );
+  const rowH = rows.map((r) => Math.max(r.lines.length * LINE, ...cols.map((c) => cellH(at(r, c)))) + 2 * PAD_Y);
 
   const bandAbove = !across && cols.some((c) => c.group !== undefined) ? BAND : 0;
   const top = MARGIN + bandAbove;
@@ -239,22 +243,39 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       const b = { x: colX[ci] + 3, y: rowY[ri] + 3, w: colW[ci] - 6, h: rowH[ri] - 6 };
       boxes.set(id, b);
       const lines = valueLines(p);
+      const notes = noteLines(p);
       const cx = colX[ci] + colW[ci] / 2;
-      const cy = rowY[ri] + rowH[ri] / 2;
+      const cy = rowY[ri] + rowH[ri] / 2 - (notes.length * NOTE_LINE) / 2;
       let s = `<g class="pr-node pr-cell${p ? '' : ' pr-missing'}" data-node="${esc(id)}" data-in="${esc(o)} ${esc(k)}" id="${domId}-node-${esc(id)}"${roleAttr(p?.role)}>`;
       s += `<rect class="pr-box pr-cell-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="5"/>`;
       if (p?.role === 'error')
         s += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="5" fill="url(#${domId}-hatch)"/>`;
-      const textX = p?.role === 'happy' ? cx + MARK / 2 + 2 : cx;
-      if (p?.role === 'happy')
-        s += `<circle class="pr-good" cx="${n(textX - lineW(lines, CELL_FONT) / 2 - MARK / 2 - 2)}" cy="${n(cy - ((lines.length - 1) * LINE) / 2)}" r="3.6"/>`;
+      const mark = p?.role === 'happy' ? 'pr-good' : notes.length && !p?.role ? 'pr-caveat' : undefined;
+      const textX = mark ? cx + MARK / 2 + 2 : cx;
+      if (mark)
+        s += `<circle class="${mark}" cx="${n(textX - lineW(lines, CELL_FONT) / 2 - MARK / 2 - 2)}" cy="${n(cy - ((lines.length - 1) * LINE) / 2)}" r="3.6"/>`;
       s += textBlock(lines, textX, cy, LINE, 'pr-value');
+      if (notes.length)
+        s += textBlock(
+          notes,
+          cx,
+          cy + ((lines.length + 1) * LINE) / 2 - 2 + ((notes.length - 1) * NOTE_LINE) / 2,
+          NOTE_LINE,
+          'pr-note pr-cell-note',
+        );
       out.push(s + '</g>');
     });
   });
 
   const cells = d.cells.map((c) => ({ node: c.option, key: c.criterion }));
-  out.push(...markers(d, boxes, new Map(), refMarkers(context, [...d.options, ...d.criteria], cells)));
+  out.push(
+    ...markers(
+      d,
+      boxes,
+      new Map(),
+      refMarkers(context, [...nodeTargets([...d.options, ...d.criteria]), ...propTargets(cells)]),
+    ),
+  );
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }

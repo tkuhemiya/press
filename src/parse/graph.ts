@@ -42,6 +42,7 @@ interface DraftProp {
   node: NodeId;
   key: NodeId;
   value?: string;
+  note?: string;
   role?: Role;
   attrs: Attrs;
   line: number;
@@ -168,6 +169,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
         }
         const prop: DraftProp = { node: s.node, key: s.key, attrs: s.attrs, line: s.line };
         if (s.value !== undefined) prop.value = s.value;
+        if (s.note !== undefined) prop.note = s.note;
         if (s.role) prop.role = s.role;
         props.push(prop);
         break;
@@ -392,13 +394,13 @@ const edgeTarget = (index: EdgeIndex): EdgeTarget => ({ type: 'edge', index });
 export function keepOnly<N extends Node, E extends Edge>(g: GraphParts<N, E>): GraphParts<N, E> {
   const ids = new Set(g.nodes.map((node) => node.id));
   const edges = g.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
-  if (edges.length === g.edges.length && g.steps.every((s) => s.target.type === 'edge' || ids.has(s.target.id)))
-    return g;
+  const kept = (t: NodeTarget | EdgeTarget) => t.type === 'edge' || ids.has(t.id);
+  if (edges.length === g.edges.length && g.steps.every((s) => kept(s.target))) return g;
   return renumber(
     g.nodes,
     g.groups,
     edges,
-    g.steps.filter((s) => s.target.type === 'edge' || ids.has(s.target.id)),
+    g.steps.filter((s) => kept(s.target)),
     edgeTarget,
   );
 }
@@ -473,4 +475,16 @@ export function nodeParts(nodes: readonly Node[]): Part[] {
 export function edgeEnds(edges: readonly Edge[], index: EdgeIndex): [string, string] | undefined {
   const e = edges[index];
   return e && [e.from, e.to];
+}
+
+export function edgeMembers(
+  edges: readonly Edge[],
+  indices: readonly EdgeIndex[],
+): { edges: EdgeIndex[]; nodes: NodeId[] } {
+  const nodes = new Set<NodeId>();
+  for (const i of indices) {
+    const e = edges[i];
+    if (e) nodes.add(e.from).add(e.to);
+  }
+  return { edges: [...indices], nodes: [...nodes] };
 }

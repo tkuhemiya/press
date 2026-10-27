@@ -3,6 +3,9 @@ import type { Token } from 'markdown-it';
 import {
   targetName,
   type Diagnostic,
+  type EdgeIndex,
+  type EdgeTarget,
+  type Target,
   type Diagram,
   type DiagramId,
   type DiagramType,
@@ -12,8 +15,8 @@ import {
 import { definition, view } from '../diagrams/diagram.ts';
 import { formsElsewhere, GRAMMARS, isDiagramType } from './grammars.ts';
 import { parseFence } from './grammar.ts';
-import { closest, into, list } from '../diagnostics.ts';
-import { diagramId, trusted } from '../brand.ts';
+import { closest, into, list, type Reporter } from '../diagnostics.ts';
+import { diagramId, edgeIndex, trusted } from '../brand.ts';
 
 export interface Figure {
   domId: string;
@@ -109,7 +112,8 @@ export function parseDocument(source: string): Document {
       const href = String(child.attrGet('href') ?? '');
       const m = REF.exec(href);
       if (!m) continue;
-      const [, id, name] = m;
+      const [, id, encoded] = m;
+      const name = safeDecode(encoded);
       const figure = byId.get(diagramId(id));
       if (!figure) {
         const near = closest(id, byId.keys());
@@ -129,20 +133,28 @@ export function parseDocument(source: string): Document {
           .targets()
           .map((p) => [targetName(p.target), p.target]),
       );
-      const target = named.get(name);
+      const arrow = /^(.+?)\s*(?:<->|-->|->)\s*(.+)$/.exec(name);
+      const target: Target | undefined = arrow
+        ? edgeRef(figure, id, arrow[1], arrow[2], line, report)
+        : named.get(name);
       if (!target) {
-        const near = closest(name, named.keys());
-        report.error(
-          line,
-          `Reference \`${href}\` names \`${name}\`, which is not in diagram \`${id}\`.`,
-          near ? `Did you mean \`#${id}.${near}\`?` : `Nodes in \`${id}\`: ${list(named.keys())}.`,
-        );
+        if (!arrow) {
+          const near = closest(name, named.keys());
+          report.error(
+            line,
+            `Reference \`#${id}.${name}\` names \`${name}\`, which is not in diagram \`${id}\`.`,
+            near
+              ? `Did you mean \`#${id}.${near}\`?`
+              : `Names in \`${id}\`: ${list(named.keys())}. Point at an edge with \`#${id}.from->to\`.`,
+          );
+        }
         continue;
       }
       let perFigure = letters.get(figure);
       if (!perFigure) letters.set(figure, (perFigure = new Map()));
-      let marker = perFigure.get(name);
-      if (!marker) perFigure.set(name, (marker = letter(perFigure.size)));
+      const key = targetName(target);
+      let marker = perFigure.get(key);
+      if (!marker) perFigure.set(key, (marker = letter(perFigure.size)));
       const ref: Ref = { diagram: diagramId(id), target, marker, line };
       refAt.set(child, ref);
       refs.push(ref);
@@ -182,6 +194,59 @@ export function renderDocument(doc: Document, weave: Weave): Html {
     rules.fence = defaultFence;
     rules.link_open = defaultLink;
   }
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+function edgeRef(
+  figure: Figure,
+  id: string,
+  from: string,
+  to: string,
+  line: number,
+  { error }: Reporter,
+): EdgeTarget | undefined {
+  const v = view(figure.diagram);
+  const all: { index: EdgeIndex; ends: [string, string] }[] = [];
+  for (let i = 0; ; i++) {
+    const ends = v.ends(edgeIndex(i));
+    if (!ends) break;
+    all.push({ index: edgeIndex(i), ends });
+  }
+  const found = all.filter((e) => e.ends[0] === from && e.ends[1] === to);
+  const [only, ...others] = found;
+  if (only && !others.length) return { type: 'edge', index: only.index };
+  if (!all.length) {
+    error(
+      line,
+      `Reference \`#${id}.${from}->${to}\` names an edge, and diagram \`${id}\` has none.`,
+      `Point at a name instead, e.g. \`#${id}.${from}\`.`,
+    );
+    return;
+  }
+  if (found.length) {
+    error(
+      line,
+      `Reference \`#${id}.${from}->${to}\` is ambiguous: ${found.length} edges join \`${from}\` and \`${to}\`.`,
+      `Point at one end instead (\`#${id}.${from}\`), or, in a sequence, wrap the message in a phase with an id and point at the phase.`,
+    );
+    return;
+  }
+  const fromHere = all.filter((e) => e.ends[0] === from).map((e) => `\`#${id}.${e.ends[0]}->${e.ends[1]}\``);
+  error(
+    line,
+    `Reference \`#${id}.${from}->${to}\` names an edge that diagram \`${id}\` does not have.`,
+    fromHere.length
+      ? `Edges from \`${from}\`: ${fromHere.join(', ')}.`
+      : `Edges in \`${id}\`: ${all.map((e) => `\`${e.ends[0]}->${e.ends[1]}\``).join(', ')}.`,
+  );
+  return;
 }
 
 function letter(n: number): string {
