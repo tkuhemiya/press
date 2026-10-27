@@ -111,7 +111,7 @@
   else { linebreak() }
 }).join()
 
-#let legend(steps) = {
+#let legend(steps, from: 0) = {
   set text(font: sans, size: 8.5pt, fill: ink2)
   set par(justify: false, leading: 0.45em, spacing: 0.55em)
   for (i, c) in steps.enumerate() {
@@ -119,7 +119,7 @@
       columns: (12pt, 1fr),
       column-gutter: 6pt,
       box(baseline: 2.6pt, circle(radius: 6pt, fill: ink, inset: 0pt, align(center + horizon,
-        text(fill: white, size: 7pt, weight: 600, str(i + 1))))),
+        text(fill: white, size: 7pt, weight: 600, str(from + i + 1))))),
       inl(c),
     )
   }
@@ -136,7 +136,12 @@
   }
   if f.steps.len() == 0 { align(center, art) }
   else if f.beside and native { grid(columns: (auto, 1fr), column-gutter: 18pt, align: horizon, art, legend(f.steps)) }
-  else { align(center, art); v(8pt); columns(2, gutter: 18pt, legend(f.steps)) }
+  else {
+    let half = calc.ceil(f.steps.len() / 2)
+    align(center, art)
+    v(8pt)
+    grid(columns: (1fr, 1fr), column-gutter: 18pt, legend(f.steps.slice(0, half)), legend(f.steps.slice(half), from: half))
+  }
 })
 
 #let blocks(bs) = for b in bs {
