@@ -126,7 +126,7 @@
 }
 
 // Layout. Each figure has variants (its directions) and may be drawn at k times its size.
-// Candidates go from the largest drawing scale down to 80% of the preferred variant's.
+// Candidates go from the largest drawing scale down to 60% of the preferred variant's.
 
 // A zero-height marker before each decision: its position stays put even when the
 // content chosen after it moves to the next page. It also carries the space above that
@@ -157,8 +157,8 @@
   let base = f.variants.first().fit
   let out = ()
   for (i, v) in f.variants.enumerate() {
-    for k in (1.0, 0.95, 0.9, 0.85, 0.8) {
-      if v.fit * k >= 0.8 * base { out.push((i: i, k: k, scale: v.fit * k)) }
+    for k in (1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6) {
+      if v.fit * k >= 0.6 * base { out.push((i: i, k: k, scale: v.fit * k)) }
     }
   }
   out.sorted(key: c => (-c.scale, c.i))
