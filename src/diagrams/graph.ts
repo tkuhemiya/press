@@ -203,16 +203,17 @@ export function measureText(node: DiagramNode, maxWidth: number): TextLines {
   return { lines, note, first: textWidth(lines[0] ?? '', FONT, 'sans500'), w, h };
 }
 
-// Draws measured text centred on (cx, cy).
-export function drawText(t: TextLines, cx: number, cy: number): string {
+// Draws measured text centred on (x, cy), or starting at x when aligned to the start.
+export function drawText(t: TextLines, x: number, cy: number, align: 'middle' | 'start' = 'middle'): string {
   const labelH = t.lines.length * LINE;
   const top = cy - t.h / 2;
-  let s = textBlock(t.lines, cx, top + labelH / 2, LINE, 'pr-label');
-  if (t.note.length) s += textBlock(t.note, cx, top + labelH + 4 + (t.note.length * NOTE_LINE) / 2, NOTE_LINE, 'pr-note');
+  const start = align === 'start' ? ' pr-start' : '';
+  let s = textBlock(t.lines, x, top + labelH / 2, LINE, 'pr-label' + start);
+  if (t.note.length) s += textBlock(t.note, x, top + labelH + 4 + (t.note.length * NOTE_LINE) / 2, NOTE_LINE, 'pr-note' + start);
   return s;
 }
 
-function edgeSvg(e: DiagramEdge, p: EdgePath, both: boolean): string {
+export function edgeSvg(e: DiagramEdge, p: EdgePath, both: boolean): string {
   let s = `<g class="pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}" data-edge="${e.index}" data-from="${esc(e.from)}" data-to="${esc(e.to)}"${roleAttr(e.role)}>`;
   s += `<path class="pr-line" d="${p.d}"/>`;
   s += `<path class="pr-head" d="${arrowhead(p.ex, p.ey, p.edx, p.edy)}"/>`;
@@ -222,7 +223,7 @@ function edgeSvg(e: DiagramEdge, p: EdgePath, both: boolean): string {
 
 // A label sits on its edge, so the line runs into it from both sides. A plate the colour of
 // the figure keeps the line clear of the text; a stroke halo alone leaves it showing between words.
-function labelSvg(e: DiagramEdge, x: number, y: number, onGroup: boolean): string {
+export function labelSvg(e: DiagramEdge, x: number, y: number, onGroup: boolean): string {
   const lines = e.label ? wrap(e.label, LABEL_FONT, MAX_EDGE_LABEL) : [];
   const w = Math.max(...lines.map((l) => textWidth(l, LABEL_FONT))) + 8;
   const h = lines.length * LABEL_LINE + 2;
@@ -231,7 +232,7 @@ function labelSvg(e: DiagramEdge, x: number, y: number, onGroup: boolean): strin
 }
 
 // Print markers: numbered badges for steps, lettered badges for prose references.
-function markers(d: Diagram, boxes: Map<string, Box>, anchors: Map<number, { x: number; y: number }>, refMarkers: Map<string, string>): string[] {
+export function markers(d: Diagram, boxes: Map<string, Box>, anchors: Map<number, { x: number; y: number }>, refMarkers: Map<string, string>): string[] {
   const out: string[] = [];
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {

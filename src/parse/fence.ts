@@ -2,11 +2,11 @@
 import { ROLES, type Arrow, type Attrs, type Diagnostic, type Diagram, type DiagramType, type Role, type Step } from '../model.ts';
 import { TYPE_SPECS } from '../diagrams/types.ts';
 import { closest, list } from './suggest.ts';
+import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
 
 const ID = /^[a-z0-9_]+(?:-[a-z0-9_]+)*/;
 const LOOSE_ID = /^[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*/;
 const ARROW = /^(<->|-->|->)/;
-const KNOWN_ATTRS = new Set(['role', 'note']);
 // Words authors reach for that mean one of the roles.
 const ROLE_SYNONYMS: Record<string, Role> = {
   danger: 'error', fail: 'error', failure: 'error', bad: 'error', warning: 'error', invalid: 'error',
@@ -24,8 +24,9 @@ export interface FenceInput {
 }
 
 export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagram {
-  const diagram: Diagram = { type: input.type, nodes: [], edges: [], groups: [], steps: [], line: input.line };
+  const diagram: Diagram = { type: input.type, nodes: [], edges: [], groups: [], steps: [], loops: [], line: input.line };
   const spec = TYPE_SPECS[input.type];
+  const knownAttrs = new Set(['role', 'note', ...spec.attrs]);
   const report = (severity: Diagnostic['severity'], line: number, message: string, hint?: string): void => {
     diagnostics.push(hint ? { severity, line, message, hint } : { severity, line, message });
   };
@@ -49,6 +50,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
   };
 
   const rawSteps: { line: number; from: string; to?: string; label?: string; caption: string }[] = [];
+  const rawLoops: { line: number; name: string; ids: string[] }[] = [];
   let inSteps = false;
   const lines = input.body.split('\n');
   for (let k = 0; k < lines.length; k++) {
@@ -81,6 +83,55 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       }
       diagram.groups.push({ label: m[1], parent: currentGroup(), line });
       groupStack.push(diagram.groups.length - 1);
+      continue;
+    }
+
+    // A named feedback loop: loop "Name": a -> b -> a
+    if (input.type === 'causal-loop' && /^loop\b/.test(text)) {
+      const m = /^loop\s+"([^"]*)"\s*:\s*(.*)$/.exec(text);
+      if (!m) {
+        error(line, 'A loop needs a quoted name, a colon and a closed chain.', 'Write it as `loop "Word of mouth": customers -> referrals -> customers`.');
+        continue;
+      }
+      const ids = m[2].split(/\s*(?:<->|-->|->)\s*/).map((t) => t.trim());
+      if (ids.length < 3 || ids.some((t) => !ID.test(t) || ID.exec(t)![0] !== t)) {
+        error(line, `Cannot read the loop chain \`${m[2]}\`.`, 'A loop is a chain of node ids that ends where it starts: `a -> b -> a`.');
+        continue;
+      }
+      rawLoops.push({ line, name: m[1], ids });
+      continue;
+    }
+
+    // A timeline line that starts with a time is an event: <when> id: "Label" {attrs}
+    const when = /^(\S+)(.*)$/.exec(text)!;
+    if (input.type === 'timeline' && looksLikeTime(when[1])) {
+      const time = parseTime(when[1]);
+      if ('error' in time) {
+        error(line, time.error, `Times are written ${TIME_EXAMPLES}.`);
+        continue;
+      }
+      const rest = when[2].trim();
+      if (!rest || ARROW.test(rest)) {
+        error(line, `\`${when[1]}\` is a time, so it cannot be an id in a timeline.`, `An event is a time, then an id: \`${when[1]} launch: "Label"\`. Edges join ids: \`launch -> other\`.`);
+        continue;
+      }
+      const id = readId(rest, line, error, `after the time \`${when[1]}\``);
+      if (!id) continue;
+      const { body, attrs } = splitAttrs(rest.slice(id.length), line, error);
+      const m = /^(?::\s*"([^"]*)")?$/.exec(body.trim());
+      if (!m) {
+        error(line, ARROW.test(body.trim()) ? 'An event line declares one event; it cannot hold an edge.' : `Cannot read the event \`${id}\`.`, `Write the event as \`${when[1]} ${id}: "Label"\`, and any edge on its own line: \`${id} -> other : caused\`.`);
+        continue;
+      }
+      if (reservedSteps(id, line)) continue;
+      const node = ensureNode(id, line);
+      if (node.time) warn(line, `\`${id}\` is given a time twice; the later one wins.`, 'Keep one event line for it.');
+      declared.add(id);
+      node.group = currentGroup();
+      node.line = line;
+      node.time = time;
+      if (m[1] !== undefined) node.label = m[1];
+      applyAttrs(node, attrs, line);
       continue;
     }
 
@@ -132,7 +183,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
         else error(line, `Unexpected text after \`${first}\`: \`${body.trim()}\`.`, `A line is an edge (\`${first} -> other : label\`), a declaration (\`${first}: "Label"\`) or a node with attributes (\`${first} {role=focus}\`).`);
         continue;
       }
-      if (reservedSteps(first, line)) continue;
+      if (reservedSteps(first, line) || reservedLoop(first, line)) continue;
       const node = ensureNode(first, line);
       // Listed inside a group: the node is a member, wherever it was declared.
       if (groupStack.length) {
@@ -181,7 +232,8 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
         continue;
       }
     }
-    if (ids.some((id) => reservedSteps(id, line))) continue;
+    if (ids.some((id) => reservedSteps(id, line) || reservedLoop(id, line))) continue;
+    if (input.type === 'causal-loop' && !causalEdge(arrows, label, ids, line)) continue;
     for (let i = 0; i + 1 < ids.length; i++) {
       const from = ids[i];
       const to = ids[i + 1];
@@ -201,7 +253,9 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     const g = diagram.groups[groupStack[groupStack.length - 1]];
     error(g.line, `Group "${g.label}" is never closed.`, 'Add `}` on its own line after the last member.');
   }
-  if (!diagram.nodes.length) warn(input.line, `The ${input.type} fence is empty.`, 'Add at least one edge, e.g. `a -> b : label`.');
+  if (!diagram.nodes.length) warn(input.line, `The ${input.type} fence is empty.`, input.type === 'timeline' ? 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.' : 'Add at least one edge, e.g. `a -> b : label`.');
+  if (input.type === 'timeline') checkTimeline(diagram, error, warn);
+  for (const l of rawLoops) resolveLoop(l);
 
   for (const s of rawSteps) {
     const step = resolveStep(s);
@@ -215,8 +269,65 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     return true;
   }
 
+  function reservedLoop(id: string, line: number): boolean {
+    if (input.type !== 'causal-loop' || id !== 'loop') return false;
+    error(line, '`loop` is a reserved word in a causal-loop and cannot be a node id.', 'Rename the node. To name a feedback loop, write `loop "Name": a -> b -> a`.');
+    return true;
+  }
+
+  // In a causal loop every edge carries a polarity as its label, and influence runs one way.
+  function causalEdge(arrows: Arrow[], label: string | undefined, ids: string[], line: number): boolean {
+    const pair = `${ids[0]} -> ${ids[1]}`;
+    if (arrows.includes('<->')) {
+      error(line, '`<->` is not allowed in a causal loop: a mutual influence is two edges, often with different polarities.', `Write each direction on its own line: \`${ids[0]} -> ${ids[1]} : +\` and \`${ids[1]} -> ${ids[0]} : -\`.`);
+      return false;
+    }
+    const self = ids.findIndex((id, i) => i > 0 && id === ids[i - 1]);
+    if (self > 0) {
+      error(line, `\`${ids[self]}\` cannot influence itself directly in a causal loop.`, 'Name what carries the effect and route the link through it: `stock -> outflow : +` and `outflow -> stock : -`.');
+      return false;
+    }
+    if (label === undefined) {
+      error(line, 'Every edge in a causal loop needs a polarity.', `Add \`: +\` if the two move the same way, \`: -\` if they move in opposite ways: \`${pair} : +\`.${ids.length > 2 ? ' A polarity is a label, so give each edge of a chain its own line.' : ''}`);
+      return false;
+    }
+    if (label === '+' || label === '-') return true;
+    const near = /^(positive|pos|same|s|plus|up|increase)$/i.test(label) ? '+' : /^(negative|neg|opposite|o|minus|down|decrease|−)$/i.test(label) ? '-' : undefined;
+    error(line, `\`${label}\` is not a polarity. In a causal loop the edge label is \`+\` or \`-\`.`, near ? `Write \`${pair} : ${near}\`.` : `Use \`+\` (same direction) or \`-\` (opposite direction), and put any explanation in the prose.`);
+    return false;
+  }
+
+  function resolveLoop(l: { line: number; name: string; ids: string[] }): void {
+    const { ids } = l;
+    if (ids[0] !== ids[ids.length - 1]) {
+      error(l.line, `Loop "${l.name}" does not close: it starts at \`${ids[0]}\` and ends at \`${ids[ids.length - 1]}\`.`, `End the chain where it starts: \`${[...ids, ids[0]].join(' -> ')}\`.`);
+      return;
+    }
+    const edges: number[] = [];
+    for (let i = 0; i + 1 < ids.length; i++) {
+      for (const id of [ids[i], ids[i + 1]]) {
+        if (!nodeIndex.has(id)) {
+          const near = closest(id, nodeIndex.keys());
+          error(l.line, `Loop "${l.name}" names \`${id}\`, which is not in the diagram.`, near ? `Did you mean \`${near}\`?` : `Nodes: ${list(nodeIndex.keys())}.`);
+          return;
+        }
+      }
+      const e = diagram.edges.find((x) => x.from === ids[i] && x.to === ids[i + 1]);
+      if (!e) {
+        const out = diagram.edges.filter((x) => x.from === ids[i]).map((x) => `\`${x.from} -> ${x.to}\``);
+        error(l.line, `Loop "${l.name}" uses \`${ids[i]} -> ${ids[i + 1]}\`, which is not an edge in the diagram.`, out.length ? `Edges from \`${ids[i]}\`: ${out.join(', ')}. Add the edge, or follow one that exists.` : `Add the edge with its polarity: \`${ids[i]} -> ${ids[i + 1]} : +\`.`);
+        return;
+      }
+      edges.push(e.index);
+    }
+    const negatives = edges.filter((i) => diagram.edges[i].label === '-').length;
+    const kind = negatives % 2 ? 'B' : 'R';
+    const label = `${kind}${diagram.loops.filter((x) => x.kind === kind).length + 1}`;
+    diagram.loops.push({ name: l.name, kind, label, nodes: ids.slice(0, -1), edges, line: l.line });
+  }
+
   function reserved(id: string, line: number): boolean {
-    if (reservedSteps(id, line)) return true;
+    if (reservedSteps(id, line) || reservedLoop(id, line)) return true;
     if (!spec.reserved.includes(id)) return false;
     error(line, `\`${id}\` is a reserved pseudo-state in ${input.type} and cannot be declared.`, `Use it in edges only (\`${id === 'end' ? 'shipped -> end' : 'start -> draft'}\`), or pick another id for a regular state.`);
     return true;
@@ -232,15 +343,19 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
         }
         continue;
       }
-      if (!KNOWN_ATTRS.has(key)) {
-        const near = closest(key, KNOWN_ATTRS);
+      if (key === 'delay' && knownAttrs.has(key) && value !== 'yes') {
+        error(line, `\`delay=${value}\` is not understood.`, 'Mark a delay with `{delay=yes}`; leave the attribute out when there is none.');
+        continue;
+      }
+      if (!knownAttrs.has(key)) {
+        const near = closest(key, knownAttrs);
         const styling = /^(color|colour|fill|stroke|style|size|width|height|font|class|shape)$/.test(key);
         warn(
           line,
           `Unknown attribute \`${key}\`; it is ignored.`,
           styling
             ? 'Press attributes carry meaning, not styling. Use `role` (focus, error, happy, muted) and let the renderer choose the look.'
-            : `${near ? `Did you mean \`${near}\`? ` : ''}Known attributes: ${list(KNOWN_ATTRS)}.`
+            : `${near ? `Did you mean \`${near}\`? ` : ''}Known attributes: ${list(knownAttrs)}.`
         );
       }
       target.attrs[key] = value;
@@ -275,6 +390,42 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
     if (!matches.length) error(s.line, `No edge \`${s.from} -> ${s.to}\` has the label "${s.label}".`, `Labels on this edge: ${options.join(', ')}.`);
     else error(s.line, `Step \`${s.from} -> ${s.to}\` is ambiguous: ${matches.length} edges join these nodes.`, `Name the edge by its label: ${options.join(', ')}.`);
     return;
+  }
+}
+
+// The rules a timeline adds once every line is read: dated or undated, one kind of time,
+// events in order, and spans that end after they start.
+function checkTimeline(d: Diagram, error: (l: number, m: string, h?: string) => void, warn: (l: number, m: string, h?: string) => void): void {
+  const events = [...d.nodes].sort((a, b) => a.line - b.line);
+  for (const node of events) {
+    if (/^\d{4}(?:-\d{2}){0,2}$/.test(node.id) && !node.time) error(node.line, `\`${node.id}\` looks like a date, so it cannot be an id in a timeline.`, `To make it an event, give it an id after the time: \`${node.id} launch: "Label"\`.`);
+  }
+  const dated = events.filter((e) => e.time);
+  if (!dated.length) {
+    for (const e of events) if (e.attrs.until !== undefined) error(e.line, '`until` needs a dated timeline.', `Give every event a time, e.g. \`2019 ${e.id}: "${e.label}" {until=2021}\`, or remove \`until\`.`);
+    return;
+  }
+  for (const e of events) {
+    if (!e.time) error(e.line, `\`${e.id}\` has no time, but other events in this timeline do.`, `Give it one, e.g. \`${dated[0].time!.text} ${e.id}: "${e.label}"\`. A timeline is either dated or undated throughout.`);
+  }
+  const clock = dated.find((e) => e.time!.form === 'clock');
+  const calendar = dated.find((e) => e.time!.form !== 'clock');
+  if (clock && calendar) {
+    const late = clock.line > calendar.line ? clock : calendar;
+    error(late.line, `\`${late.time!.text}\` is a ${late === clock ? 'clock time' : 'date'}, but \`${(late === clock ? calendar : clock).time!.text}\` above is a ${late === clock ? 'date' : 'clock time'}.`, 'Use one kind throughout: clock times like `14:02`, or dates like `2019-03-14` and `2019-03-14T14:02`.');
+    return;
+  }
+  let prev: (typeof dated)[number] | undefined;
+  for (const e of dated) {
+    if (prev && e.time!.value < prev.time!.value) warn(e.line, `\`${e.id}\` (${e.time!.text}) is earlier than \`${prev.id}\` (${prev.time!.text}) above it.`, 'Events are listed in order. Move the line up, or check the time for a typo.');
+    prev = e;
+    const until = e.attrs.until;
+    if (until === undefined) continue;
+    const t = parseTime(until);
+    if ('error' in t) error(e.line, `\`until\`: ${t.error}`, `Write it in the same form as the event's time, \`${e.time!.text}\`.`);
+    else if (t.form !== e.time!.form) error(e.line, `\`until=${until}\` is not in the same form as the event's time, \`${e.time!.text}\`.`, `Write both the same way, e.g. \`${e.time!.text} ${e.id}: "${e.label}" {until=${e.time!.text}}\` with the end time.`);
+    else if (t.value < e.time!.value) error(e.line, `\`${e.id}\` ends (${until}) before it starts (${e.time!.text}).`, 'Check the two times; `until` is when the span ends.');
+    else e.until = t;
   }
 }
 

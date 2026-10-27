@@ -118,6 +118,38 @@ th { font-weight: 600; }
 .pr-ref-marker circle { fill: #fff; stroke: var(--ink); stroke-width: 1.2; }
 .pr-ref-marker text { font-weight: 600; font-size: 10px; fill: var(--ink); text-anchor: middle; font-style: italic; }
 
+/* Timeline. */
+.pr-axis-line { fill: none; stroke: var(--ink-3); stroke-width: 1.4; }
+.pr-axis-head { fill: var(--ink-3); }
+.pr-tick { stroke: var(--ink-3); stroke-width: 1.2; }
+.pr-tick-label { font-size: 11px; fill: var(--ink-3); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.pr-tick-label.pr-tick-down { text-anchor: end; }
+.pr-stem { fill: none; stroke: var(--node-line); stroke-width: 1.2; }
+.pr-event-dot { fill: var(--card); stroke: var(--ink-2); stroke-width: 1.6; }
+.pr-label.pr-start, .pr-note.pr-start { text-anchor: start; }
+.pr-when { font-weight: 500; font-size: 11.5px; fill: var(--ink-3); text-anchor: start; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.pr-span { fill: var(--node-line); }
+.pr-band rect { fill: var(--group-fill); stroke: none; }
+.pr-band text.pr-band-end { text-anchor: end; }
+.pr-node[data-role="focus"] .pr-event-dot, .pr-node[data-role="focus"] .pr-span { fill: var(--focus); stroke: var(--focus); }
+.pr-node[data-role="happy"] .pr-event-dot, .pr-node[data-role="happy"] .pr-span { fill: var(--happy); stroke: var(--happy); }
+.pr-node[data-role="error"] .pr-event-dot, .pr-node[data-role="error"] .pr-span { fill: var(--error); stroke: var(--error); }
+.pr-node[data-role="muted"] .pr-event-dot { stroke: var(--muted-line); }
+.pr-node[data-role="muted"] .pr-span { fill: var(--muted-line); }
+.pr-node[data-role="muted"] .pr-when { fill: var(--muted-ink); }
+
+/* Causal loop. */
+.pr-polarity { font-weight: 600; font-size: 15px; fill: var(--ink-2); text-anchor: middle; }
+.pr-delay { fill: none; stroke: var(--ink-2); stroke-width: 1.6; }
+.pr-loop-arc { fill: none; stroke: var(--ink-3); stroke-width: 1.4; }
+.pr-loop-head { fill: var(--ink-3); }
+.pr-loop-label { font-weight: 600; font-size: 11px; fill: var(--ink-2); text-anchor: middle; }
+.pr-loop-name { font-size: 11px; fill: var(--ink-3); text-anchor: middle; font-style: italic; }
+.pr-edge-label[data-role="focus"] .pr-polarity { fill: var(--focus); }
+.pr-edge-label[data-role="happy"] .pr-polarity { fill: var(--happy); }
+.pr-edge-label[data-role="error"] .pr-polarity { fill: var(--error); }
+.pr-edge-label[data-role="muted"] .pr-polarity { fill: var(--muted-ink); }
+
 /* Roles. In grayscale they still differ: focus and happy by weight, error by hatching, muted by lightness. */
 .pr-node[data-role="focus"] .pr-box { stroke: var(--focus); fill: var(--focus-fill); stroke-width: 2; }
 .pr-node[data-role="happy"] .pr-box { stroke: var(--happy); fill: var(--happy-fill); stroke-width: 2; }
@@ -146,9 +178,12 @@ th { font-weight: 600; }
   .pr-walking .is-current { opacity: 1; }
   .pr-walking .pr-edge.is-current .pr-line { stroke: var(--signal); stroke-width: 2.4; }
   .pr-walking .pr-edge.is-current .pr-head { fill: var(--signal); }
-  .pr-walking .pr-edge-label.is-current .pr-elabel { fill: var(--signal); font-weight: 600; }
+  .pr-walking .pr-edge-label.is-current .pr-elabel, .pr-walking .pr-edge-label.is-current .pr-polarity { fill: var(--signal); font-weight: 600; }
+  .pr-walking .pr-loop { opacity: 0.3; transition: opacity 0.45s var(--ease); }
   .pr-walking .pr-node.is-current .pr-box { stroke: var(--signal); stroke-width: 2; }
   .pr-walking .pr-node.is-arrived .pr-box { fill: color-mix(in srgb, var(--signal) 7%, white); }
+  .pr-walking .pr-node.is-current .pr-event-dot { stroke: var(--signal); }
+  .pr-walking .pr-node.is-current .pr-span { fill: var(--signal); }
   .pr-pulse { fill: var(--signal); pointer-events: none; }
   .pr-pulse-halo { fill: var(--signal); opacity: 0.18; pointer-events: none; }
 

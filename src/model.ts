@@ -18,12 +18,24 @@ export type Role = (typeof ROLES)[number];
 
 export type Arrow = '->' | '-->' | '<->';
 
+// A timeline event's time. `value` is milliseconds: since the epoch (UTC) for calendar forms,
+// since midnight for a clock time.
+export type TimeForm = 'year' | 'month' | 'day' | 'datetime' | 'clock';
+export interface Time {
+  text: string;
+  form: TimeForm;
+  value: number;
+}
+
 export interface DiagramNode {
   id: string;
   label: string;
   kind?: string;
   role?: Role;
   attrs: Attrs;
+  // Timeline events only: when it happened, and when a span ends.
+  time?: Time;
+  until?: Time;
   // Index into Diagram.groups, or -1 for top level.
   group: number;
   line: number;
@@ -54,7 +66,20 @@ export interface Step {
   line: number;
 }
 
-export const DIAGRAM_TYPES = ['state-machine', 'sequence', 'architecture'] as const;
+// A named feedback loop in a causal-loop diagram. Its kind comes from the edge polarities:
+// an even number of `-` reinforces (R), an odd number balances (B).
+export interface Loop {
+  name: string;
+  kind: 'R' | 'B';
+  // R1, R2, B1… numbered per kind in source order.
+  label: string;
+  // The nodes in loop order, without repeating the first.
+  nodes: string[];
+  edges: number[];
+  line: number;
+}
+
+export const DIAGRAM_TYPES = ['state-machine', 'sequence', 'architecture', 'causal-loop', 'timeline'] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
 export interface Diagram {
@@ -67,5 +92,7 @@ export interface Diagram {
   edges: DiagramEdge[];
   groups: DiagramGroup[];
   steps: Step[];
+  // causal-loop only.
+  loops: Loop[];
   line: number;
 }

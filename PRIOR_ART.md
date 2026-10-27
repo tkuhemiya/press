@@ -1,6 +1,6 @@
 # Prior art
 
-Open-source projects we have studied, what we take from each, and when. Add a project when you study it, and move items to **Taken** once they land.
+Open-source projects we have studied, what we take from each, and when. Add a project when you study it, and mark each item "in use" once it lands.
 
 Status: `taking` (in use or being built in) · `later` (planned for a later version) · `reference` (worth knowing; nothing to take now)
 
@@ -8,7 +8,7 @@ Status: `taking` (in use or being built in) · `later` (planned for a later vers
 
 | Project | What it is | What we take | Status |
 |---|---|---|---|
-| [obsidianmd/pele](https://github.com/obsidianmd/pele) | Mermaid to SVG, synchronous, no runtime dependencies, MIT | Its layered layout, vendored in `src/layout/pele` for state machines. It beat elkjs side by side: reading order kept, fewer crossings, cleaner curves, compound groups ([comparison](docs/decisions/layout-pele-vs-elk.png)). Text measured from a table of character widths instead of a DOM. | taking (in use) |
+| [obsidianmd/pele](https://github.com/obsidianmd/pele) | Mermaid to SVG, synchronous, no runtime dependencies, MIT | Its layered layout, vendored in `src/layout/pele` for state machines. It beat elkjs side by side: reading order kept, fewer crossings, cleaner curves, compound groups ([comparison](docs/decisions/layout-pele-vs-elk.png)). Text measured from a table of character widths instead of a DOM. Not used for `causal-loop`: a layered layout ranks the variables and turns every loop into a back edge, so that type has its own small force layout that keeps each named loop open. | taking (in use) |
 | [lukilabs/beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid) | Mermaid to SVG or ASCII, built on elkjs | A full theme derived from two colours. ASCII output as a possible future target, which fits "source readable without rendering". | later |
 | [blushft/go-diagrams](https://github.com/blushft/go-diagrams) | Architecture diagrams from Go code, a port of mingrammer/diagrams | Considered for `architecture` node kinds. We drew our own line glyphs instead, so every kind shares one visual language with the rest of Press. Vendor logos would also need a licence check. | reference |
 
@@ -22,8 +22,8 @@ Status: `taking` (in use or being built in) · `later` (planned for a later vers
 
 | Project | What it is | What we take | Status |
 |---|---|---|---|
-| [ivarvong/lantern](https://github.com/ivarvong/lantern) | Steppable, animated explainers that render to SVG | Every step is addressable by URL (`#order/3`, in use). Node running TypeScript directly with no build step (in use). A contact sheet of every step, to check renders. | taking |
-| [kitlangton/psychopomp](https://github.com/kitlangton/psychopomp) | Code-first motion graphics and narrated explainers in Rust | Animation quality: every frame is a pure function of time, and interrupted motion keeps its velocity. The walkthrough's transitions should feel this good. Its sound design is admired but has no place in a document. Its visuals are not the model. | taking (motion) |
+| [ivarvong/lantern](https://github.com/ivarvong/lantern) | Steppable, animated explainers that render to SVG | Every step is addressable by URL (`#order/3`, in use). Node running TypeScript directly with no build step (in use). A contact sheet of every step, to check renders (not built yet). | taking |
+| [kitlangton/psychopomp](https://github.com/kitlangton/psychopomp) | Code-first motion graphics and narrated explainers in Rust | Animation quality: every frame is a pure function of time (in use: the step dot), and interrupted motion keeps its velocity (not yet: an interrupted step jumps). The walkthrough's transitions should feel this good. Its sound design is admired but has no place in a document. Its visuals are not the model. | taking (motion) |
 | [wheresryan22/anatomy](https://github.com/wheresryan22/anatomy) | A Claude skill that explains an idea by building a working object | Ship a skill file that teaches agents to write Press well. | later |
 | [kitlangton/behold](https://github.com/kitlangton/behold) | Markdown workspace that upgrades semantic fences (`timeline`, `tree`, `diff`…) into components | A close sibling. Check its fence vocabulary when designing later types. | reference |
 

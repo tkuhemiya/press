@@ -26,7 +26,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 | Type             | Shows                              | Version | Status  |
 |------------------|------------------------------------|---------|---------|
-| `causal-loop`    | Feedback loops with polarity       | 0.2     | spec    |
+| `causal-loop`    | Feedback loops with polarity       | 0.2     | done    |
 | `stock-and-flow` | Accumulations and rates            | —       | planned |
 | `supply-demand`  | Curves, equilibrium, shifts        | —       | planned |
 
@@ -34,7 +34,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 | Type       | Shows                  | Version | Status  |
 |------------|------------------------|---------|---------|
-| `timeline` | Events in order        | 0.2     | spec    |
+| `timeline` | Events in order        | 0.2     | done    |
 
 ## ML
 

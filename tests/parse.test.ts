@@ -243,3 +243,126 @@ Broken: [x](#ordr.failed) and
     expect(errors(doc)[0].message).toMatch(/already used on line 1/);
   });
 });
+
+describe('timeline', () => {
+  const warnings = (doc: ReturnType<typeof parseDocument>) => doc.diagnostics.filter((d) => d.severity === 'warning');
+
+  it('reads events with every form of time, spans and groups', () => {
+    const doc = parse('timeline', [
+      '2019 founded: "Founded"',
+      '2019-03 seed: "Seed round" {until=2019-09}',
+      '2019-10-01 launch: "Launch" {role=happy}',
+      '2019-10-02T09:30 outage: "First outage"',
+      'group "Year one" {',
+      '  seed',
+      '  launch',
+      '}',
+      'seed -> launch : funded',
+    ].join('\n'));
+    expect(doc.diagnostics).toEqual([]);
+    const [d] = doc.diagrams;
+    expect(d.nodes.map((n) => n.time?.form)).toEqual(['year', 'month', 'day', 'datetime']);
+    expect(d.nodes[1].until?.text).toBe('2019-09');
+    expect(d.nodes[1].group).toBe(0);
+    expect(d.edges).toHaveLength(1);
+  });
+
+  it('reads clock times and an event without a label', () => {
+    const doc = parse('timeline', '9:05 a\n14:02:30 b: "Later"');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].nodes.map((n) => [n.id, n.label, n.time?.value])).toEqual([['a', 'a', 32_700_000], ['b', 'Later', 50_550_000]]);
+  });
+
+  it('spaces an undated timeline in source order', () => {
+    const doc = parse('timeline', 'a: "One"\nb: "Two"\na -> b');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].nodes.every((n) => !n.time)).toBe(true);
+  });
+
+  const cases: [string, string, RegExp, RegExp][] = [
+    ['impossible date', '2019-02-30 a: "A"', /no day 30/, /2019-03-14/],
+    ['impossible time', '25:00 a: "A"', /not a time of day/, /14:02/],
+    ['edge on an event line', '14:02 a -> b', /one event/, /a -> other/],
+    ['mixed dated and undated', '14:02 a: "A"\nb: "B"', /has no time/, /14:02 b: "B"/],
+    ['clock mixed with dates', '2019-03-14 a: "A"\n14:02 b: "B"', /clock time/, /one kind/],
+    ['until in another form', '2019 a: "A" {until=2020-01}', /same form/, /until=2019/],
+    ['span ending before it starts', '14:30 a: "A" {until=14:00}', /ends .* before it starts/, /until/],
+    ['until without dates', 'a: "A" {until=14:00}', /needs a dated timeline/, /\{until=2021\}/],
+    ['a date as an id', '2019 -> b', /cannot be an id/, /2019 launch: "Label"/],
+  ];
+  for (const [name, body, message, hint] of cases) {
+    it(name, () => {
+      const e = errors(parse('timeline', body))[0];
+      expect(e, name).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+    });
+  }
+
+  it('warns when an event is out of order', () => {
+    const w = warnings(parse('timeline', '14:05 a: "A"\n14:01 b: "B"'));
+    expect(w[0].message).toMatch(/earlier than `a`/);
+    expect(w[0].line).toBe(5);
+  });
+
+  it('knows until only in a timeline', () => {
+    const w = warnings(parse('state-machine', 'a -> b {until=14:00}'));
+    expect(w[0].message).toMatch(/Unknown attribute `until`/);
+  });
+});
+
+describe('causal-loop', () => {
+  const growth = [
+    'customers -> referrals : +',
+    'referrals -> customers : +',
+    'customers -> saturation : +',
+    'saturation -> referrals : -',
+    'price -> customers : - {delay=yes}',
+    'loop "Word of mouth": customers -> referrals -> customers',
+    'loop "Saturation": customers -> saturation -> referrals -> customers',
+  ].join('\n');
+
+  it('reads polarities, delays and loops, and works out each loop type', () => {
+    const doc = parse('causal-loop', growth);
+    expect(doc.diagnostics).toEqual([]);
+    const [d] = doc.diagrams;
+    expect(d.edges.map((e) => e.label)).toEqual(['+', '+', '+', '-', '-']);
+    expect(d.edges[4].attrs.delay).toBe('yes');
+    expect(d.loops.map((l) => [l.label, l.name, l.nodes])).toEqual([
+      ['R1', 'Word of mouth', ['customers', 'referrals']],
+      ['B1', 'Saturation', ['customers', 'saturation', 'referrals']],
+    ]);
+  });
+
+  it('numbers loops per type', () => {
+    const doc = parse('causal-loop', 'a -> b : +\nb -> a : +\nb -> c : -\nc -> b : +\nloop "One": a -> b -> a\nloop "Two": b -> c -> b\nloop "Three": b -> a -> b');
+    expect(doc.diagrams[0].loops.map((l) => l.label)).toEqual(['R1', 'B1', 'R2']);
+  });
+
+  const cases: [string, string, RegExp, RegExp][] = [
+    ['missing polarity', 'a -> b', /needs a polarity/, /a -> b : \+/],
+    ['a word for polarity', 'a -> b : positive', /not a polarity/, /a -> b : \+/],
+    ['a sentence as label', 'a -> b : drives up', /not a polarity/, /prose/],
+    ['two-way arrow', 'a <-> b : +', /`<->` is not allowed/, /b -> a/],
+    ['self link', 'a -> a : +', /cannot influence itself/, /outflow/],
+    ['loop that does not close', 'a -> b : +\nb -> c : +\nloop "Open": a -> b -> c', /does not close/, /a -> b -> c -> a/],
+    ['loop over a missing edge', 'a -> b : +\nb -> c : +\nloop "L": a -> b -> a', /not an edge/, /Edges from `b`: `b -> c`/],
+    ['loop with an unknown node', 'a -> b : +\nb -> a : +\nloop "L": a -> bb -> a', /not in the diagram/, /Did you mean `b`/],
+    ['loop without a name', 'a -> b : +\nb -> a : +\nloop: a -> b -> a', /quoted name/, /loop "Word of mouth"/],
+    ['loop as an id', 'loop -> b : +', /quoted name|reserved/, /loop "/],
+    ['delay with another value', 'a -> b : + {delay=long}', /not understood/, /delay=yes/],
+  ];
+  for (const [name, body, message, hint] of cases) {
+    it(name, () => {
+      const e = errors(parse('causal-loop', body))[0];
+      expect(e, name).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+    });
+  }
+
+  it('warns that direction means nothing in a causal loop', () => {
+    const doc = parse('causal-loop', 'a -> b : +', 'direction=down');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringContaining('no meaning') });
+  });
+});

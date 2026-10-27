@@ -109,6 +109,64 @@ waiting -> end
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
+  it('draws a timeline: events on an axis, spans, a band and a cause arc', () => {
+    const src = readFileSync(new URL('../examples/incident.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-timeline"');
+    expect(count(svg, /class="pr-node pr-event/g)).toBe(6);
+    expect(count(svg, /class="pr-span"/g)).toBe(1);
+    expect(count(svg, /class="pr-group pr-band"/g)).toBe(1);
+    expect(count(svg, /class="pr-edge"/g)).toBe(1);
+    expect(svg).toContain('>14:02<');
+    expect(svg).toContain('>14:30<');
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('never runs a timeline stem through another card', () => {
+    // A dense cluster: every card is wider than the gap to the next event.
+    const body = Array.from({ length: 8 }, (_, i) => `14:0${i} e${i}: "A rather long event label ${i}"`).join('\n');
+    const { html } = build('```timeline\n' + body + '\n```', { embedFonts: false });
+    const cards = [...html.matchAll(/<rect class="pr-box" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    const stems = [...html.matchAll(/<path class="pr-stem" d="M([\d.]+),([\d.]+)V([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    expect(cards).toHaveLength(8);
+    for (const [sx, y0, y1] of stems)
+      for (const [x, y, w, h] of cards) expect(sx > x && sx < x + w && Math.min(y0, y1) < y && Math.max(y0, y1) > y + h).toBe(false);
+  });
+
+  it('formats calendar times and ticks', () => {
+    const { html } = build('```timeline\n2019-03 a: "A"\n2021-06-14 b: "B"\n```', { embedFonts: false });
+    expect(html).toContain('>Mar 2019<');
+    expect(html).toContain('>14 Jun 2021<');
+    expect(html).toMatch(/class="pr-tick-label"[^>]*>2020</);
+  });
+
+  it('draws a causal loop: signed links, a delay mark and a mark for each loop', () => {
+    const src = readFileSync(new URL('../examples/word-of-mouth.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-causal-loop"');
+    expect(count(svg, /class="pr-polarity"[^>]*>\+</g)).toBe(3);
+    expect(count(svg, /class="pr-polarity"[^>]*>−</g)).toBe(2);
+    expect(count(svg, /class="pr-delay"/g)).toBe(1);
+    expect(svg).toMatch(/class="pr-loop" data-loop="R1" data-kind="R">.*?Word of mouth/);
+    expect(svg).toMatch(/class="pr-loop" data-loop="B1" data-kind="B">.*?Saturation/);
+    expect(count(svg, /class="pr-step-marker"/g)).toBe(4);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('lays a causal loop out the same way every time, without overlapping variables', () => {
+    const src = '```causal-loop\na -> b : +\nb -> c : +\nc -> a : -\nc -> d : +\nd -> b : -\nloop "L": a -> b -> c -> a\n```';
+    const first = build(src, { embedFonts: false }).html;
+    expect(build(src, { embedFonts: false }).html).toBe(first);
+    const boxes = [...first.matchAll(/<rect class="pr-box pr-variable" x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    expect(boxes).toHaveLength(4);
+    for (const [i, [x, y, w, h]] of boxes.entries())
+      for (const [x2, y2, w2, h2] of boxes.slice(i + 1)) expect(x < x2 + w2 && x2 < x + w && y < y2 + h2 && y2 < y + h).toBe(false);
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);

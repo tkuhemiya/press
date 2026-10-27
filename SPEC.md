@@ -30,8 +30,9 @@ group "Name" { ... }           nesting
 - Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`.
 - A node belongs to the group it is declared in. A bare node line inside a group (`api` alone) moves an existing node into that group, so members can be listed after they are declared.
 - A line may hold just a node and its attributes: `draft {role=focus}`.
-- Ids are `[a-z0-9_-]+`. Labels are quoted strings.
+- Ids are lowercase letters, digits, `_` and `-`. A `-` must sit between two other characters, so `a-->b` reads as an edge, never as an id. Labels are quoted strings.
 - Values containing spaces are quoted: `{note="retried up to 3 times"}`.
+- `note` is the one attribute besides `role` that every type accepts. In `state-machine` and `architecture` a node's note prints in small type under its label; it is for a short qualifier, not a sentence. Other types keep it in the source but do not draw it yet.
 - Chains may mix arrows (`a -> b --> c`). Attributes at the end of a chain apply to every segment, so `start -> draft -> paid {role=happy}` marks a whole path. A label is ambiguous on a chain and is an error; give the labelled edge its own line.
 - `steps` is a reserved word in every diagram type, and each type may reserve more (see its keywords). Using one as a node id is an error.
 
@@ -157,9 +158,11 @@ Variables and the causal links between them, for feedback. In this type **the ed
 
 Keyword: `loop`, reserved.
 
-- `{delay=yes}` on an edge marks a delay, drawn with the standard ‖ mark.
+- `{delay=yes}` on an edge marks a delay, drawn with the standard ‖ mark. `yes` is the only value; leave the attribute out when there is no delay.
+- A variable cannot link to itself (`a -> a`). Name what carries the effect and route the link through it.
 - `loop "Name": a -> b -> a` names a feedback loop. The chain must close (it ends where it starts) and each segment must be an edge in the diagram. **Press works out the loop's type from the edge polarities**: an even number of `-` makes it reinforcing (R), an odd number balancing (B). Loops are numbered in order (R1, R2, B1) and marked inside the diagram with their name.
 - `direction` has no meaning here; the parser ignores it with a warning.
+- Layout keeps each named loop open, with its mark inside: a circular arrow turning the way the loop runs, its number, and its name. A two-variable loop draws as a lens.
 
 Node kinds: none. A declaration gives only a label.
 
@@ -196,6 +199,8 @@ Events in order. This type adds one line form, the event, with the time first so
 | clock time | `14:02`, `14:02:30` |
 | date and time | `2019-03-14T14:02` |
 
+- The label is optional, as in any declaration: `14:02 deploy` is an event labelled `deploy`.
+- Each event's card shows its time, written out for reading: `14:02`, `Mar 2019`, `14 Mar 2019`, `14 Mar 2019, 14:02`.
 - Spacing follows real time. Calendar forms (the first three and date-and-time) may be mixed in one fence; clock times may not be mixed with calendar forms.
 - Events are expected in chronological order. An event earlier than the one above it is a warning, since it is usually a typo.
 - `{until=<when>}` makes an event a span that lasts until that time: a deploy freeze, an outage. `until` takes the same form as the event's own time and may not be earlier.

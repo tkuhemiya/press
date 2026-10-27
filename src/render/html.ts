@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs';
 import type { Diagram, DiagramType } from '../model.ts';
 import type { PressDocument } from '../parse/document.ts';
 import { renderArchitecture } from '../diagrams/architecture.ts';
+import { renderCausalLoop } from '../diagrams/causal-loop.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
 import { renderStateMachine } from '../diagrams/state-machine.ts';
+import { renderTimeline } from '../diagrams/timeline.ts';
 import { esc, type Rendered } from './svg.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
@@ -63,7 +65,7 @@ export function renderHtml(doc: PressDocument, options: HtmlOptions = {}): strin
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="Press 0.1">
+<meta name="generator" content="Press 0.2">
 <title>${esc(doc.title ?? 'Press')}</title>
 <style>
 ${options.embedFonts === false ? '' : fonts()}
@@ -85,8 +87,10 @@ const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, 
   'state-machine': renderStateMachine,
   sequence: renderSequence,
   architecture: renderArchitecture,
+  'causal-loop': renderCausalLoop,
+  timeline: renderTimeline,
 };
-const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture' };
+const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline' };
 
 function figure(doc: PressDocument, d: Diagram, figId: string): string {
   const markers = new Map<string, string>();
