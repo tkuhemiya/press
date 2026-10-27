@@ -262,41 +262,13 @@ describe('the Press skill', () => {
 });
 
 describe('print layout', () => {
-  const row =
-    '```architecture id=row\n' +
-    Array.from({ length: 5 }, (_, i) => `c${i}: service "Component ${i}"\nc${i} -> c${i + 1}`).join('\n') +
-    '\n```';
+  const variantScenes = (src: string): string[] =>
+    typstDocument(parseDocument(src))
+      .sections.flatMap((s) => s.blocks)
+      .flatMap((b) => (b.t === 'figure' ? b.variants : []))
+      .map((v) => JSON.stringify(v.scene));
 
-  it('gives a figure too wide for paper a second layout, and leaves a narrow one alone', () => {
-    const wide = build(row, { embedFonts: false }).html;
-    expect(wide).toMatch(/<svg class="pr-svg pr-architecture pr-screen-only"/);
-    expect(wide).toMatch(/<svg class="pr-svg pr-architecture pr-print-only"[^>]*>.*id="press-row-paper-node-c0"/);
-    const narrow = build('```state-machine\na -> b\n```', { embedFonts: false }).html;
-    expect(narrow).not.toContain('pr-print-only"');
-  });
-
-  it('turns a figure on screen too when it fits better, unless the author chose a direction', () => {
-    const chain = (header: string) =>
-      '```architecture' +
-      header +
-      '\n' +
-      Array.from(
-        { length: 9 },
-        (_, i) => `n${i}: service "A component with a long name ${i}"\nn${i} -> n${i + 1}`,
-      ).join('\n') +
-      '\n```';
-    const width = (html: string) => Number(/<svg class="pr-svg[^"]*"[^>]*width="(\d+)"/.exec(html)?.[1]);
-    expect(width(build(chain(''), { embedFonts: false }).html)).toBeLessThan(900);
-    expect(width(build(chain(' direction=right'), { embedFonts: false }).html)).toBeGreaterThan(1500);
-  });
-
-  it("keeps the author's direction on paper", () => {
-    expect(build(row.replace('id=row', 'id=row direction=right'), { embedFonts: false }).html).not.toContain(
-      'pr-print-only"',
-    );
-  });
-
-  it('drops muted elements on paper only when nothing points at them', () => {
+  it('drops muted elements from paper only when nothing points at them', () => {
     const chain = (prefix: string, role = '') =>
       Array.from({ length: 6 }, (_, i) => `${prefix}${i} -> ${prefix}${i + 1}${role}`).join('\n');
     const src = (extra = '') =>
@@ -309,10 +281,10 @@ describe('print layout', () => {
       '\n' +
       extra +
       '```';
-    const paper = (html: string) => html.split('pr-print-only"')[1]?.split('</svg>')[0];
-    expect(paper(build(src(), { embedFonts: false }).html)).toBeDefined();
-    expect(paper(build(src(), { embedFonts: false }).html)).not.toContain('data-node="m3"');
-    expect(paper(build(src('\nsteps:\n  m3 "Context matters here"\n'), { embedFonts: false }).html)).toBeUndefined();
+    expect(variantScenes(src()).some((scene) => !scene.includes('"m3"'))).toBe(true);
+    expect(variantScenes(src('\nsteps:\n  m3 "Context matters here"\n')).every((scene) => scene.includes('"m3"'))).toBe(
+      true,
+    );
   });
 });
 

@@ -33,9 +33,9 @@ These were settled deliberately. Don't reopen them without a good reason.
 ## Code
 
 - Node 26+, TypeScript run directly (erasable syntax only: no enums, namespaces or parameter properties). `npm test`; `npm run check` checks formatting (oxfmt), lints (oxlint, type-aware) and typechecks.
-- `src/model.ts` has one type per diagram. `src/parse/grammar.ts` turns a fence into plain statements, and each type's file in `src/diagrams` builds its model from them (with its own checks) and draws it; `src/diagrams/diagram.ts` registers them. `src/parse/document.ts` reads the Markdown, and `src/render` builds the page (`style.css`, `client.js`).
+- `src/model.ts` has one type per diagram. `src/parse/grammar.ts` turns a fence into plain statements, and each type's file in `src/diagrams` builds its model from them (with its own checks) and draws it; `src/diagrams/diagram.ts` registers them. `src/parse/document.ts` reads the Markdown, and `src/render` builds the page (`style.css`, `client.js`) and the paper (`typst.ts` and `press.typ`).
 - No `as` or `!` (lint errors); brand ids and `Html` in `src/brand.ts` only.
-- Diagram SVG carries meaning as classes and `data-role`, never colours; all styling lives in `style.css`, including print.
+- Diagram SVG carries meaning as classes and `data-role`, never colours; styling lives in `style.css` for the screen and in `src/render/press.typ` for paper. Print has no browser stylesheet.
 - No comments in code; they go stale. Let names, types and tests carry the meaning. The one exception is `src/layout/pele`.
 - `src/layout/pele` is vendored. Keep changes there minimal and note them in the file header.
 - After a visual change, build the examples and look at them on screen and in print (`node src/cli.ts build doc.md -o doc.pdf`, which needs `typst` on PATH).

@@ -1,5 +1,5 @@
 import type { Token } from 'markdown-it';
-import { targetName, type Direction } from '../model.ts';
+import { targetName, type Direction, type NodeId } from '../model.ts';
 import { walkDocument, type Document, type Figure, type Walk } from '../parse/document.ts';
 import type { PageHint } from '../parse/heading.ts';
 import { view, type RenderContext, type Rendered, type View } from '../diagrams/diagram.ts';
@@ -251,16 +251,42 @@ const sameSize = (a: Rendered, b: Rendered): boolean => a.width === b.width && a
 const distinct = (renders: Rendered[]): Rendered[] =>
   renders.reduce<Rendered[]>((kept, r) => (kept.some((k) => sameSize(k, r)) ? kept : [...kept, r]), []);
 
+const pinnedBy =
+  (f: Figure) =>
+  (id: NodeId): boolean =>
+    f.refs.some(
+      (r) => (r.target.type === 'node' && r.target.id === id) || (r.target.type === 'prop' && r.target.node === id),
+    );
+
+const onEdges = (f: Figure): boolean => f.refs.some((r) => r.target.type === 'edge' || r.target.type === 'edges');
+
+function leanOf(v: View, f: Figure): Rendered | undefined {
+  const lean = onEdges(f) ? undefined : v.withoutMuted(pinnedBy(f));
+  if (!lean) return undefined;
+  const leanView = view(lean);
+  const directions: (Direction | undefined)[] = v.turnable() ? DIRECTIONS : [undefined];
+  const renders = directions.flatMap((d) => {
+    try {
+      return [draw(leanView, f, d)];
+    } catch {
+      return [];
+    }
+  });
+  return renders.reduce<Rendered | undefined>((a, b) => (a === undefined || fitOf(b) > fitOf(a) ? b : a), undefined);
+}
+
 function figure(f: Figure): Block {
   const v = view(f.diagram);
   const first = draw(v, f);
   const tried = v.turnable() ? [first, ...DIRECTIONS.map((d) => draw(v, f, d))] : [first];
   const best = tried.reduce((a, b) => (fitOf(b) > fitOf(a) * 1.1 ? b : a));
+  const lean = leanOf(v, f);
+  const leaned = lean && fitOf(lean) * 0.85 > fitOf(best) * 1.15 ? [lean] : [];
   const block: Block = {
     t: 'figure',
     key: f.domId,
     kind: f.diagram.type,
-    variants: distinct([best, ...tried]).map(variantOf),
+    variants: distinct([best, ...tried, ...leaned]).map(variantOf),
     steps: f.diagram.steps.map((s) => htmlInlines(s.caption)),
   };
   if (f.diagram.title !== undefined) block.title = f.diagram.title;
