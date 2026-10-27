@@ -20,6 +20,7 @@ Every diagram type uses these forms.
 a -> b : label                 edge
 a --> b                        dashed edge (return, async, weak)
 a <-> b                        bidirectional edge
+a -> b -> c                    chain: one edge per segment
 id: kind "Label"               explicit node declaration (optional)
 group "Name" { ... }           nesting
 ... {key=value, key=value}     trailing attributes on a node or edge
@@ -30,6 +31,7 @@ group "Name" { ... }           nesting
 - A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are `[a-z0-9_-]+`. Labels are quoted strings.
 - Values containing spaces are quoted: `{note="retried up to 3 times"}`.
+- Chains may mix arrows (`a -> b --> c`). Attributes at the end of a chain apply to every segment, so `start -> draft -> paid {role=happy}` marks a whole path. A label is ambiguous on a chain and is an error; give the labelled edge its own line.
 - `steps` is a reserved word in every diagram type, and each type may reserve more (see its keywords). Using one as a node id is an error.
 
 ### Roles
