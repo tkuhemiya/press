@@ -2,18 +2,16 @@ import type { Cardinality, Entity, Er, Field, NodeId, Reference } from '../model
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { End as Ref, Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
 import { buildGraph, header, leanBy, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
-import { labelSvg, markers, type Box } from './graph.ts';
+import { labelSvg, markers, refMarkers, type Box } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
 
 export const ER: DiagramDef<'er'> = {
   type: 'er',
   name: 'Entity-relationship',
-  grammar: GRAMMARS.er,
   build,
   render,
   withoutMuted(d, pinned) {
@@ -57,10 +55,8 @@ function build(fence: Fence, report: Reporter): Er {
   });
   const isField = (end: Ref) => graph.props.some((p) => p.node === end.node && p.key === end.key);
 
-  const edges = graph.edges.flatMap((e, i): Reference[] => {
-    const source = graph.sources[i];
-    if (!source || e.arrow === '<->') return [];
-    const { from, to, attrs } = source;
+  const edges = graph.links.flatMap(({ edge: e, from, to, attrs }): Reference[] => {
+    if (e.arrow === '<->') return [];
     const pair = `${refText(from)} -> ${refText(to)}`;
     const card = attrs.get('card');
     const parsed = card === undefined ? undefined : cardinality(card);
@@ -150,12 +146,7 @@ function build(fence: Fence, report: Reporter): Er {
     graph.edges,
     {
       props: graph.props,
-      keyed: graph.edges.flatMap((e, i) => {
-        const source = graph.sources[i];
-        if (!source) return [];
-        const keyed = { index: e.index, from: source.from, to: source.to };
-        return [e.label === undefined ? keyed : { ...keyed, label: e.label }];
-      }),
+      keyed: graph.links,
     },
     report,
   );
@@ -376,18 +367,8 @@ function render(d: Er, context: RenderContext): Rendered {
     });
   }
   out.push(...labels);
-  const refs = new Map(
-    entities.flatMap(({ node }) =>
-      [
-        { name: node.id, letter: context.marker({ type: 'node', id: node.id }) },
-        ...node.fields.map((f) => ({
-          name: `${node.id}.${f.name}`,
-          letter: context.marker({ type: 'prop', node: node.id, key: f.name }),
-        })),
-      ].flatMap(({ name, letter }) => (letter === undefined ? [] : [[name, letter] as const])),
-    ),
-  );
-  out.push(...markers(d, boxes, anchors, refs));
+  const fields = d.nodes.flatMap((node) => node.fields.map((f) => ({ node: node.id, key: f.name })));
+  out.push(...markers(d, boxes, anchors, refMarkers(context, d.nodes, fields)));
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }

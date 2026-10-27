@@ -30,7 +30,8 @@ export interface DraftNode {
   line: number;
 }
 
-export interface EdgeSource {
+export interface DraftEdge {
+  edge: Edge;
   from: End;
   to: End;
   attrs: Attrs;
@@ -48,7 +49,7 @@ export interface DraftProp {
 export interface DraftGraph {
   nodes: DraftNode[];
   edges: Edge[];
-  sources: EdgeSource[];
+  links: DraftEdge[];
   props: DraftProp[];
   groups: Group[];
 }
@@ -66,7 +67,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
   const nodes: DraftNode[] = [];
   const byId = new Map<NodeId, DraftNode>();
   const edges: Edge[] = [];
-  const sources: EdgeSource[] = [];
+  const links: DraftEdge[] = [];
   const props: DraftProp[] = [];
   const groups: Group[] = fence.groups.map((g) => ({ ...g }));
   const declared = new Set<NodeId>();
@@ -146,7 +147,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
           if (s.label !== undefined) edge.label = s.label;
           if (s.role) edge.role = s.role;
           edges.push(edge);
-          sources.push({ from, to, attrs: s.attrs });
+          links.push({ edge, from, to, attrs: s.attrs });
         }
         break;
       }
@@ -186,7 +187,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
       );
   });
   if (!nodes.length) warn(fence.line, `The ${fence.type} fence is empty.`, rules.empty);
-  return { nodes, edges, sources, props, groups };
+  return { nodes, edges, links, props, groups };
 
   function warn(line: number, message: string, hint: string) {
     report.warn(line, message, hint);
@@ -241,16 +242,9 @@ export function resolveSteps(
   return out;
 }
 
-export interface KeyedEdge {
-  index: EdgeIndex;
-  from: End;
-  to: End;
-  label?: string;
-}
-
 export interface Parts {
   props: readonly { node: NodeId; key: NodeId }[];
-  keyed: readonly KeyedEdge[];
+  keyed: readonly DraftEdge[];
 }
 
 export function resolvePartSteps(
@@ -294,10 +288,10 @@ function resolvePart(s: RawStep, parts: Parts, { error }: Reporter): EdgeTarget 
     (e) =>
       endText(e.from) === endText(from) &&
       endText(e.to) === endText(to) &&
-      (s.label === undefined || e.label === s.label),
+      (s.label === undefined || e.edge.label === s.label),
   );
   const [only, ...others] = found;
-  if (only && !others.length) return { type: 'edge', index: only.index };
+  if (only && !others.length) return { type: 'edge', index: only.edge.index };
   const edges = parts.keyed.map((e) => `\`${endText(e.from)} -> ${endText(e.to)}\``);
   error(
     s.line,
@@ -380,12 +374,7 @@ function resolveStep(
   return;
 }
 
-export interface GraphParts<N extends Node, E extends Edge = Edge> {
-  nodes: N[];
-  edges: E[];
-  groups: Group[];
-  steps: Step<NodeTarget | EdgeTarget>[];
-}
+export type GraphParts<N extends Node, E extends Edge = Edge> = Parted<N, E, NodeTarget | EdgeTarget>;
 
 interface Parted<N extends Node, E extends Indexed, T extends AnyTarget> {
   nodes: N[];

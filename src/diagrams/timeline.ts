@@ -2,7 +2,6 @@ import type { DatedEvent, Group, Node, Time, Timeline } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
 import {
   buildGraph,
   groupDepth,
@@ -16,14 +15,13 @@ import {
 } from '../parse/graph.ts';
 import { parseTime } from '../parse/time.ts';
 import { trusted } from '../brand.ts';
-import { drawText, edgeSvg, labelSvg, markers, measureLabel, type Box, type TextLines } from './graph.ts';
+import { drawText, edgeSvg, labelSvg, markers, measureLabel, refMarkers, type Box, type TextLines } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 
 export const TIMELINE: DiagramDef<'timeline'> = {
   type: 'timeline',
   name: 'Timeline',
-  grammar: GRAMMARS.timeline,
   build,
   render,
   withoutMuted(d, pinned) {
@@ -424,13 +422,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
     out.push(s + '</g>');
   }
   out.push(...labels);
-  const refs = new Map(
-    events.flatMap((e) => {
-      const letter = context.marker({ type: 'node', id: e.node.id });
-      return letter === undefined ? [] : [[e.node.id, letter] as const];
-    }),
-  );
-  out.push(...markers(d, new Map(events.map((e) => [e.node.id, e.box])), anchors, refs));
+  out.push(...markers(d, new Map(events.map((e) => [e.node.id, e.box])), anchors, refMarkers(context, d.nodes)));
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }
@@ -446,7 +438,7 @@ function groupBands(groups: readonly Group[], events: readonly Card[]): Band[] {
   });
 }
 
-export function formatTime(t: Time): string {
+function formatTime(t: Time): string {
   if (t.form === 'clock') return t.text.replace(/^(\d):/, '0$1:');
   const date = new Date(t.value);
   const y = date.getUTCFullYear();

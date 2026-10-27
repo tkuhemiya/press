@@ -2,16 +2,14 @@ import type { DecisionTree, Edge, Node, NodeId } from '../model.ts';
 import type { DiagramDef } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
 import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from './graph.ts';
+import { drawText, measureLabel, type NodeShape } from './draw.ts';
 import { n } from '../render/svg.ts';
 
 export const DECISION_TREE: DiagramDef<'decision-tree'> = {
   type: 'decision-tree',
   name: 'Decision tree',
-  grammar: GRAMMARS['decision-tree'],
   build,
   render(d, context) {
     const outcomes = new Set(d.nodes.filter((node) => !d.edges.some((e) => e.from === node.id)).map((node) => node.id));

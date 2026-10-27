@@ -2,17 +2,15 @@ import { ARCHITECTURE_KINDS, type Architecture, type ArchitectureKind, type Comp
 import type { DiagramDef } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
 import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { drawText, measureLabel, type NodeShape } from './graph.ts';
+import { drawText, measureLabel, type NodeShape } from './draw.ts';
 import { GLYPH_W, glyph, kindShape } from './kinds.ts';
 import { n } from '../render/svg.ts';
 
 export const ARCHITECTURE: DiagramDef<'architecture'> = {
   type: 'architecture',
   name: 'Architecture',
-  grammar: GRAMMARS.architecture,
   build,
   render: (d, context) =>
     renderGraph(d, context, {

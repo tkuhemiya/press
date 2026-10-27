@@ -5,11 +5,6 @@ export interface Reporter {
   warn: (line: number, message: string, hint: string) => void;
 }
 
-export function collect(): { report: Reporter; diagnostics: Diagnostic[] } {
-  const diagnostics: Diagnostic[] = [];
-  return { report: into(diagnostics), diagnostics };
-}
-
 export function into(
   diagnostics: { severity: 'error' | 'warning'; line: number; message: string; hint?: string }[],
 ): Reporter {

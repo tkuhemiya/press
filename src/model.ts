@@ -205,7 +205,8 @@ export interface DiagramMap {
 
 export type DiagramType = keyof DiagramMap;
 export type Diagram<T extends DiagramType = DiagramType> = DiagramMap[T];
-export type Target = Diagram['steps'][number]['target'];
+
+export const targetName = (t: NodeTarget | PropTarget): string => (t.type === 'node' ? t.id : `${t.node}.${t.key}`);
 
 export interface Ref {
   diagram: DiagramId;

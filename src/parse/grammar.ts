@@ -100,11 +100,11 @@ const ROLE_SYNONYMS: Record<string, Role> = {
   context: 'muted',
 };
 
-export function isRole(value: string): value is Role {
+function isRole(value: string): value is Role {
   return ROLES.some((r) => r === value);
 }
 
-export function isArrow(value: string): value is Arrow {
+function isArrow(value: string): value is Arrow {
   return value === '->' || value === '-->' || value === '<->';
 }
 

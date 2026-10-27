@@ -9,7 +9,6 @@ import {
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
 import { buildGraph, header, inGroup, lean, resolveSteps, toNode } from '../parse/graph.ts';
 import { groupId, trusted } from '../brand.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -19,7 +18,6 @@ import { GLYPH_W, glyph, kindShape } from './kinds.ts';
 export const SEQUENCE: DiagramDef<'sequence'> = {
   type: 'sequence',
   name: 'Sequence',
-  grammar: GRAMMARS.sequence,
   build,
   render,
   withoutMuted(d, pinned) {

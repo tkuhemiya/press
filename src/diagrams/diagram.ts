@@ -1,5 +1,5 @@
 import type { Diagram, DiagramType, Html, NodeId, NodeTarget, PropTarget } from '../model.ts';
-import type { Fence, Grammar } from '../parse/grammar.ts';
+import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { ARCHITECTURE } from './architecture.ts';
 import { CAUSAL_LOOP } from './causal-loop.ts';
@@ -24,7 +24,6 @@ export interface RenderContext {
 export interface DiagramDef<T extends DiagramType> {
   type: T;
   name: string;
-  grammar: Grammar;
   build(fence: Fence, report: Reporter): Diagram<T>;
   render(diagram: Diagram<T>, context: RenderContext): Rendered;
   withoutMuted?(diagram: Diagram<T>, pinned: (id: NodeId) => boolean): Diagram<T> | undefined;

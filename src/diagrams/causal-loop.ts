@@ -2,18 +2,16 @@ import type { CausalLoop, Link, Loop, NodeId, Polarity } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
 import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { closest, list } from '../diagnostics.ts';
-import { drawText, edgeSvg, markers, measureLabel, refMarkers, type Box } from './graph.ts';
+import { drawText, edgeSvg, markers, measureLabel, refMarkers, type Box } from './draw.ts';
 import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 import { textWidth } from '../text/measure.ts';
 
 export const CAUSAL_LOOP: DiagramDef<'causal-loop'> = {
   type: 'causal-loop',
   name: 'Causal loop',
-  grammar: GRAMMARS['causal-loop'],
   build,
   render,
   withoutMuted(d, pinned) {
@@ -87,10 +85,10 @@ function build(fence: Fence, report: Reporter): CausalLoop {
     },
   });
   const nodes = graph.nodes.map(toNode);
-  const edges = graph.edges.flatMap((e, i): Link[] => {
+  const edges = graph.links.flatMap(({ edge: e, attrs }): Link[] => {
     const polarity: Polarity | undefined = e.label === '+' || e.label === '-' ? e.label : undefined;
     if (!polarity || e.arrow === '<->') return [];
-    return [{ ...e, arrow: e.arrow, polarity, delay: graph.sources[i]?.attrs.get('delay') === 'yes' }];
+    return [{ ...e, arrow: e.arrow, polarity, delay: attrs.get('delay') === 'yes' }];
   });
   const loops: Loop[] = [];
   for (const s of fence.statements) {
@@ -325,7 +323,7 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
   );
   out.push(`<g transform="translate(${n(sx)},${n(sy)})">`);
   out.push(...loopSvgs, ...edgeSvgs, ...nodeSvgs, ...marks);
-  out.push(...markers(d, boxes, anchors, refMarkers(d.nodes, context)));
+  out.push(...markers(d, boxes, anchors, refMarkers(context, d.nodes)));
   out.push('</g></svg>');
   return { svg: trusted(out.join('')), width, height };
 }

@@ -1,4 +1,12 @@
-import type { Arrow, EdgeTarget, NodeId, NodeTarget, PropTarget, Role } from '../model.ts';
+import {
+  targetName,
+  type Arrow,
+  type EdgeTarget,
+  type NodeId,
+  type NodeTarget,
+  type PropTarget,
+  type Role,
+} from '../model.ts';
 import type { RenderContext } from './diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -77,13 +85,19 @@ export function labelSvg(e: Labelled, x: number, y: number, onGroup: boolean): s
   return `<g class="pr-edge-label${onGroup ? ' pr-on-group' : ''}" data-edge="${e.index}"${roleAttr(e.role)}>${plate}${textBlock(lines, x, y, LABEL_LINE, 'pr-elabel')}</g>`;
 }
 
-export const targetKey = (t: NodeTarget | PropTarget): string => (t.type === 'node' ? t.id : `${t.node}.${t.key}`);
-
-export function refMarkers(nodes: readonly { id: NodeId }[], context: RenderContext): Map<string, string> {
+export function refMarkers(
+  context: RenderContext,
+  nodes: readonly { id: NodeId }[],
+  props: readonly { node: NodeId; key: NodeId }[] = [],
+): Map<string, string> {
+  const targets: (NodeTarget | PropTarget)[] = [
+    ...nodes.map((node): NodeTarget => ({ type: 'node', id: node.id })),
+    ...props.map((p): PropTarget => ({ type: 'prop', node: p.node, key: p.key })),
+  ];
   return new Map(
-    nodes.flatMap((node) => {
-      const letter = context.marker({ type: 'node', id: node.id });
-      return letter === undefined ? [] : [[node.id, letter] as const];
+    targets.flatMap((t) => {
+      const letter = context.marker(t);
+      return letter === undefined ? [] : [[targetName(t), letter] as const];
     }),
   );
 }
@@ -98,8 +112,8 @@ export function markers(
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {
     const t = s.target;
-    const key = t.type === 'edge' ? 'e:' + t.index : 'n:' + targetKey(t);
-    const spot = t.type === 'edge' ? anchors.get(t.index) : boxes.get(targetKey(t));
+    const key = t.type === 'edge' ? 'e:' + t.index : 'n:' + targetName(t);
+    const spot = t.type === 'edge' ? anchors.get(t.index) : boxes.get(targetName(t));
     if (!spot) return;
     const k = stacked.get(key) ?? 0;
     stacked.set(key, k + 1);

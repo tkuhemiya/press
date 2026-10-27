@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import type { Diagram, Direction, EdgeIndex, NodeId } from '../model.ts';
-import { renderDocument, targetName, targetRole, type Document, type Figure } from '../parse/document.ts';
+import { targetName, type Diagram, type Direction, type EdgeIndex, type NodeId } from '../model.ts';
+import { renderDocument, targetRole, type Document, type Figure } from '../parse/document.ts';
 import { definition, renderAny, withoutMutedAny, type Rendered } from '../diagrams/diagram.ts';
 import { GRAMMARS } from '../parse/grammars.ts';
 import { trusted } from '../brand.ts';

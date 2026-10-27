@@ -172,10 +172,6 @@ export function renderDocument(doc: Document, weave: Weave): Html {
   }
 }
 
-export function targetName(t: NodeTarget | PropTarget): string {
-  return t.type === 'node' ? t.id : `${t.node}.${t.key}`;
-}
-
 export function targets(d: Diagram): Map<string, NodeTarget | PropTarget> {
   const out = new Map<string, NodeTarget | PropTarget>();
   const node = (id: string) => out.set(id, { type: 'node', id: nodeId(id) });

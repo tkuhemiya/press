@@ -2,17 +2,15 @@ import type { Cell, GroupId, Node, NodeId, NodeTarget, PropTarget, Step, Tradeof
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
 import { buildGraph, header, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
-import { markers, type Box } from './graph.ts';
+import { markers, refMarkers, type Box } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
 
 export const TRADEOFFS: DiagramDef<'tradeoffs'> = {
   type: 'tradeoffs',
   name: 'Tradeoffs',
-  grammar: GRAMMARS.tradeoffs,
   build,
   render,
 };
@@ -246,19 +244,8 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
     });
   });
 
-  const refs = new Map(
-    [
-      ...[...d.options, ...d.criteria].map((node) => ({
-        name: node.id,
-        letter: context.marker({ type: 'node', id: node.id }),
-      })),
-      ...d.cells.map((c) => ({
-        name: `${c.option}.${c.criterion}`,
-        letter: context.marker({ type: 'prop', node: c.option, key: c.criterion }),
-      })),
-    ].flatMap(({ name, letter }) => (letter === undefined ? [] : [[name, letter] as const])),
-  );
-  out.push(...markers(d, boxes, new Map(), refs));
+  const cells = d.cells.map((c) => ({ node: c.option, key: c.criterion }));
+  out.push(...markers(d, boxes, new Map(), refMarkers(context, [...d.options, ...d.criteria], cells)));
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }
