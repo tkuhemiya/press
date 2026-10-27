@@ -14,8 +14,8 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 | Type            | Shows                                   | Version | Status  |
 |-----------------|-----------------------------------------|---------|---------|
-| `state-machine` | States and transitions                  | 0.1     | building |
-| `sequence`      | Messages between participants over time | 0.1     | building |
+| `state-machine` | States and transitions                  | 0.1     | done    |
+| `sequence`      | Messages between participants over time | 0.1     | done    |
 | `architecture`  | Components, boundaries, connections     | 0.2     | planned |
 | `data-flow`     | How data moves and transforms           | —       | planned |
 | `er`            | Entities and relationships              | —       | planned |
