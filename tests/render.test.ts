@@ -228,3 +228,13 @@ waiting -> end
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);
   });
 });
+
+describe('the Press skill', () => {
+  it('teaches only Press that builds cleanly', () => {
+    const skill = readFileSync(new URL('../skills/press/SKILL.md', import.meta.url), 'utf8');
+    const body = skill.replace(/^---[\s\S]*?---\n/, '');
+    const { diagnostics, html } = build(body, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(8);
+  });
+});
