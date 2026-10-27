@@ -1,26 +1,24 @@
 ---
 name: press
-description: Write explanations in Press, a Markdown dialect whose fenced blocks become diagrams (state machines, sequences, architecture, timelines, causal loops, decision trees, ER diagrams, tradeoff tables) with step-by-step walkthroughs. Use when explaining a system, process, decision or comparison where a diagram would be clearer than prose, or when asked to write a Press document.
+description: Use when the user asks for Press, a Press document, or a Press fence. Also use when you are writing or editing an explanation of a system, a process, a decision, or a comparison, and a diagram should carry part of it. Also use when fixing Press source from the messages `press check` prints.
 ---
 
-# Writing Press
+# Write Press
 
-Press is Markdown with diagram fences. You write the **structure** (what exists, how it
-connects, what matters), and Press does the layout, typography and colour. The reader gets
-prose and diagrams side by side, a walkthrough on screen, and a compact single frame on paper.
+Press is Markdown with diagram fences. You write what exists, how it connects, and what matters. Press does the layout, the typography, and the colour. The reader gets prose and diagrams together, a walkthrough on screen, and one frame on paper.
 
-The full language is in `SPEC.md`. This guide covers how to write it *well*.
+The language is in `SPEC.md`. This file is how to write it well.
 
-## The workflow
+## Write in this order
 
-1. Write the explanation as prose first, then decide which parts a diagram makes clearer.
-2. Pick the diagram type from the table below. One idea per diagram.
-3. Write the fence, give it an `id` and a `title` if prose will refer to it.
-4. Add `steps:` when order matters, and link prose to nodes with `[text](#id.node)`.
-5. Run `press check doc.md` and fix every error and warning. Each message names the line
-   and gives a fix you can apply as written.
+1. Write the explanation as prose.
+2. Choose the parts a diagram makes clearer. Use one diagram for one idea.
+3. Pick a type from the table below.
+4. Write the fence. Set `id` and `title` when prose will refer to the diagram.
+5. Add `steps:` when order matters. Link a node from prose with `[text](#id.node)`.
+6. Run `press check doc.md`. Fix every error and every warning. Each message names the line and states a fix you can apply as written.
 
-## Choosing a type
+## Choose a type
 
 | The reader needs to see… | Use |
 |---|---|
@@ -28,67 +26,46 @@ The full language is in `SPEC.md`. This guide covers how to write it *well*.
 | Who sends what to whom, in order | `sequence` |
 | The parts of a system and how they connect | `architecture` |
 | Events in time, gaps, overlapping spans | `timeline` |
-| Feedback: why something grows, stalls or oscillates | `causal-loop` |
+| Why something grows, stalls, or oscillates | `causal-loop` |
 | Questions that lead to an answer | `decision-tree` |
 | Tables, fields and how they reference each other | `er` |
 | Options compared on several criteria | `tradeoffs` |
 
-If two types fit, pick the one whose *edges* mean what you want to say. A sequence's edges
-are messages in time; an architecture's are standing connections; a state machine's are
-transitions.
+If two types fit, pick the one whose edges mean what you want to say. A sequence edge is a message in time. An architecture edge is a standing connection. A state-machine edge is a transition.
 
-**When no type fits**, say so in prose rather than forcing one. Stretching a type is fine
-when its edges still mean the same thing (a commit history is a graph of commits, so
-`architecture` with `direction=right` draws it honestly). It is not fine when the picture
-needs something the type lacks: quantities on axes (supply and demand, a temperature over
-time), bytes in memory, parallel lanes, or claims and rebuttals. Those have no type yet.
+**No type fits.** Write that part as prose. Stretch a type only when its edges still mean the same thing. A commit history is a graph of commits, so `architecture` with `direction=right` draws it honestly. Stop when the picture needs something the type lacks. Press has no type yet for quantities on axes, such as supply and demand or temperature over time. It also has no type for bytes in memory, parallel lanes, or claims and rebuttals.
 
 ## Principles
 
-- **Meaning, not styling.** Never describe looks. Use `role` to say what something *is*:
-  `focus` (look here), `happy` (the intended path), `error` (failure), `muted` (context).
-  Use roles sparingly: one `focus` per diagram, `happy` and `error` only where they carry the
-  point. A diagram where everything has a role says nothing.
-- **Ids are short and lowercase** (`db`, `user_id`, `payment_ok`). Put the reader-facing text in
-  a label: `db: database "Orders DB"`. An id without a declaration shows as words
-  (`wage_demands` reads "wage demands"), so declare a label whenever capitals, symbols or
-  different wording matter. This works in every type: causal-loop variables and tradeoffs
-  criteria take `id: "Label"` like anything else.
-- **Labels are short.** A node label is a noun phrase; an edge label a few words. Detail
-  belongs in prose or in a step caption. `note` is for a short qualifier under a label.
-- **Steps tell the story.** Three to six steps, each a sentence that says *why*, not just
-  *what*. Step through the path that matters, not every edge.
-- **Prose and diagram work together.** Refer to nodes from the text with
-  `[the failed state](#order.failed)`; the reader can hover to see it, and print shows a
-  lettered marker.
-- **Only `direction` is a layout hint**, and usually you can leave it out: Press picks the
-  direction that fits. It goes in the fence header: ` ```architecture direction=down `.
-  Don't fight the layout with extra nodes or ordering tricks.
+- **Meaning, not styling.** Never describe looks. `role` says what something is. `focus` means look here. `happy` means the intended path. `error` means failure. `muted` means context. Use one `focus` per diagram. Use `happy` and `error` only where they carry the point. A diagram where every node has a role says nothing.
+- **Ids are short and lowercase.** `db`, `user_id`, and `payment_ok` are ids. Put the reader-facing text in a label, as in `db: database "Orders DB"`. Press draws an undeclared id as words, so `wage_demands` reads "wage demands". Declare a label when you need capitals, symbols, or different wording. Causal-loop variables and tradeoffs criteria take `id: "Label"` the same way.
+- **Labels are short.** A node label is a noun phrase. An edge label is a few words. Put detail in prose or in a step caption. `note` is a short qualifier under a label.
+- **Steps tell the story.** Use three to six steps. Each caption says why the move happens. Step through the path that matters. Leave the other edges out of `steps:`.
+- **Prose and the diagram work together.** Point at a node from the text with `[the failed state](#order.failed)`. On screen, the reader hovers the link and Press highlights that node. On paper, the reference is a lettered marker.
+- **`direction` is the only layout hint.** Leave it out unless you have a reason. Press picks the direction that fits the page. Put it in the fence header, as in `` ```architecture direction=down ``. Do not add extra nodes, or reorder lines, to push the layout around.
 
 ## The shared grammar
 
 ```
-a -> b : label               edge (--> dashed, <-> both ways)
-a -> b -> c                  chain, one edge per segment (no label on a chain)
-id: kind "Label" {attrs}     declaration; kind and label are optional
+a -> b : label               edge. --> is dashed. <-> goes both ways.
+a -> b -> c                  chain. One edge per segment. No label on a chain.
+id: kind "Label" {attrs}     declaration. kind and label are optional.
 id {note="short qualifier"}  a note prints small, under the label
 group "Name" { ... }         grouping
-node.key : value {attrs}     property (er and tradeoffs only)
+node.key : value {attrs}     property, in er and tradeoffs only
 # comment
-steps:                       last section: one step per line
+steps:                       last section. One step per line.
   a -> b "Caption"           a step on an edge
-  a "Caption"                a step on one node (or a property: x.y "Caption")
+  a "Caption"                a step on one node, or on a property such as x.y "Caption"
 ```
 
-The fence header holds `id=`, `title="…"` and `direction=right|down`. Steps work in every
-type. If two edges join the same pair (a request `->` and its reply `-->` count as the same
-pair), name the one you mean by its label: `api -> db : insert "Caption"`.
+The fence header holds `id=`, `title="…"`, and `direction=right` or `direction=down`. Steps work in every type. If two edges join the same pair, name the one you mean by its label, as in `api -> db : insert "Caption"`. A request written `->` and its reply written `-->` are the same pair.
 
-## Each type in brief
+## Each type
 
 ### state-machine
 
-`start` and `end` are pseudo-states. Mark the success path `happy` and failures `error`.
+`start` and `end` are pseudo-states. Mark the success path `happy`. Mark failures `error`.
 
 ```state-machine id=order title="Order lifecycle"
 start -> draft
@@ -101,10 +78,7 @@ paid -> end
 
 ### sequence
 
-Participants appear in order of first use; `-->` is a reply. Kinds: `user`, `service`,
-`database`, `queue`, `external` (not `client`; a plain declaration draws a plain box).
-`group "Name" { ... }` boxes participants together. There is no way yet to bracket a run of
-messages into a phase; put phases in step captions or prose.
+Participants appear in order of first use. `-->` is a reply. The kinds are `user`, `service`, `database`, `queue`, and `external`. Sequence has no `client` kind. A plain declaration draws a plain box. `group "Name" { ... }` boxes participants together. You cannot yet bracket a run of messages into a phase. Put phases in step captions or in prose.
 
 ```sequence
 client: user "Browser"
@@ -118,8 +92,7 @@ api --> client : 201 Created
 
 ### architecture
 
-Kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Groups
-are boundaries (a network, a trust zone). Edge labels say what travels.
+The kinds are `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, and `user`. A group is a boundary, such as a network or a trust zone. An edge label says what travels.
 
 ```architecture title="Uploads"
 app: client "Web app"
@@ -135,11 +108,7 @@ bucket --> jobs : object created
 
 ### timeline
 
-Start an event line with its time (`2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30`,
-`2019-03-14T14:02`). Use one kind of time throughout, in order; durations such as `180ms` are
-not times. `{until=…}` makes a span. A group becomes a shaded band over its members' stretch
-of time: it marks a window, not a parallel lane. Leave the times off entirely for an evenly
-spaced sequence of stages.
+Start an event line with its time. The forms are `2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30`, and `2019-03-14T14:02`. Use one form throughout, and keep the lines in order. A duration such as `180ms` is not a time. `{until=…}` makes a span. A group becomes a shaded band across the time its members cover. The band marks a window. It does not draw a parallel lane. Leave the times off when you want evenly spaced stages.
 
 ```timeline title="Outage"
 14:02 deploy: "v2.3 rolls out"
@@ -151,9 +120,7 @@ deploy -> alerts : caused
 
 ### causal-loop
 
-Every edge label is a polarity: `+` (same direction) or `-` (opposite). `{delay=yes}` marks a
-delayed link with ‖. Name loops so the reader sees them; Press works out R (reinforcing) or
-B (balancing) from the polarities. Declare variables with labels: `rate: "Interest rate"`.
+Every edge label is a polarity. `+` means the same direction. `-` means the opposite direction. `{delay=yes}` marks a delayed link with ‖. Name each loop so the reader can see it. Press marks the loop R when it reinforces, and B when it balances. Declare a variable with a label, as in `rate: "Interest rate"`.
 
 ```causal-loop title="Word of mouth"
 customers -> referrals : +
@@ -166,8 +133,7 @@ loop "Saturation": customers -> saturation -> referrals -> customers
 
 ### decision-tree
 
-Edges are answers, labelled whenever a question has more than one. Nodes with no answers
-leaving them are outcomes. One root; branches may rejoin but never loop back.
+Edges are answers. Label an edge when a question has more than one answer. A node with no answers leaving it is an outcome. Use one root. Branches may rejoin. A branch must not loop back.
 
 ```decision-tree title="Cache it?"
 reads: "Read far more than written?"
@@ -182,9 +148,7 @@ stale -> skip : no
 
 ### er
 
-Fields are properties: `entity.field : type`. References go from the referring field to the
-referred one, and **every edge states `card`**: each end is `1`, `0..1`, `N` (zero or more)
-or `1..N`, read from the first entity to the second.
+Fields are properties, written `entity.field : type`. A reference goes from the referring field to the referred field. Every edge states `card`. Each end is `1`, `0..1`, `N`, or `1..N`. `N` means zero or more. Read `card` from the first entity to the second.
 
 ```er title="Orders"
 users.id : uuid {key=yes}
@@ -196,16 +160,11 @@ steps:
   orders.user_id -> users.id "An order may have no user yet, as for a guest checkout."
 ```
 
-Field attributes: `{key=yes}`, `{unique=yes}`, `{null=yes}`. They describe the field; the
-crow's feet always follow `card`.
+Field attributes are `{key=yes}`, `{unique=yes}`, and `{null=yes}`. They describe the field. The crow's feet follow `card`.
 
 ### tradeoffs
 
-Each cell is `option.criterion : value`. Mark how a cell compares with `happy` or `error`
-(`muted` for "not relevant"), and the recommended option with `{role=focus}`. Fill every
-cell. Name criteria with declarations (`revoke: "Revoke at once"`), and group them into
-categories either by listing ids (`group "Security" {` then `revoke`, then `}`) or by writing
-their cells inside the group.
+Each cell is `option.criterion : value`. Mark a cell with `happy` or `error`. Use `muted` when the cell is not relevant. Mark the recommended option with `{role=focus}`. Fill every cell. Name a criterion with a declaration, as in `revoke: "Revoke at once"`. To put criteria in a category, either list their ids in the group, or write their cells inside the group. Listing ids looks like `group "Security" {`, then `revoke`, then `}`.
 
 ```tradeoffs title="Session storage"
 postgres: "Postgres" {role=focus}
@@ -226,6 +185,6 @@ cookie.revoke : "at expiry" {role=error}
 | A step for every edge | Three to six steps along the path that matters |
 | An er edge without `card` | `{card=N:1}` |
 | A causal edge drawn through an extra node to mean "slowly" | `{delay=yes}` |
-| Timeline groups used as parallel lanes | One band per window; lanes need prose for now |
+| Timeline groups used as parallel lanes | One band per window. Lanes need prose for now |
 | A causal edge labelled `increases` | `: +` |
 | One diagram explaining two ideas | Two diagrams, each with its own prose |
