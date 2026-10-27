@@ -1,4 +1,17 @@
-import type { Edge, EdgeTarget, Group, GroupId, Node, NodeId, NodeTarget, Role, Step, Time } from './model.ts';
+import type {
+  DiagramId,
+  Direction,
+  Edge,
+  EdgeTarget,
+  Group,
+  GroupId,
+  Node,
+  NodeId,
+  NodeTarget,
+  Role,
+  Step,
+  Time,
+} from './model.ts';
 import type { Attrs, Chain, Fence, RawStep } from './grammar.ts';
 import { edgeIndex, groupId } from './brand.ts';
 import { closest, list, type Reporter } from './diagnostics.ts';
@@ -136,6 +149,20 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
   }
 }
 
+export function header<T extends string>(
+  fence: Fence,
+  type: T,
+): { type: T; line: number; id?: DiagramId; title?: string; direction?: Direction } {
+  const out: { type: T; line: number; id?: DiagramId; title?: string; direction?: Direction } = {
+    type,
+    line: fence.line,
+  };
+  if (fence.id !== undefined) out.id = fence.id;
+  if (fence.title !== undefined) out.title = fence.title;
+  if (fence.direction !== undefined) out.direction = fence.direction;
+  return out;
+}
+
 export function inGroup(groups: readonly Group[], start: GroupId | undefined, g: number): boolean {
   for (let p = start; p !== undefined; p = groups[p].parent) if (p === g) return true;
   return false;
@@ -244,14 +271,14 @@ function resolveStep(
   return;
 }
 
-export interface GraphParts<N extends Node> {
+export interface GraphParts<N extends Node, E extends Edge = Edge> {
   nodes: N[];
-  edges: Edge[];
+  edges: E[];
   groups: Group[];
   steps: Step<NodeTarget | EdgeTarget>[];
 }
 
-export function keepOnly<N extends Node>(g: GraphParts<N>): GraphParts<N> {
+export function keepOnly<N extends Node, E extends Edge>(g: GraphParts<N, E>): GraphParts<N, E> {
   const ids = new Set(g.nodes.map((node) => node.id));
   const edges = g.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
   if (edges.length === g.edges.length && g.steps.every((s) => s.target.type === 'edge' || ids.has(s.target.id)))
@@ -264,7 +291,10 @@ export function keepOnly<N extends Node>(g: GraphParts<N>): GraphParts<N> {
   );
 }
 
-export function lean<N extends Node>(g: GraphParts<N>, pinned: (id: NodeId) => boolean): GraphParts<N> | undefined {
+export function lean<N extends Node, E extends Edge>(
+  g: GraphParts<N, E>,
+  pinned: (id: NodeId) => boolean,
+): GraphParts<N, E> | undefined {
   const drop = new Set(g.nodes.filter((node) => node.role === 'muted').map((node) => node.id));
   const edges = g.edges.filter((e) => e.role !== 'muted' && !drop.has(e.from) && !drop.has(e.to));
   if (!drop.size && edges.length === g.edges.length) return undefined;
@@ -288,12 +318,12 @@ export function lean<N extends Node>(g: GraphParts<N>, pinned: (id: NodeId) => b
   return renumber(placed, groups, edges, g.steps);
 }
 
-function renumber<N extends Node>(
+function renumber<N extends Node, E extends Edge>(
   nodes: N[],
   groups: Group[],
-  edges: Edge[],
+  edges: E[],
   steps: Step<NodeTarget | EdgeTarget>[],
-): GraphParts<N> {
+): GraphParts<N, E> {
   const index = new Map(edges.map((e, i) => [e.index, edgeIndex(i)]));
   return {
     nodes,

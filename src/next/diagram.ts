@@ -1,6 +1,9 @@
 import type { Diagram, DiagramType, Html, NodeId, NodeTarget, PropTarget } from './model.ts';
 import type { Fence, Grammar } from './grammar.ts';
 import type { Reporter } from './diagnostics.ts';
+import { ARCHITECTURE } from './architecture.ts';
+import { DECISION_TREE } from './decision-tree.ts';
+import { STATE_MACHINE } from './state-machine.ts';
 import { TIMELINE } from './timeline.ts';
 
 export interface Rendered {
@@ -25,7 +28,12 @@ export interface DiagramDef<T extends DiagramType> {
 
 export type Registry = { [T in DiagramType]: DiagramDef<T> };
 
-export const DIAGRAMS: Partial<Registry> = { timeline: TIMELINE };
+export const DIAGRAMS: Partial<Registry> = {
+  'state-machine': STATE_MACHINE,
+  architecture: ARCHITECTURE,
+  timeline: TIMELINE,
+  'decision-tree': DECISION_TREE,
+};
 
 export function definition<T extends DiagramType>(type: T): DiagramDef<T> {
   const def: DiagramDef<T> | undefined = DIAGRAMS[type];

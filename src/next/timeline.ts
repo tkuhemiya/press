@@ -3,7 +3,17 @@ import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from './grammar.ts';
 import type { Reporter } from './diagnostics.ts';
 import { GRAMMARS } from './grammars.ts';
-import { buildGraph, groupDepth, inGroup, keepOnly, lean, resolveSteps, toNode, type DraftNode } from './graph.ts';
+import {
+  buildGraph,
+  groupDepth,
+  header,
+  inGroup,
+  keepOnly,
+  lean,
+  resolveSteps,
+  toNode,
+  type DraftNode,
+} from './graph.ts';
 import { parseTime } from './time.ts';
 import { trusted } from './brand.ts';
 import { drawText, edgeSvg, labelSvg, markers, measureLabel, type Box, type TextLines } from '../diagrams/graph.ts';
@@ -35,10 +45,7 @@ function build(fence: Fence, report: Reporter): Timeline {
     label: (id) => id.replace(/_/g, ' '),
     empty: 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.',
   });
-  const header: Pick<Timeline, 'type' | 'id' | 'title' | 'direction' | 'line'> = { type: 'timeline', line: fence.line };
-  if (fence.id !== undefined) header.id = fence.id;
-  if (fence.title !== undefined) header.title = fence.title;
-  if (fence.direction !== undefined) header.direction = fence.direction;
+  const top = header(fence, 'timeline');
 
   const events = [...graph.nodes].sort((a, b) => a.line - b.line);
   for (const node of events)
@@ -61,7 +68,7 @@ function build(fence: Fence, report: Reporter): Timeline {
         );
     const steps = resolveSteps(fence.steps, graph.nodes, graph.edges, report);
     return {
-      ...header,
+      ...top,
       dating: 'undated',
       nodes: graph.nodes.map(toNode),
       edges: graph.edges,
@@ -132,7 +139,7 @@ function build(fence: Fence, report: Reporter): Timeline {
       return event;
     });
   const kept = keepOnly({ nodes, edges: graph.edges, groups: graph.groups, steps });
-  return { ...header, dating, ...kept };
+  return { ...top, dating, ...kept };
 }
 
 const MARGIN = 16;

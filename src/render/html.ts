@@ -1,17 +1,14 @@
 import { readFileSync } from 'node:fs';
 import type { Diagram, DiagramType } from '../model.ts';
 import type { PressDocument } from '../parse/document.ts';
-import { renderArchitecture } from '../diagrams/architecture.ts';
 import { renderCausalLoop } from '../diagrams/causal-loop.ts';
-import { renderDecisionTree } from '../diagrams/decision-tree.ts';
 import { renderEr } from '../diagrams/er.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
-import { renderStateMachine } from '../diagrams/state-machine.ts';
 import { renderTradeoffs } from '../diagrams/tradeoffs.ts';
 import { esc, type Rendered } from './svg.ts';
 import { TYPE_SPECS } from '../diagrams/types.ts';
 import { renderAny, withoutMutedAny } from '../next/diagram.ts';
-import { isMigrated, legacy, type Migrated } from '../next/bridge.ts';
+import { isMigrated, isMigratedDiagram, legacy, type Migrated } from '../next/bridge.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
 
@@ -93,11 +90,8 @@ const RENDERERS: Record<
   Exclude<DiagramType, Migrated>,
   (d: Diagram, markers: Map<string, string>, domId: string) => Rendered
 > = {
-  'state-machine': renderStateMachine,
   sequence: renderSequence,
-  architecture: renderArchitecture,
   'causal-loop': renderCausalLoop,
-  'decision-tree': renderDecisionTree,
   er: renderEr,
   tradeoffs: renderTradeoffs,
 };
@@ -205,9 +199,9 @@ function printVariant(d: Diagram, drawn: Rendered, markers: Map<string, string>,
 }
 
 function withoutMuted(d: Diagram, markers: Map<string, string>): Diagram | undefined {
-  if (d.typed?.type === 'timeline') {
+  if (d.typed) {
     const lean = withoutMutedAny(d.typed, (id) => [...markers.keys()].some((m) => m.split('.')[0] === id));
-    return lean?.type === 'timeline' ? legacy(lean) : undefined;
+    return lean && isMigratedDiagram(lean) ? legacy(lean) : undefined;
   }
   if (d.loops.length || d.type === 'tradeoffs') return undefined;
   const drop = new Set(d.nodes.filter((node) => node.role === 'muted').map((node) => node.id));

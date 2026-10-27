@@ -362,27 +362,9 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
       );
       continue;
     }
-    if (input.type === 'decision-tree' && arrows.includes('<->')) {
-      error(
-        line,
-        '`<->` is not allowed in a decision tree: an answer leads one way.',
-        `Write the answer as \`${ids[0]} -> ${ids[1]} : yes\`.`,
-      );
-      continue;
-    }
     for (let i = 0; i + 1 < ids.length; i++) {
       const from = ids[i];
       const to = ids[i + 1];
-      if (input.type === 'state-machine') {
-        if (to === 'start')
-          error(
-            line,
-            'No transition can lead into `start`.',
-            'Use a regular state here; `start` is the entry pseudo-state.',
-          );
-        if (from === 'end')
-          error(line, 'No transition can leave `end`.', 'Use a regular state here; `end` is the final pseudo-state.');
-      }
       ensureNode(from, line);
       ensureNode(to, line);
       const edge = {
@@ -418,7 +400,6 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
   });
   if (!diagram.nodes.length)
     warn(input.line, `The ${input.type} fence is empty.`, 'Add at least one edge, e.g. `a -> b : label`.');
-  if (input.type === 'decision-tree') checkTree(diagram, error);
   if (input.type === 'tradeoffs') checkTradeoffs(diagram, error, warn);
   if (input.type === 'er') checkEr(diagram, error);
   for (const l of rawLoops) resolveLoop(l);
@@ -787,48 +768,6 @@ function checkEr(d: Diagram, error: (l: number, m: string, h?: string) => void):
         `Move it to the reference: \`${p.node}.${p.key} -> other.id {card=${p.attrs.card}}\`.`,
       );
   }
-}
-
-function checkTree(d: Diagram, error: (l: number, m: string, h?: string) => void): void {
-  if (!d.nodes.length) return;
-  const out = new Map(d.nodes.map((n) => [n.id, d.edges.filter((e) => e.from === n.id)]));
-  for (const [id, edges] of out) {
-    if (edges.length < 2) continue;
-    for (const e of edges) {
-      if (e.label === undefined)
-        error(
-          e.line,
-          `\`${id}\` has ${edges.length} answers, and \`${e.from} -> ${e.to}\` does not say which this is.`,
-          `Label it with the answer: \`${e.from} -> ${e.to} : yes\`.`,
-        );
-    }
-  }
-  const state = new Map<string, 'open' | 'done'>();
-  const visit = (id: string, path: string[]): boolean => {
-    state.set(id, 'open');
-    for (const e of out.get(id) ?? []) {
-      if (state.get(e.to) === 'open') {
-        const loop = [...path.slice(path.indexOf(e.to)), id, e.to].filter((x, i, a) => i === 0 || x !== a[i - 1]);
-        error(
-          e.line,
-          `\`${e.from} -> ${e.to}\` loops back: ${loop.join(' -> ')}. A decision tree only moves forward.`,
-          'If the process can return to an earlier point, draw it as a `state-machine`. Otherwise point this answer at a new outcome.',
-        );
-        return true;
-      }
-      if (!state.has(e.to) && visit(e.to, [...path, id])) return true;
-    }
-    state.set(id, 'done');
-    return false;
-  };
-  for (const n of d.nodes) if (!state.has(n.id) && visit(n.id, [])) return;
-  const roots = d.nodes.filter((n) => !d.edges.some((e) => e.to === n.id));
-  if (roots.length > 1)
-    error(
-      roots[1].line,
-      `A decision tree has one root, and this one has ${roots.length}: ${roots.map((r) => `\`${r.id}\``).join(', ')}.`,
-      `Lead every question from the first one, e.g. \`${roots[0].id} -> ${roots[1].id} : …\`, or split them into separate trees.`,
-    );
 }
 
 function parseHeader(

@@ -1,15 +1,19 @@
 import type { Attrs, Diagnostic as LegacyDiagnostic, Diagram as LegacyDiagram } from '../model.ts';
-import type { Html, Timeline } from './model.ts';
+import type { Diagram, Html } from './model.ts';
 import { definition } from './diagram.ts';
 import { formsElsewhere, GRAMMARS } from './grammars.ts';
 import { parseFence } from './grammar.ts';
 import { into } from './diagnostics.ts';
 
-export const MIGRATED = ['timeline'] as const;
+export const MIGRATED = ['state-machine', 'architecture', 'timeline', 'decision-tree'] as const;
 export type Migrated = (typeof MIGRATED)[number];
 
 export function isMigrated(type: string): type is Migrated {
   return MIGRATED.some((t) => t === type);
+}
+
+export function isMigratedDiagram(d: Diagram): d is Diagram<Migrated> {
+  return isMigrated(d.type);
 }
 
 export function buildMigrated(
@@ -23,13 +27,14 @@ export function buildMigrated(
   return legacy(definition(type).build(fence, report));
 }
 
-export function legacy(d: Timeline): LegacyDiagram {
+export function legacy(d: Diagram<Migrated>): LegacyDiagram {
   const out: LegacyDiagram = {
     type: d.type,
     nodes: d.nodes.map((node) => ({
       id: node.id,
       label: node.label,
       ...(node.role && { role: node.role }),
+      ...('kind' in node && node.kind && { kind: node.kind }),
       attrs: noteAttrs(node.note),
       group: node.group ?? -1,
       line: node.line,

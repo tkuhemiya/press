@@ -141,7 +141,7 @@ export type Timeline = TimelineBase &
 export type DecisionTree = Graph<Node, Edge<'->' | '-->'>, NodeTarget | EdgeTarget> & {
   type: 'decision-tree';
   direction?: Direction;
-  root: NodeId;
+  root?: NodeId;
 };
 
 export type Cardinality = '1' | '0..1' | 'N' | '1..N';
