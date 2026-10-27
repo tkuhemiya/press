@@ -179,6 +179,28 @@ waiting -> end
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
+  it('draws a tradeoffs table: a chosen column, marked cells, a category band', () => {
+    const src = readFileSync(new URL('../examples/sessions.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('class="pr-svg pr-tradeoffs"');
+    expect(count(svg, /class="pr-node pr-cell/g)).toBe(15);
+    expect(svg).toMatch(/class="pr-node pr-col pr-option" data-node="postgres"[^>]*data-role="focus"/);
+    expect(svg).toMatch(/data-node="cookie\.revoke" data-in="cookie revoke"[^>]*data-role="error"/);
+    expect(count(svg, /class="pr-good"/g)).toBe(8);
+    expect(count(svg, /class="pr-group pr-band"/g)).toBe(1);
+    expect(count(svg, /class="pr-step-marker"/g)).toBe(4);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('turns a tradeoffs table with direction=down and draws a missing cell as a dash', () => {
+    const { html } = build('```tradeoffs direction=down\na.x : 1\na.y : 2\nb.x : 3\n```', { embedFonts: false });
+    expect(html).toMatch(/class="pr-node pr-row pr-option" data-node="a"/);
+    expect(html).toMatch(/class="pr-node pr-col pr-criterion" data-node="x"/);
+    expect(html).toMatch(/pr-missing" data-node="b\.y"[\s\S]*?>—</);
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);

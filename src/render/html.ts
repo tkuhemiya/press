@@ -8,6 +8,7 @@ import { renderDecisionTree } from '../diagrams/decision-tree.ts';
 import { renderSequence } from '../diagrams/sequence.ts';
 import { renderStateMachine } from '../diagrams/state-machine.ts';
 import { renderTimeline } from '../diagrams/timeline.ts';
+import { renderTradeoffs } from '../diagrams/tradeoffs.ts';
 import { esc, type Rendered } from './svg.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
@@ -92,7 +93,7 @@ const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, 
   timeline: renderTimeline,
   'decision-tree': renderDecisionTree,
   er: renderDecisionTree,
-  tradeoffs: renderDecisionTree,
+  tradeoffs: renderTradeoffs,
 };
 const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline', 'decision-tree': 'Decision tree', er: 'Entity-relationship', tradeoffs: 'Tradeoffs' };
 

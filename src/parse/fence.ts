@@ -313,6 +313,7 @@ export function parseFence(input: FenceInput, diagnostics: Diagnostic[]): Diagra
   if (!diagram.nodes.length) warn(input.line, `The ${input.type} fence is empty.`, input.type === 'timeline' ? 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.' : 'Add at least one edge, e.g. `a -> b : label`.');
   if (input.type === 'timeline') checkTimeline(diagram, error, warn);
   if (input.type === 'decision-tree') checkTree(diagram, error);
+  if (input.type === 'tradeoffs') checkTradeoffs(diagram, error, warn);
   for (const l of rawLoops) resolveLoop(l);
 
   for (const s of rawSteps) {
@@ -499,6 +500,29 @@ function checkTimeline(d: Diagram, error: (l: number, m: string, h?: string) => 
     else if (t.form !== e.time!.form) error(e.line, `\`until=${until}\` is not in the same form as the event's time, \`${e.time!.text}\`.`, `Write both the same way, e.g. \`${e.time!.text} ${e.id}: "${e.label}" {until=${e.time!.text}}\` with the end time.`);
     else if (t.value < e.time!.value) error(e.line, `\`${e.id}\` ends (${until}) before it starts (${e.time!.text}).`, 'Check the two times; `until` is when the span ends.');
     else e.until = t;
+  }
+}
+
+// A tradeoffs table: no edges, each id is an option or a criterion but not both, and every
+// option has a value for every criterion.
+function checkTradeoffs(d: Diagram, error: (l: number, m: string, h?: string) => void, warn: (l: number, m: string, h?: string) => void): void {
+  for (const e of d.edges) error(e.line, 'A tradeoffs table has no edges.', `Compare with a cell instead: \`${e.from}.${e.to} : value\`, read as "what ${e.from} offers on ${e.to}".`);
+  const options = new Set(d.props.map((p) => p.node));
+  const criteria = new Set(d.props.map((p) => p.key));
+  for (const id of options) {
+    if (!criteria.has(id)) continue;
+    const p = d.props.find((q) => q.key === id)!;
+    error(p.line, `\`${id}\` is used both as an option (left of the dot) and as a criterion (right of it).`, 'Options go on the left, criteria on the right: `option.criterion : value`.');
+  }
+  for (const n of d.nodes) {
+    if (!options.has(n.id) && !criteria.has(n.id)) warn(n.line, `\`${n.id}\` is declared but no cell uses it.`, `Add a cell such as \`${n.id}.criterion : value\`, or remove the declaration.`);
+    if (options.has(n.id) && n.group >= 0) warn(n.line, `\`${n.id}\` is an option, but groups in a tradeoffs table hold criteria.`, 'Group criteria into categories; list options outside any group.');
+  }
+  for (const o of options) {
+    const missing = [...criteria].filter((c) => !d.props.some((p) => p.node === o && p.key === c));
+    if (!missing.length) continue;
+    const last = Math.max(...d.props.filter((p) => p.node === o).map((p) => p.line));
+    warn(last, `\`${o}\` has no value for ${missing.map((c) => `\`${c}\``).join(', ')}; ${missing.length > 1 ? 'those cells draw' : 'that cell draws'} as a dash.`, `Add ${missing.map((c) => `\`${o}.${c} : value\``).join(', ')}, or a value such as \`n/a\` with \`{role=muted}\`.`);
   }
 }
 

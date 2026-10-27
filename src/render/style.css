@@ -153,6 +153,24 @@ th { font-weight: 600; }
 /* Decision tree. Outcomes end a path: a pill on a faint fill, with a heavier outline. */
 .pr-outcome { fill: var(--group-fill); stroke-width: 1.6; }
 
+/* Tradeoffs. A cell's tint and mark say how it compares; the box itself is drawn only to highlight. */
+.pr-rule { fill: none; stroke: var(--rule); stroke-width: 1; }
+.pr-head { font-weight: 600; }
+.pr-row-head { font-weight: 500; fill: var(--ink-2); }
+.pr-value { font-size: 13.5px; fill: var(--ink); text-anchor: middle; }
+.pr-missing .pr-value { fill: var(--ink-3); }
+.pr-good { fill: var(--happy); }
+.pr-tradeoffs .pr-line-box { fill: none; stroke: none; }
+.pr-tradeoffs .pr-cell-box { fill: none; stroke: none; }
+.pr-tradeoffs .pr-cell[data-role="happy"] .pr-cell-box { fill: var(--happy-fill); stroke: none; }
+.pr-tradeoffs .pr-cell[data-role="error"] .pr-cell-box { fill: var(--error-fill); stroke: none; }
+.pr-tradeoffs .pr-cell[data-role="error"] .pr-value { fill: var(--error); }
+.pr-tradeoffs .pr-cell[data-role="muted"] .pr-value { fill: var(--muted-ink); }
+.pr-tradeoffs .pr-cell[data-role="focus"] .pr-cell-box { stroke: var(--focus); stroke-width: 1.6; }
+.pr-tradeoffs .pr-col[data-role="focus"] .pr-line-box { fill: var(--focus-fill); stroke: var(--focus); stroke-width: 2; }
+.pr-tradeoffs .pr-col[data-role="focus"] .pr-head { fill: var(--focus); }
+.pr-tradeoffs .pr-row[data-role="focus"] .pr-line-box { fill: var(--focus-fill); stroke: var(--focus); stroke-width: 2; }
+
 /* Roles. In grayscale they still differ: focus and happy by weight, error by hatching, muted by lightness. */
 .pr-node[data-role="focus"] .pr-box { stroke: var(--focus); fill: var(--focus-fill); stroke-width: 2; }
 .pr-node[data-role="happy"] .pr-box { stroke: var(--happy); fill: var(--happy-fill); stroke-width: 2; }
@@ -192,6 +210,7 @@ th { font-weight: 600; }
 
   .pr-pointing .pr-node, .pr-pointing .pr-edge, .pr-pointing .pr-edge-label { opacity: 0.35; }
   .pr-pointing .pr-node.is-pointed { opacity: 1; }
+  .pr-walking .is-near, .pr-pointing .is-near { opacity: 1; }
   .pr-pointing .pr-node.is-pointed .pr-box { stroke: var(--signal); stroke-width: 2.2; }
 }
 
