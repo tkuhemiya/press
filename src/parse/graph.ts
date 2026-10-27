@@ -9,6 +9,7 @@ import type {
   Node,
   NodeId,
   NodeTarget,
+  Part,
   PropTarget,
   Role,
   Step,
@@ -459,4 +460,17 @@ function renumber<N extends Node, E extends Indexed, T extends AnyTarget>(
       return moved === undefined ? [] : [{ ...s, target: retarget(moved) }];
     }),
   };
+}
+
+export function nodeParts(nodes: readonly Node[]): Part[] {
+  return nodes.map((node) => {
+    const part: Part = { target: { type: 'node', id: node.id } };
+    if (node.role) part.role = node.role;
+    return part;
+  });
+}
+
+export function edgeEnds(edges: readonly Edge[], index: EdgeIndex): [string, string] | undefined {
+  const e = edges[index];
+  return e && [e.from, e.to];
 }

@@ -1,11 +1,19 @@
 import MarkdownIt from 'markdown-it';
 import type { Token } from 'markdown-it';
-import type { Diagnostic, Diagram, DiagramId, DiagramType, Html, NodeTarget, PropTarget, Ref, Role } from '../model.ts';
-import { definition } from '../diagrams/diagram.ts';
+import {
+  targetName,
+  type Diagnostic,
+  type Diagram,
+  type DiagramId,
+  type DiagramType,
+  type Html,
+  type Ref,
+} from '../model.ts';
+import { definition, view } from '../diagrams/diagram.ts';
 import { formsElsewhere, GRAMMARS, isDiagramType } from './grammars.ts';
 import { parseFence } from './grammar.ts';
 import { closest, into, list } from '../diagnostics.ts';
-import { diagramId, nodeId, trusted } from '../brand.ts';
+import { diagramId, trusted } from '../brand.ts';
 
 export interface Figure {
   domId: string;
@@ -116,7 +124,11 @@ export function parseDocument(source: string): Document {
         );
         continue;
       }
-      const named = targets(figure.diagram);
+      const named = new Map(
+        view(figure.diagram)
+          .targets()
+          .map((p) => [targetName(p.target), p.target]),
+      );
       const target = named.get(name);
       if (!target) {
         const near = closest(name, named.keys());
@@ -170,33 +182,6 @@ export function renderDocument(doc: Document, weave: Weave): Html {
     rules.fence = defaultFence;
     rules.link_open = defaultLink;
   }
-}
-
-export function targets(d: Diagram): Map<string, NodeTarget | PropTarget> {
-  const out = new Map<string, NodeTarget | PropTarget>();
-  const node = (id: string) => out.set(id, { type: 'node', id: nodeId(id) });
-  const prop = (owner: string, key: string) =>
-    out.set(`${owner}.${key}`, { type: 'prop', node: nodeId(owner), key: nodeId(key) });
-  if (d.type === 'tradeoffs') {
-    for (const n of [...d.options, ...d.criteria]) node(n.id);
-    for (const c of d.cells) prop(c.option, c.criterion);
-    return out;
-  }
-  for (const n of d.nodes) node(n.id);
-  if (d.type === 'er') for (const n of d.nodes) for (const f of n.fields) prop(n.id, f.name);
-  return out;
-}
-
-export function targetRole(d: Diagram, t: NodeTarget | PropTarget): Role | undefined {
-  if (d.type === 'tradeoffs')
-    return t.type === 'node'
-      ? [...d.options, ...d.criteria].find((n) => n.id === t.id)?.role
-      : d.cells.find((c) => c.option === t.node && c.criterion === t.key)?.role;
-  if (d.type === 'er')
-    return t.type === 'node'
-      ? d.nodes.find((n) => n.id === t.id)?.role
-      : d.nodes.find((n) => n.id === t.node)?.fields.find((f) => f.name === t.key)?.role;
-  return t.type === 'node' ? d.nodes.find((n) => n.id === t.id)?.role : undefined;
 }
 
 function letter(n: number): string {

@@ -2,7 +2,7 @@ import type { CausalLoop, Link, Loop, NodeId, Polarity } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
+import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { closest, list } from '../diagnostics.ts';
 import { drawText, edgeSvg, markers, measureLabel, refMarkers, type Box } from './draw.ts';
@@ -14,6 +14,8 @@ export const CAUSAL_LOOP: DiagramDef<'causal-loop'> = {
   name: 'Causal loop',
   build,
   render,
+  targets: (d) => nodeParts(d.nodes),
+  ends: (d, edge) => edgeEnds(d.edges, edge),
   withoutMuted(d, pinned) {
     if (d.loops.length) return undefined;
     const kept = lean(d, pinned);

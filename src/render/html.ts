@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { targetName, type Diagram, type Direction, type EdgeIndex, type NodeId } from '../model.ts';
-import { renderDocument, targetRole, type Document, type Figure } from '../parse/document.ts';
-import { definition, renderAny, withoutMutedAny, type Rendered } from '../diagrams/diagram.ts';
-import { GRAMMARS } from '../parse/grammars.ts';
+import { targetName, type Direction, type NodeId } from '../model.ts';
+import { renderDocument, type Document, type Figure } from '../parse/document.ts';
+import { view, type RenderContext, type Rendered, type View } from '../diagrams/diagram.ts';
 import { trusted } from '../brand.ts';
 import { esc } from './svg.ts';
 
@@ -36,7 +35,9 @@ export function renderHtml(doc: Document, options: HtmlOptions = {}): string {
     figure: (f) => trusted(figure(f)),
     refOpen(ref, f) {
       const name = targetName(ref.target);
-      const role = targetRole(f.diagram, ref.target);
+      const role = view(f.diagram)
+        .targets()
+        .find((p) => targetName(p.target) === name)?.role;
       return trusted(
         `<a class="pr-ref" href="#${f.domId}-node-${esc(name)}" data-figure="${f.domId}" data-node="${esc(name)}" data-marker="${esc(ref.marker)}"${role ? ` data-role="${role}"` : ''}>`,
       );
@@ -67,9 +68,11 @@ ${js}
 `;
 }
 
-function draw(d: Diagram, f: Figure, domId: string): Rendered {
+function draw(v: View, f: Figure, domId: string, direction?: Direction): Rendered {
   const markers = new Map(f.refs.map((r) => [targetName(r.target), r.marker]));
-  return renderAny(d, { domId, marker: (t) => markers.get(targetName(t)) });
+  const context: RenderContext = { domId, marker: (t) => markers.get(targetName(t)) };
+  if (direction !== undefined) context.direction = direction;
+  return v.render(context);
 }
 
 interface StepJson {
@@ -84,27 +87,32 @@ interface StepJson {
 
 function figure(f: Figure): string {
   const d = f.diagram;
+  const v = view(d);
   const figId = f.domId;
   let drawn: Rendered;
   try {
-    drawn = screenLayout(d, f);
+    drawn = screenLayout(v, f);
   } catch (err) {
     return `<pre class="pr-error">Press could not draw the ${d.type} on line ${d.line}: ${esc(err instanceof Error ? err.message : String(err))}</pre>\n`;
   }
-  const label = d.title ?? `${definition(d.type).name} diagram`;
+  const label = d.title ?? `${v.name} diagram`;
   const anchor = d.id ?? figId.replace(/^press-/, '');
   const steps = d.steps.map((s, i): StepJson => {
     const t = s.target;
-    const step: StepJson =
-      t.type === 'edge'
-        ? { edge: t.index, ...edgeEnds(d, t.index), caption: s.caption, html: s.caption }
-        : { node: targetName(t), caption: s.caption, html: s.caption };
-    if (d.type === 'decision-tree') step.trail = treeTrail(d, i);
+    let step: StepJson;
+    if (t.type === 'edge') {
+      const ends = v.ends(t.index);
+      step = ends
+        ? { edge: t.index, from: ends[0], to: ends[1], caption: s.caption, html: s.caption }
+        : { edge: t.index, caption: s.caption, html: s.caption };
+    } else step = { node: targetName(t), caption: s.caption, html: s.caption };
+    const trail = v.trail(i);
+    if (trail) step.trail = trail;
     return step;
   });
   let out = `<figure class="pr-figure" id="${figId}" data-type="${d.type}" data-anchor="${esc(anchor)}"${steps.length ? ' data-steps tabindex="0"' : ''} aria-label="${esc(label)}">\n`;
   if (d.title) out += `<figcaption class="pr-title">${esc(d.title)}</figcaption>\n`;
-  const paper = printVariant(d, f, drawn);
+  const paper = printVariant(v, f, drawn);
   const svg = (r: Rendered, cls = '') =>
     r.svg
       .replace('role="img"', `role="img" aria-label="${esc(label)}"`)
@@ -120,38 +128,18 @@ function figure(f: Figure): string {
   return out + `</figure>\n`;
 }
 
-function edgeEnds(d: Diagram, index: EdgeIndex): { from?: string; to?: string } {
-  if (d.type === 'tradeoffs') return {};
-  if (d.type === 'er') {
-    const e = d.edges[index];
-    if (!e) return {};
-    return e.level === 'field'
-      ? { from: `${e.from.entity}.${e.from.field}`, to: `${e.to.entity}.${e.to.field}` }
-      : { from: e.from, to: e.to };
-  }
-  const e = d.edges[index];
-  return e ? { from: e.from, to: e.to } : {};
-}
-
-function directionOf(d: Diagram): Direction | undefined {
-  return d.type === 'sequence' || d.type === 'causal-loop' ? undefined : d.direction;
-}
-
-function redirect(d: Diagram, direction: Direction | undefined): Diagram {
-  if (direction === undefined || d.type === 'sequence' || d.type === 'causal-loop') return d;
-  return { ...d, direction };
-}
+const DIRECTIONS: Direction[] = ['right', 'down'];
 
 const SCREEN_W = 870;
 const SCREEN_H = 1000;
 const screenScale = (r: Rendered): number => Math.min(1, SCREEN_W / r.width, SCREEN_H / r.height);
 
-function screenLayout(d: Diagram, f: Figure): Rendered {
-  const drawn = draw(d, f, f.domId);
-  if (directionOf(d) !== undefined || !GRAMMARS[d.type].directional || screenScale(drawn) >= 0.9) return drawn;
+function screenLayout(v: View, f: Figure): Rendered {
+  const drawn = draw(v, f, f.domId);
+  if (!v.turnable() || screenScale(drawn) >= 0.9) return drawn;
   let best = drawn;
-  for (const direction of ['right', 'down'] as const) {
-    const r = draw(redirect(d, direction), f, f.domId);
+  for (const direction of DIRECTIONS) {
+    const r = draw(v, f, f.domId, direction);
     if (screenScale(r) > screenScale(best) * 1.25) best = r;
   }
   return best;
@@ -161,50 +149,24 @@ const PAGE_W = ((210 - 34) / 25.4) * 96;
 const PAGE_H = ((297 - 38) / 25.4) * 96 * 0.62;
 const printScale = (r: Rendered): number => Math.min(1, PAGE_W / r.width, PAGE_H / r.height);
 
-function printVariant(d: Diagram, f: Figure, drawn: Rendered): Rendered | undefined {
+function printVariant(v: View, f: Figure, drawn: Rendered): Rendered | undefined {
   const scale = printScale(drawn);
   if (scale >= 0.85) return undefined;
-  const given = directionOf(d);
-  const directions: (Direction | undefined)[] =
-    given === undefined && GRAMMARS[d.type].directional ? ['right', 'down'] : [given];
+  const directions: (Direction | undefined)[] = v.turnable() ? DIRECTIONS : [undefined];
   const pinned = (id: NodeId) => f.refs.some((r) => (r.target.type === 'node' ? r.target.id : r.target.node) === id);
-  const lean = withoutMutedAny(d, pinned);
+  const lean = v.withoutMuted(pinned);
   let best: { r: Rendered; scale: number } | undefined;
-  for (const base of lean ? [d, lean] : [d]) {
+  for (const base of lean ? [v, view(lean)] : [v]) {
     for (const direction of directions) {
       let r: Rendered;
       try {
-        r = draw(redirect(base, direction), f, `${f.domId}-paper`);
+        r = draw(base, f, `${f.domId}-paper`, direction);
       } catch {
         continue;
       }
-      const s = printScale(r) * (base === d ? 1 : 0.85);
+      const s = printScale(r) * (base === v ? 1 : 0.85);
       if (!best || s > best.scale) best = { r, scale: s };
     }
   }
   return best && best.scale > scale * 1.15 ? best.r : undefined;
-}
-
-function treeTrail(d: Diagram<'decision-tree'>, i: number): number[] {
-  const at = (t: (typeof d.steps)[number]['target']): { from: NodeId; to: NodeId } | undefined => {
-    if (t.type === 'node') return { from: t.id, to: t.id };
-    const e = d.edges[t.index];
-    return e && { from: e.from, to: e.to };
-  };
-  const step = d.steps[i];
-  const here = step && at(step.target)?.from;
-  if (here === undefined) return [];
-  const above = new Set([here]);
-  for (let grew = true; grew;) {
-    grew = false;
-    for (const e of d.edges)
-      if (above.has(e.to) && !above.has(e.from)) {
-        above.add(e.from);
-        grew = true;
-      }
-  }
-  return d.steps.slice(0, i).flatMap((s, k) => {
-    const ends = at(s.target);
-    return ends && above.has(ends.to) ? [k] : [];
-  });
 }

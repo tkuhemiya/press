@@ -2,7 +2,7 @@ import { ARCHITECTURE_KINDS, type Architecture, type ArchitectureKind, type Comp
 import type { DiagramDef } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
+import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
 import { drawText, measureLabel, type NodeShape } from './draw.ts';
 import { GLYPH_W, glyph, kindShape } from './kinds.ts';
@@ -19,6 +19,9 @@ export const ARCHITECTURE: DiagramDef<'architecture'> = {
       kind: (node) => node.kind,
       svgClass: 'pr-architecture',
     }),
+  targets: (d) => nodeParts(d.nodes),
+  ends: (d, edge) => edgeEnds(d.edges, edge),
+  turnable: (d) => d.direction === undefined,
   withoutMuted(d, pinned) {
     const kept = lean(d, pinned);
     return kept && { ...d, ...kept };

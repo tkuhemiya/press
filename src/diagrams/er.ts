@@ -1,8 +1,8 @@
-import type { Cardinality, Entity, Er, Field, NodeId, Reference } from '../model.ts';
+import type { Cardinality, Entity, Er, Field, NodeId, Part, Reference } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { End as Ref, Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { buildGraph, header, leanBy, resolvePartSteps, toNode } from '../parse/graph.ts';
+import { buildGraph, header, leanBy, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
 import { labelSvg, markers, refMarkers, type Box } from './draw.ts';
@@ -14,6 +14,25 @@ export const ER: DiagramDef<'er'> = {
   name: 'Entity-relationship',
   build,
   render,
+  targets: (d) => [
+    ...nodeParts(d.nodes),
+    ...d.nodes.flatMap((node) =>
+      node.fields.map((f) => {
+        const part: Part = { target: { type: 'prop', node: node.id, key: f.name } };
+        if (f.role) part.role = f.role;
+        return part;
+      }),
+    ),
+  ],
+  ends(d, edge) {
+    const e = d.edges[edge];
+    if (!e) return undefined;
+    const [from, to] = ends(e);
+    const name = (end: { entity: NodeId; field?: NodeId }) =>
+      end.field === undefined ? end.entity : `${end.entity}.${end.field}`;
+    return [name(from), name(to)];
+  },
+  turnable: (d) => d.direction === undefined,
   withoutMuted(d, pinned) {
     const kept = leanBy(
       d,
@@ -180,7 +199,7 @@ interface Table {
 
 function render(d: Er, context: RenderContext): Rendered {
   const { domId } = context;
-  const dir = (d.direction ?? 'right') === 'right' ? 'LR' : 'TB';
+  const dir = (context.direction ?? d.direction ?? 'right') === 'right' ? 'LR' : 'TB';
   const entities: Table[] = d.nodes.map((node) => {
     const fields = [...node.fields.filter((f) => f.primary), ...node.fields.filter((f) => !f.primary)];
     const fieldW = Math.max(

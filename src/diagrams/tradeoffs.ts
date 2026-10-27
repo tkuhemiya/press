@@ -1,8 +1,8 @@
-import type { Cell, GroupId, Node, NodeId, NodeTarget, PropTarget, Step, Tradeoffs } from '../model.ts';
+import type { Cell, GroupId, Node, NodeId, NodeTarget, Part, PropTarget, Step, Tradeoffs } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { buildGraph, header, resolvePartSteps, toNode } from '../parse/graph.ts';
+import { buildGraph, header, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { markers, refMarkers, type Box } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -13,6 +13,15 @@ export const TRADEOFFS: DiagramDef<'tradeoffs'> = {
   name: 'Tradeoffs',
   build,
   render,
+  targets: (d) => [
+    ...nodeParts([...d.options, ...d.criteria]),
+    ...d.cells.map((c) => {
+      const part: Part = { target: { type: 'prop', node: c.option, key: c.criterion } };
+      if (c.role) part.role = c.role;
+      return part;
+    }),
+  ],
+  turnable: (d) => d.direction === undefined,
 };
 
 function build(fence: Fence, report: Reporter): Tradeoffs {
@@ -120,7 +129,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
     if (!option && node.group !== undefined) it.group = node.group;
     return it;
   };
-  const across = (d.direction ?? 'right') === 'right';
+  const across = (context.direction ?? d.direction ?? 'right') === 'right';
   const cell = (o: NodeId, c: NodeId): Cell | undefined => d.cells.find((p) => p.option === o && p.criterion === c);
 
   const cols = across

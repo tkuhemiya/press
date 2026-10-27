@@ -9,7 +9,7 @@ import {
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { buildGraph, header, inGroup, lean, resolveSteps, toNode } from '../parse/graph.ts';
+import { buildGraph, edgeEnds, header, inGroup, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { groupId, trusted } from '../brand.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock } from '../render/svg.ts';
@@ -20,6 +20,8 @@ export const SEQUENCE: DiagramDef<'sequence'> = {
   name: 'Sequence',
   build,
   render,
+  targets: (d) => nodeParts(d.nodes),
+  ends: (d, edge) => edgeEnds(d.edges, edge),
   withoutMuted(d, pinned) {
     const kept = lean(d, pinned);
     return kept && { ...d, ...kept };

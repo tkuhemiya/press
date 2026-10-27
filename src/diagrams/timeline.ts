@@ -4,11 +4,13 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import {
   buildGraph,
+  edgeEnds,
   groupDepth,
   header,
   inGroup,
   keepOnly,
   lean,
+  nodeParts,
   resolveSteps,
   toNode,
   type DraftNode,
@@ -24,6 +26,9 @@ export const TIMELINE: DiagramDef<'timeline'> = {
   name: 'Timeline',
   build,
   render,
+  targets: (d) => nodeParts(d.nodes),
+  ends: (d, edge) => edgeEnds(d.edges, edge),
+  turnable: (d) => d.direction === undefined,
   withoutMuted(d, pinned) {
     if (d.dating === 'undated') {
       const kept = lean(d, pinned);
@@ -189,7 +194,7 @@ function card(node: Node, time: string): Card {
 
 function render(d: Timeline, context: RenderContext): Rendered {
   const { domId } = context;
-  const across = (d.direction ?? 'right') === 'right';
+  const across = (context.direction ?? d.direction ?? 'right') === 'right';
 
   let events: Card[];
   let length: number;

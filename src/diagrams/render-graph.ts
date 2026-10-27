@@ -46,7 +46,7 @@ export function renderGraph<N extends Node>(
   style: GraphStyle<N>,
 ): Rendered {
   const { domId } = context;
-  const dir = (d.direction ?? style.direction) === 'right' ? 'LR' : 'TB';
+  const dir = (context.direction ?? d.direction ?? style.direction) === 'right' ? 'LR' : 'TB';
   const across = dir === 'TB';
 
   const cnodes: CNode[] = d.groups.map((g) => {

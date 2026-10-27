@@ -1,4 +1,14 @@
-import type { Diagram, DiagramType, Html, NodeId, NodeTarget, PropTarget } from '../model.ts';
+import type {
+  Diagram,
+  DiagramType,
+  Direction,
+  EdgeIndex,
+  Html,
+  NodeId,
+  NodeTarget,
+  Part,
+  PropTarget,
+} from '../model.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { ARCHITECTURE } from './architecture.ts';
@@ -18,6 +28,7 @@ export interface Rendered {
 
 export interface RenderContext {
   domId: string;
+  direction?: Direction;
   marker(target: NodeTarget | PropTarget): string | undefined;
 }
 
@@ -26,12 +37,14 @@ export interface DiagramDef<T extends DiagramType> {
   name: string;
   build(fence: Fence, report: Reporter): Diagram<T>;
   render(diagram: Diagram<T>, context: RenderContext): Rendered;
+  targets(diagram: Diagram<T>): Part[];
+  ends?(diagram: Diagram<T>, edge: EdgeIndex): [string, string] | undefined;
+  turnable?(diagram: Diagram<T>): boolean;
+  trail?(diagram: Diagram<T>, step: number): number[];
   withoutMuted?(diagram: Diagram<T>, pinned: (id: NodeId) => boolean): Diagram<T> | undefined;
 }
 
-export type Registry = { [T in DiagramType]: DiagramDef<T> };
-
-export const DIAGRAMS: Registry = {
+const DIAGRAMS: { [T in DiagramType]: DiagramDef<T> } = {
   'state-machine': STATE_MACHINE,
   sequence: SEQUENCE,
   architecture: ARCHITECTURE,
@@ -46,21 +59,29 @@ export function definition<T extends DiagramType>(type: T): DiagramDef<T> {
   return DIAGRAMS[type];
 }
 
-export function render<T extends DiagramType>(diagram: Diagram<T> & { type: T }, context: RenderContext): Rendered {
-  return definition(diagram.type).render(diagram, context);
+export interface View {
+  name: string;
+  render(context: RenderContext): Rendered;
+  targets(): Part[];
+  ends(edge: EdgeIndex): [string, string] | undefined;
+  turnable(): boolean;
+  trail(step: number): number[] | undefined;
+  withoutMuted(pinned: (id: NodeId) => boolean): Diagram | undefined;
 }
 
-export function renderAny(diagram: Diagram, context: RenderContext): Rendered {
-  return render(diagram, context);
+export function view(diagram: Diagram): View {
+  return bind(diagram);
 }
 
-export function withoutMuted<T extends DiagramType>(
-  diagram: Diagram<T> & { type: T },
-  pinned: (id: NodeId) => boolean,
-): Diagram<T> | undefined {
-  return definition(diagram.type).withoutMuted?.(diagram, pinned);
-}
-
-export function withoutMutedAny(diagram: Diagram, pinned: (id: NodeId) => boolean): Diagram | undefined {
-  return withoutMuted(diagram, pinned);
+function bind<T extends DiagramType>(d: Diagram<T> & { type: T }): View {
+  const def = definition(d.type);
+  return {
+    name: def.name,
+    render: (context) => def.render(d, context),
+    targets: () => def.targets(d),
+    ends: (edge) => def.ends?.(d, edge),
+    turnable: () => def.turnable?.(d) ?? false,
+    trail: (step) => def.trail?.(d, step),
+    withoutMuted: (pinned) => def.withoutMuted?.(d, pinned),
+  };
 }

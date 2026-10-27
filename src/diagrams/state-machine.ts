@@ -2,7 +2,7 @@ import type { Node, StateMachine } from '../model.ts';
 import type { DiagramDef } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { buildGraph, header, lean, resolveSteps, toNode } from '../parse/graph.ts';
+import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
 import { drawText, measureLabel, type NodeShape } from './draw.ts';
 import { n } from '../render/svg.ts';
@@ -13,6 +13,9 @@ export const STATE_MACHINE: DiagramDef<'state-machine'> = {
   build,
   render: (d, context) =>
     renderGraph(d, context, { direction: 'down', shape: stateShape, first: (node) => node.id === 'start' }),
+  targets: (d) => nodeParts(d.nodes),
+  ends: (d, edge) => edgeEnds(d.edges, edge),
+  turnable: (d) => d.direction === undefined,
   withoutMuted(d, pinned) {
     const kept = lean(d, pinned);
     return kept && { ...d, ...kept };
