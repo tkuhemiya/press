@@ -1,0 +1,211 @@
+import { describe, expect, it } from 'vitest';
+import { parseDocument } from '../src/parse/document.ts';
+
+const fence = (type: string, body: string, header = '') => `# Doc\n\n\`\`\`${type}${header ? ' ' + header : ''}\n${body}\n\`\`\`\n`;
+const parse = (type: string, body: string, header = '') => parseDocument(fence(type, body, header));
+const errors = (doc: ReturnType<typeof parseDocument>) => doc.diagnostics.filter((d) => d.severity === 'error');
+
+describe('shared grammar', () => {
+  it('parses the spec state machine', () => {
+    const doc = parse(
+      'state-machine',
+      `start -> draft
+draft -> submitted : submit
+submitted -> paid : payment ok {role=happy}
+submitted -> failed : declined {role=error}
+failed -> submitted : retry
+paid -> shipped : ship
+shipped -> end`,
+      'id=order title="Order lifecycle"'
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = doc.diagrams[0];
+    expect(d.id).toBe('order');
+    expect(d.title).toBe('Order lifecycle');
+    expect(d.nodes.map((n) => n.id)).toEqual(['start', 'draft', 'submitted', 'paid', 'failed', 'shipped', 'end']);
+    expect(d.edges[2]).toMatchObject({ from: 'submitted', to: 'paid', label: 'payment ok', role: 'happy', arrow: '->' });
+  });
+
+  it('reads arrows, declarations, bare nodes and comments', () => {
+    const doc = parse(
+      'sequence',
+      `# who talks
+client: user "Browser"
+api {role=focus}
+client -> api : GET /   # first call
+api --> client : 200 OK
+a <-> b`
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = doc.diagrams[0];
+    expect(d.nodes[0]).toMatchObject({ id: 'client', kind: 'user', label: 'Browser' });
+    expect(d.nodes[1]).toMatchObject({ id: 'api', role: 'focus' });
+    expect(d.edges.map((e) => e.arrow)).toEqual(['->', '-->', '<->']);
+    expect(d.edges[0].label).toBe('GET /');
+  });
+
+  it('keeps hyphens inside ids apart from arrows', () => {
+    const d = parse('state-machine', 'a-b-->c-d').diagrams[0];
+    expect(d.edges[0]).toMatchObject({ from: 'a-b', to: 'c-d', arrow: '-->' });
+  });
+
+  it('expands chains and applies attributes to every segment', () => {
+    const d = parse('state-machine', 'start -> draft -> paid --> end {role=happy}').diagrams[0];
+    expect(d.edges.map((e) => [e.from, e.to, e.arrow, e.role])).toEqual([
+      ['start', 'draft', '->', 'happy'],
+      ['draft', 'paid', '->', 'happy'],
+      ['paid', 'end', '-->', 'happy'],
+    ]);
+  });
+
+  it('rejects a label on a chain and says how to fix it', () => {
+    const doc = parse('state-machine', 'a -> b -> c : go');
+    expect(errors(doc)[0]).toMatchObject({ line: 4, message: expect.stringContaining('chain') });
+    expect(errors(doc)[0].hint).toContain('b -> c : go');
+  });
+
+  it('nests groups', () => {
+    const d = parse('state-machine', 'group "Active" {\n  playing -> paused\n  group "Inner" {\n    x\n  }\n}\nidle -> playing').diagrams[0];
+    expect(d.groups).toEqual([
+      { label: 'Active', parent: -1, line: 4 },
+      { label: 'Inner', parent: 0, line: 6 },
+    ]);
+    expect(d.nodes.find((n) => n.id === 'x')!.group).toBe(1);
+    expect(d.nodes.find((n) => n.id === 'idle')!.group).toBe(-1);
+  });
+});
+
+describe('diagnostics name the line and suggest a fix', () => {
+  const cases: [string, string, string, RegExp, RegExp][] = [
+    ['uppercase id', 'state-machine', 'Draft -> paid', /uppercase/, /draft: "Draft"/],
+    ['unknown arrow', 'state-machine', 'a => b', /Unknown arrow/, /->/],
+    ['unknown role', 'state-machine', 'a -> b {role=danger}', /Unknown role/, /role=error/],
+    ['typo in role', 'state-machine', 'a -> b {role=hapy}', /Unknown role/, /role=happy/],
+    ['colon in attribute', 'state-machine', 'a -> b {role: error}', /not `:`/, /role=error/],
+    ['attribute without value', 'state-machine', 'a {focus}', /no value/, /role=focus/],
+    ['unclosed group', 'state-machine', 'group "G" {\n  a -> b', /never closed/, /`}`/],
+    ['stray brace', 'state-machine', '}', /no group is open/, /group "Name"/],
+    ['declaring start', 'state-machine', 'start: "Begin"', /reserved/, /edges only/],
+    ['steps as id', 'state-machine', 'steps -> b', /reserved/, /steps:/],
+    ['edge into start', 'state-machine', 'a -> start', /into `start`/, /entry/],
+    ['bad direction', 'state-machine', 'a -> b', /Unknown direction/, /right/],
+    ['quoted id', 'state-machine', '"Paid" -> b', /quoted label/, /paid: "Paid in full"/],
+    ['missing caption', 'state-machine', 'a -> b\nsteps:\n  a -> b', /quoted caption/, /draft -> submitted/],
+  ];
+  for (const [name, type, body, message, hint] of cases) {
+    it(name, () => {
+      const doc = parse(type, body, name === 'bad direction' ? 'direction=sideways' : '');
+      const e = errors(doc)[0];
+      expect(e, JSON.stringify(doc.diagnostics)).toBeDefined();
+      expect(e.message).toMatch(message);
+      expect(e.hint).toMatch(hint);
+      expect(e.line).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  it('reports the exact source line', () => {
+    const doc = parseDocument('# T\n\nSome prose.\n\n```state-machine\na -> b\nb -> C\n```\n');
+    expect(errors(doc)[0].line).toBe(7);
+  });
+
+  it('warns on unknown kinds and styling attributes, naming the known ones', () => {
+    const doc = parse('sequence', 'db: databse "DB"\na -> db {color=red}');
+    const warnings = doc.diagnostics.filter((d) => d.severity === 'warning');
+    expect(warnings[0].hint).toContain('`database`');
+    expect(warnings[1].hint).toMatch(/meaning, not styling/);
+  });
+
+  it('warns that direction means nothing in a sequence', () => {
+    const doc = parse('sequence', 'a -> b', 'direction=right');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringContaining('no meaning') });
+  });
+
+  it('suggests a diagram type for a near miss', () => {
+    const doc = parseDocument('```state-machin\na -> b\n```\n');
+    expect(doc.diagnostics[0].hint).toContain('state-machine');
+    expect(doc.diagrams).toHaveLength(0);
+  });
+});
+
+describe('steps', () => {
+  it('resolves node and edge steps', () => {
+    const d = parse('state-machine', 'start -> draft\ndraft -> paid : pay\nsteps:\n  draft "Starts here"\n  draft -> paid "Pays"').diagrams[0];
+    expect(d.steps).toEqual([
+      { target: { type: 'node', id: 'draft' }, caption: 'Starts here', line: 7 },
+      { target: { type: 'edge', index: 1 }, caption: 'Pays', line: 8 },
+    ]);
+  });
+
+  it('treats -> and --> as the same in a step', () => {
+    const d = parse('sequence', 'db --> api : ok\nsteps:\n  db -> api "Replies"').diagrams[0];
+    expect(d.steps[0].target).toEqual({ type: 'edge', index: 0 });
+  });
+
+  it('matches <-> edges in either direction', () => {
+    const d = parse('sequence', 'a <-> b : sync\nsteps:\n  b -> a "Syncs"').diagrams[0];
+    expect(d.steps[0].target).toEqual({ type: 'edge', index: 0 });
+  });
+
+  it('disambiguates repeated messages by label', () => {
+    const doc = parse('sequence', 'api -> db : insert\napi -> db : update\nsteps:\n  api -> db : update "Second write"');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.diagrams[0].steps[0].target).toEqual({ type: 'edge', index: 1 });
+  });
+
+  it('lists the candidates when a step is ambiguous', () => {
+    const doc = parse('sequence', 'api -> db : insert\napi -> db : update\nsteps:\n  api -> db "Which?"');
+    expect(errors(doc)[0].message).toMatch(/ambiguous/);
+    expect(errors(doc)[0].hint).toContain('api -> db : insert');
+    expect(errors(doc)[0].hint).toContain('api -> db : update');
+  });
+
+  it('suggests the closest node for a typo', () => {
+    const doc = parse('state-machine', 'draft -> submitted\nsteps:\n  submited "x"');
+    expect(errors(doc)[0].hint).toBe('Did you mean `submitted`?');
+  });
+
+  it('names the edges that do exist when a step edge is missing', () => {
+    const doc = parse('state-machine', 'a -> b\na -> c\nb -> c\nsteps:\n  a -> d "x"\n  c -> a "y"');
+    expect(errors(doc)[0].message).toMatch(/`d`/);
+    expect(errors(doc)[1].message).toMatch(/does not have/);
+  });
+
+  it('rejects content lines after steps', () => {
+    const doc = parse('state-machine', 'a -> b\nsteps:\n  a "x"\nb -> c');
+    expect(errors(doc)[0]).toMatchObject({ line: 7, message: expect.stringContaining('caption') });
+  });
+});
+
+describe('prose references', () => {
+  const src = `# T
+
+\`\`\`state-machine id=order
+draft -> failed
+\`\`\`
+
+See [failed](#order.failed) and [draft](#order.draft), then [failed again](#order.failed).
+Broken: [x](#ordr.failed) and
+[y](#order.faild).
+`;
+
+  it('assigns one letter per node, in reading order', () => {
+    const doc = parseDocument(src);
+    expect(doc.refs.map((r) => [r.node, r.marker])).toEqual([
+      ['failed', 'a'],
+      ['draft', 'b'],
+      ['failed', 'a'],
+    ]);
+  });
+
+  it('reports unknown diagrams and nodes on their own lines', () => {
+    const errs = errors(parseDocument(src));
+    expect(errs).toHaveLength(2);
+    expect(errs[0]).toMatchObject({ line: 8, hint: 'Did you mean `#order.failed`?' });
+    expect(errs[1]).toMatchObject({ line: 9, hint: 'Did you mean `#order.failed`?' });
+  });
+
+  it('flags duplicate diagram ids', () => {
+    const doc = parseDocument('```state-machine id=a\nx -> y\n```\n\n```sequence id=a\nx -> y\n```\n');
+    expect(errors(doc)[0].message).toMatch(/already used on line 1/);
+  });
+});
