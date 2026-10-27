@@ -28,7 +28,7 @@ These were settled deliberately. Don't reopen them without a good reason.
 - `VISUALIZATIONS.md` tracks every planned diagram type and its status. Update it when you add or change one.
 - Source should stay readable without rendering. If a fence makes no sense as plain text, the syntax is wrong.
 - Parser errors should name the line and suggest a fix, so an LLM can correct itself.
-- `PRIOR_ART.md` records the open-source projects we have looked at and what we take from each. Add to it when you study a new one.
+- `PRIOR_ART.md` lists projects to open when an implementation gets stuck. A row says what the project is and the problems it covers. Add a row when you study a project.
 
 ## Code
 

@@ -4,7 +4,7 @@
 judgement calls, answered by 4 fresh agents (5 each) that could read only
 `skills/press/SKILL.md`. Each saved a first draft before running `press check`, then fixed it
 using only the checker's messages, and wrote notes on what it could not express. Everything
-is in `results/`; every figure, re-rendered after the fixes below, is in `sheets/`.
+is in `results/`. A `.draft.md` is kept when the first draft differs from the final. Twelve first drafts matched the final, so `results/` keeps one copy of each. Every figure, re-rendered after the fixes below, is in `sheets/`.
 
 ## Headline
 
