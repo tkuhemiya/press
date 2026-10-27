@@ -1,5 +1,3 @@
-// Draws an architecture diagram: components with a shape or glyph for their kind, inside the
-// boundaries (groups) they belong to. Layout is the shared graph layout in graph.ts.
 import type { Diagram, DiagramNode } from '../model.ts';
 import { drawText, measureText, renderGraph, type NodeShape } from './graph.ts';
 import { GLYPH_W, glyph, kindShape } from './kinds.ts';
@@ -7,7 +5,7 @@ import { n, type Rendered } from '../render/svg.ts';
 
 const PAD_X = 16;
 const PAD_Y = 12;
-// A cylinder's caps take this much more height.
+
 const CAP = 4;
 const MIN_W = 96;
 const MAX_LABEL = 170;

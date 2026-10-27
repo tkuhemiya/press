@@ -29,7 +29,7 @@ let fontCss: string | undefined;
 function fonts(): string {
   fontCss ??= FONTS.map(
     ([family, weight, style, file]) =>
-      `@font-face{font-family:"${family}";font-weight:${weight};font-style:${style};font-display:swap;src:url(data:font/woff2;base64,${asset(`../../assets/fonts/${file}`).toString('base64')}) format("woff2")}`
+      `@font-face{font-family:"${family}";font-weight:${weight};font-style:${style};font-display:swap;src:url(data:font/woff2;base64,${asset(`../../assets/fonts/${file}`).toString('base64')}) format("woff2")}`,
   ).join('\n');
   return fontCss;
 }
@@ -51,13 +51,16 @@ export function renderHtml(doc: PressDocument, options: HtmlOptions = {}): strin
     if (!diagram) return defaultFence(tokens, idx, opts, env, self);
     return figure(doc, diagram, figureIds.get(diagram)!);
   };
-  const defaultLink = md.renderer.rules.link_open ?? ((tokens, idx, opts, _env, self) => self.renderToken(tokens, idx, opts));
+  const defaultLink =
+    md.renderer.rules.link_open ?? ((tokens, idx, opts, _env, self) => self.renderToken(tokens, idx, opts));
   md.renderer.rules.link_open = (tokens, idx, opts, env, self) => {
     const ref = tokens[idx].meta?.ref as { diagram: string; node: string; marker: string } | undefined;
     if (!ref) return defaultLink(tokens, idx, opts, env, self);
     const diagram = byId.get(ref.diagram)!;
     const figId = figureIds.get(diagram)!;
-    const role = (diagram.nodes.find((x) => x.id === ref.node) ?? diagram.props.find((p) => `${p.node}.${p.key}` === ref.node))?.role;
+    const role = (
+      diagram.nodes.find((x) => x.id === ref.node) ?? diagram.props.find((p) => `${p.node}.${p.key}` === ref.node)
+    )?.role;
     return `<a class="pr-ref" href="#${figId}-node-${esc(ref.node)}" data-figure="${figId}" data-node="${esc(ref.node)}" data-marker="${esc(ref.marker)}"${role ? ` data-role="${role}"` : ''}>`;
   };
 
@@ -97,7 +100,16 @@ const RENDERERS: Record<DiagramType, (d: Diagram, markers: Map<string, string>, 
   er: renderEr,
   tradeoffs: renderTradeoffs,
 };
-const TYPE_NAMES: Record<DiagramType, string> = { 'state-machine': 'State machine', sequence: 'Sequence', architecture: 'Architecture', 'causal-loop': 'Causal loop', timeline: 'Timeline', 'decision-tree': 'Decision tree', er: 'Entity-relationship', tradeoffs: 'Tradeoffs' };
+const TYPE_NAMES: Record<DiagramType, string> = {
+  'state-machine': 'State machine',
+  sequence: 'Sequence',
+  architecture: 'Architecture',
+  'causal-loop': 'Causal loop',
+  timeline: 'Timeline',
+  'decision-tree': 'Decision tree',
+  er: 'Entity-relationship',
+  tradeoffs: 'Tradeoffs',
+};
 
 function figure(doc: PressDocument, d: Diagram, figId: string): string {
   const markers = new Map<string, string>();
@@ -115,7 +127,13 @@ function figure(doc: PressDocument, d: Diagram, figId: string): string {
     if (s.target.type === 'node') return { node: s.target.id, caption: s.caption, html };
     const e = d.edges[s.target.index];
     // An edge between fields lights the fields themselves.
-    return { edge: e.index, from: e.fromKey ? `${e.from}.${e.fromKey}` : e.from, to: e.toKey ? `${e.to}.${e.toKey}` : e.to, caption: s.caption, html };
+    return {
+      edge: e.index,
+      from: e.fromKey ? `${e.from}.${e.fromKey}` : e.from,
+      to: e.toKey ? `${e.to}.${e.toKey}` : e.to,
+      caption: s.caption,
+      html,
+    };
   });
   if (d.type === 'decision-tree') steps.forEach((step, i) => Object.assign(step, { trail: treeTrail(d, i) }));
   let out = `<figure class="pr-figure" id="${figId}" data-type="${d.type}" data-anchor="${esc(anchor)}"${steps.length ? ' data-steps tabindex="0"' : ''} aria-label="${esc(label)}">\n`;
@@ -123,9 +141,13 @@ function figure(doc: PressDocument, d: Diagram, figId: string): string {
   // On paper the figure may take a different layout that keeps its text larger; on screen it is
   // always drawn as written.
   const paper = printVariant(d, drawn, markers, figId);
-  const svg = (r: Rendered, cls = '') => r.svg.replace('role="img"', `role="img" aria-label="${esc(label)}"`).replace(/^<svg class="([^"]*)"/, `<svg class="$1${cls}"`);
+  const svg = (r: Rendered, cls = '') =>
+    r.svg
+      .replace('role="img"', `role="img" aria-label="${esc(label)}"`)
+      .replace(/^<svg class="([^"]*)"/, `<svg class="$1${cls}"`);
   out += `<div class="pr-body"><div class="pr-canvas">${paper ? svg(drawn, ' pr-screen-only') + svg(paper, ' pr-print-only') : svg(drawn)}</div>`;
-  if (steps.length) out += `<ol class="pr-legend">${steps.map((s, i) => `<li><b>${i + 1}</b><span>${s.html}</span></li>`).join('')}</ol>`;
+  if (steps.length)
+    out += `<ol class="pr-legend">${steps.map((s, i) => `<li><b>${i + 1}</b><span>${s.html}</span></li>`).join('')}</ol>`;
   out += `</div>\n`;
   if (steps.length) {
     out += `<script type="application/json" class="pr-steps">${JSON.stringify(steps).replace(/</g, '\\u003c')}</script>\n`;
@@ -166,7 +188,8 @@ const printScale = (r: Rendered): number => Math.min(1, PAGE_W / r.width, PAGE_H
 function printVariant(d: Diagram, drawn: Rendered, markers: Map<string, string>, figId: string): Rendered | undefined {
   const scale = printScale(drawn);
   if (scale >= 0.85) return undefined;
-  const directions: Diagram['direction'][] = d.direction === undefined && TYPE_SPECS[d.type].directional ? ['right', 'down'] : [d.direction];
+  const directions: Diagram['direction'][] =
+    d.direction === undefined && TYPE_SPECS[d.type].directional ? ['right', 'down'] : [d.direction];
   const lean = withoutMuted(d, markers);
   let best: { r: Rendered; scale: number } | undefined;
   for (const base of lean ? [d, lean] : [d]) {
@@ -211,7 +234,9 @@ function withoutMuted(d: Diagram, markers: Map<string, string>): Diagram | undef
     edges: keep.map((e, i) => ({ ...e, index: i })),
     groups: [...groupIndex.keys()].map((g) => ({ ...d.groups[g], parent: group(d.groups[g].parent) })),
     props: d.props.filter((p) => !drop.has(p.node)),
-    steps: d.steps.map((s) => (s.target.type === 'edge' ? { ...s, target: { type: 'edge' as const, index: index.get(s.target.index)! } } : s)),
+    steps: d.steps.map((s) =>
+      s.target.type === 'edge' ? { ...s, target: { type: 'edge' as const, index: index.get(s.target.index)! } } : s,
+    ),
   };
 }
 
@@ -221,10 +246,11 @@ function treeTrail(d: Diagram, i: number): number[] {
   const step = d.steps[i].target;
   const here = step.type === 'node' ? step.id : d.edges[step.index].from;
   const above = new Set([here]);
-  for (let grew = true; grew; ) {
+  for (let grew = true; grew;) {
     grew = false;
     for (const e of d.edges) if (above.has(e.to) && !above.has(e.from)) grew = !!above.add(e.from);
   }
-  const reached = (t: (typeof d.steps)[number]['target']) => (t.type === 'node' ? above.has(t.id) : above.has(d.edges[t.index].to));
+  const reached = (t: (typeof d.steps)[number]['target']) =>
+    t.type === 'node' ? above.has(t.id) : above.has(d.edges[t.index].to);
   return d.steps.slice(0, i).flatMap((s, k) => (reached(s.target) ? [k] : []));
 }

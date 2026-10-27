@@ -100,10 +100,25 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
   const routed = d.edges.filter((e) => e.from !== e.to);
   const cedges: CEdge[] = routed.map((e) => {
     const [labelW, labelH] = labelSize(e);
-    return { src: index.get(e.from)!, dst: index.get(e.to)!, minlen: 1, labelW, labelH, route: [], labelX: 0, labelY: 0 };
+    return {
+      src: index.get(e.from)!,
+      dst: index.get(e.to)!,
+      minlen: 1,
+      labelW,
+      labelH,
+      route: [],
+      labelX: 0,
+      labelY: 0,
+    };
   });
 
-  const layout = compoundLayout(cnodes, cedges, dir, { nodeSep: 40, edgeSep: 16, rankSep: 46, portSep: 20, headRoom: TRIM });
+  const layout = compoundLayout(cnodes, cedges, dir, {
+    nodeSep: 40,
+    edgeSep: 16,
+    rankSep: 46,
+    portSep: 20,
+    headRoom: TRIM,
+  });
 
   const ox = MARGIN;
   const oy = MARGIN;
@@ -118,15 +133,21 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
   });
 
   const out: string[] = [];
-  out.push(`<svg class="pr-svg${style.svgClass ? ' ' + style.svgClass : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`);
-  out.push(`<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`);
+  out.push(
+    `<svg class="pr-svg${style.svgClass ? ' ' + style.svgClass : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
+  );
+  out.push(
+    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
+  );
 
   // Groups.
   d.groups.forEach((g, i) => {
     const c = cnodes[i];
     const x = ox + c.x - c.w / 2;
     const y = oy + c.y - c.h / 2;
-    out.push(`<g class="pr-group"><rect x="${n(x)}" y="${n(y)}" width="${n(c.w)}" height="${n(c.h)}" rx="12"/><text x="${n(x + 14)}" y="${n(y + 19)}">${esc(g.label)}</text></g>`);
+    out.push(
+      `<g class="pr-group"><rect x="${n(x)}" y="${n(y)}" width="${n(c.w)}" height="${n(c.h)}" rx="12"/><text x="${n(x + 14)}" y="${n(y + 19)}">${esc(g.label)}</text></g>`,
+    );
   });
 
   // A label inside a group sits on the group's fill, so its plate takes that colour.
@@ -164,7 +185,10 @@ export function renderGraph(d: Diagram, refMarkers: Map<string, string>, domId: 
       if (!across) slot.labelY += own.slice(0, k).reduce((s, o) => s + labelSize(o)[1], 0);
       out.push(edgeSvg(e, path, false));
       if (e.label) labels.push(labelSvg(e, slot.labelX, slot.labelY, onGroup(slot.labelX, slot.labelY)));
-      anchors.set(e.index, { x: (across ? b.x + b.w + LOOP_REACH : b.x + b.w / 2) + 2, y: across ? b.y - 6 : b.y + b.h + LOOP_REACH });
+      anchors.set(e.index, {
+        x: (across ? b.x + b.w + LOOP_REACH : b.x + b.w / 2) + 2,
+        y: across ? b.y - 6 : b.y + b.h + LOOP_REACH,
+      });
     });
   }
 
@@ -209,7 +233,8 @@ export function drawText(t: TextLines, x: number, cy: number, align: 'middle' | 
   const top = cy - t.h / 2;
   const start = align === 'start' ? ' pr-start' : '';
   let s = textBlock(t.lines, x, top + labelH / 2, LINE, 'pr-label' + start);
-  if (t.note.length) s += textBlock(t.note, x, top + labelH + 4 + (t.note.length * NOTE_LINE) / 2, NOTE_LINE, 'pr-note' + start);
+  if (t.note.length)
+    s += textBlock(t.note, x, top + labelH + 4 + (t.note.length * NOTE_LINE) / 2, NOTE_LINE, 'pr-note' + start);
   return s;
 }
 
@@ -232,7 +257,12 @@ export function labelSvg(e: DiagramEdge, x: number, y: number, onGroup: boolean)
 }
 
 // Print markers: numbered badges for steps, lettered badges for prose references.
-export function markers(d: Diagram, boxes: Map<string, Box>, anchors: Map<number, { x: number; y: number }>, refMarkers: Map<string, string>): string[] {
+export function markers(
+  d: Diagram,
+  boxes: Map<string, Box>,
+  anchors: Map<number, { x: number; y: number }>,
+  refMarkers: Map<string, string>,
+): string[] {
   const out: string[] = [];
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {

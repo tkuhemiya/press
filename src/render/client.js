@@ -1,4 +1,3 @@
-// Press walkthrough and prose references. Plain script, inlined into every page.
 (() => {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const SVG = 'http://www.w3.org/2000/svg';
@@ -24,9 +23,7 @@
     bar.hidden = false;
 
     const nodes = (id) => svg.querySelectorAll(`.pr-node[data-node="${CSS.escape(id)}"]`);
-    // Parts that belong to a node, such as the cells of a tradeoffs option, stay in view with it.
     const parts = (id) => svg.querySelectorAll(`[data-in~="${CSS.escape(id)}"]`);
-    // A property (`node.key`) keeps the node it belongs to in view.
     const owner = (id) => (id.includes('.') ? nodes(id.slice(0, id.indexOf('.'))) : []);
     const edgeParts = (i) => svg.querySelectorAll(`.pr-edge[data-edge="${i}"], .pr-edge-label[data-edge="${i}"]`);
     const mark = (step, cls) => {
@@ -62,7 +59,9 @@
       at = i;
       cancelAnimationFrame(motion);
       svg.querySelectorAll('.pr-pulse, .pr-pulse-halo').forEach((el) => el.remove());
-      svg.querySelectorAll('.is-current, .is-visited, .is-arrived, .is-near').forEach((el) => el.classList.remove('is-current', 'is-visited', 'is-arrived', 'is-near'));
+      svg
+        .querySelectorAll('.is-current, .is-visited, .is-arrived, .is-near')
+        .forEach((el) => el.classList.remove('is-current', 'is-visited', 'is-arrived', 'is-near'));
       fig.classList.toggle('pr-walking', i > 0);
       ticks.forEach((t, k) => {
         t.classList.toggle('is-done', k < i - 1);
@@ -74,7 +73,8 @@
       next.innerHTML = i === 0 ? 'Walk through' : '<svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>';
       next.setAttribute('aria-label', i === 0 ? 'Start the walkthrough' : 'Next step');
       count.textContent = i === 0 ? '' : `${i} / ${steps.length}`;
-      if (!fromHash && fig.dataset.anchor) history.replaceState(null, '', i === 0 ? location.pathname + location.search : `#${fig.dataset.anchor}/${i}`);
+      if (!fromHash && fig.dataset.anchor)
+        history.replaceState(null, '', i === 0 ? location.pathname + location.search : `#${fig.dataset.anchor}/${i}`);
       if (i === 0) {
         setCaption(intro);
         return;
@@ -87,7 +87,6 @@
       else nodes(step.node).forEach((el) => el.classList.add('is-arrived'));
     }
 
-    // A dot runs along the current edge, so the eye follows the transition rather than finding it.
     function travel(step, forward) {
       const line = svg.querySelector(`.pr-edge[data-edge="${step.edge}"] .pr-line`);
       const arrive = () => nodes(step.to).forEach((el) => el.classList.add('is-arrived'));
@@ -138,7 +137,6 @@
     return { go };
   }
 
-  // Prose references: hovering one points at its node.
   for (const ref of document.querySelectorAll('a.pr-ref')) {
     const fig = document.getElementById(ref.dataset.figure);
     if (!fig) continue;
@@ -161,13 +159,13 @@
     ref.addEventListener('click', (ev) => {
       ev.preventDefault();
       const rect = fig.getBoundingClientRect();
-      if (rect.top < 0 || rect.bottom > innerHeight) fig.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+      if (rect.top < 0 || rect.bottom > innerHeight)
+        fig.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
       on();
       setTimeout(off, 1400);
     });
   }
 
-  // Deep links: #order/3 opens step 3 of the diagram with id "order".
   function fromHash() {
     const m = /^#([\w-]+)\/(\d+)$/.exec(location.hash);
     if (!m) return;

@@ -29,8 +29,8 @@ The output is one self-contained HTML file:
   a caption legend, prose references become lettered markers, and diagrams never split
   across pages.
 
-The language is defined in [`SPEC.md`](SPEC.md). [`VISUALIZATIONS.md`](VISUALIZATIONS.md)
-lists the diagram types, and [`examples/`](examples) has complete explanations.
+The language is defined in [`SPEC.md`](docs/SPEC.md). [`VISUALIZATIONS.md`](docs/VISUALIZATIONS.md)
+lists the diagram types, and [`docs/examples/`](docs/examples) has complete explanations.
 
 ## Use
 
@@ -38,7 +38,7 @@ Press needs Node 26 or later.
 
 ```sh
 npm install
-node src/cli.ts build examples/checkout.md --out-dir out   # HTML
+node src/cli.ts build docs/examples/checkout.md --out-dir out   # HTML
 node src/cli.ts check doc.md                               # problems only
 node src/cli.ts pdf doc.md -o doc.pdf                      # needs Playwright
 ```
@@ -66,11 +66,12 @@ is built by the test suite, so it stays in step with the language.
 ## Develop
 
 ```sh
-npm test            # parser, rendering, and browser checks (browser checks need Playwright)
-npm run typecheck
+npx playwright install chromium   # once, for the browser tests and pdf
+npm test            # parser, rendering, and browser checks
+npm run check       # format check, lint, typecheck
 npm run build:examples
 ```
 
 Node runs the TypeScript directly, so there is no build step. Layout for graph diagrams
-is pele's layered layout, vendored in `src/layout/pele` (MIT); see `PRIOR_ART.md` for why.
+is pele's layered layout, vendored in `src/layout/pele` (MIT); see `docs/PRIOR_ART.md` for why.
 Fonts are Inter, Source Serif 4 and JetBrains Mono (SIL OFL), embedded in each page.

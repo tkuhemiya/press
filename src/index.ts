@@ -1,4 +1,3 @@
-// Public API.
 import { parseDocument, type PressDocument } from './parse/document.ts';
 import { renderHtml, type HtmlOptions } from './render/html.ts';
 import type { Diagnostic } from './model.ts';

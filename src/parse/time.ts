@@ -26,10 +26,18 @@ export function parseTime(text: string): Time | { error: string } {
       if (h > 23 || min > 59 || s > 59) return { error: `\`${text}\` is not a time of day.` };
       return { text, form, value: ((h * 60 + min) * 60 + s) * 1000 };
     }
-    const [y, mo, d, h, min, s] = [Number(m[1]), Number(m[2] ?? 1), Number(m[3] ?? 1), Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0)];
+    const [y, mo, d, h, min, s] = [
+      Number(m[1]),
+      Number(m[2] ?? 1),
+      Number(m[3] ?? 1),
+      Number(m[4] ?? 0),
+      Number(m[5] ?? 0),
+      Number(m[6] ?? 0),
+    ];
     if (mo < 1 || mo > 12) return { error: `\`${text}\` has no month ${m[2]}.` };
     const value = Date.UTC(y, mo - 1, d, h, min, s);
-    if (new Date(value).getUTCDate() !== d) return { error: `\`${text}\` is not a day: ${m[1]}-${m[2]} has no day ${m[3]}.` };
+    if (new Date(value).getUTCDate() !== d)
+      return { error: `\`${text}\` is not a day: ${m[1]}-${m[2]} has no day ${m[3]}.` };
     if (h > 23 || min > 59 || s > 59) return { error: `\`${text}\` is not a time of day.` };
     return { text, form, value };
   }

@@ -94,7 +94,16 @@ export interface Loop {
   line: number;
 }
 
-export const DIAGRAM_TYPES = ['state-machine', 'sequence', 'architecture', 'causal-loop', 'timeline', 'decision-tree', 'er', 'tradeoffs'] as const;
+export const DIAGRAM_TYPES = [
+  'state-machine',
+  'sequence',
+  'architecture',
+  'causal-loop',
+  'timeline',
+  'decision-tree',
+  'er',
+  'tradeoffs',
+] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
 export interface Diagram {
