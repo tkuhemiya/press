@@ -20,6 +20,7 @@ These were settled deliberately. Don't reopen them without a good reason.
 - **Steps live inside the fence.**
 - **Paper is a budget.** Print should compress (annotate a single frame), not expand (one frame per step). See `SPEC.md`.
 - **Pre-1.0 versioning:** 0.1, 0.2, 0.3…
+- **Light themes only.** No dark mode. A light page reads well on screen and is already what print needs, so there is one visual language to get right.
 
 ## How to work here
 
@@ -27,3 +28,12 @@ These were settled deliberately. Don't reopen them without a good reason.
 - `VISUALIZATIONS.md` tracks every planned diagram type and its status. Update it when you add or change one.
 - Source should stay readable without rendering. If a fence makes no sense as plain text, the syntax is wrong.
 - Parser errors should name the line and suggest a fix, so an LLM can correct itself.
+- `PRIOR_ART.md` records the open-source projects we have looked at and what we take from each. Add to it when you study a new one.
+
+## Code
+
+- Node 26+, TypeScript run directly (erasable syntax only: no enums, namespaces or parameter properties). `npm test`, `npm run typecheck`.
+- `src/parse` turns Markdown into the model in `src/model.ts`; `src/diagrams/*` lay out and draw each type; `src/render` builds the page (`style.css`, `client.js`).
+- Diagram SVG carries meaning as classes and `data-role`, never colours; all styling lives in `style.css`, including print.
+- `src/layout/pele` is vendored. Keep changes there minimal and note them in the file header.
+- After a visual change, build the examples and look at them on screen and in print (`node src/cli.ts pdf`).
