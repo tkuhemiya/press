@@ -7,7 +7,8 @@ export type Item =
   | { type: 'path'; cls?: string; d: string }
   | { type: 'text'; cls?: string; x: number; y: number; text: string; dy?: string }
   | { type: 'lines'; cls: string; x: number; cy: number; lines: readonly string[]; lineHeight: number }
-  | { type: 'ellipse'; cls?: string; cx: number; cy: number; rx: number; ry: number };
+  | { type: 'ellipse'; cls?: string; cx: number; cy: number; rx: number; ry: number }
+  | { type: 'line'; cls?: string; x1: number; y1: number; x2: number; y2: number };
 
 export interface Scene {
   id: string;

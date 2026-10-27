@@ -1,6 +1,11 @@
 import type { Item, Scene } from './scene.ts';
 import { classesOf, roleIn, type Context, type Mark, type Rule } from './marks.ts';
+import { causalLoop } from './rules/causal-loop.ts';
+import { er } from './rules/er.ts';
 import { graph } from './rules/graph.ts';
+import { sequence } from './rules/sequence.ts';
+import { timeline } from './rules/timeline.ts';
+import { tradeoffs } from './rules/tradeoffs.ts';
 
 export interface PrintScene {
   width: number;
@@ -8,7 +13,7 @@ export interface PrintScene {
   marks: Mark[];
 }
 
-const RULES: Rule[] = [];
+const RULES: Rule[] = [causalLoop, er, sequence, timeline, tradeoffs];
 
 const paint = (item: Parameters<Rule>[0], ctx: Context): Mark =>
   RULES.reduce<Mark | undefined>((found, rule) => found ?? rule(item, ctx), undefined) ?? graph(item, ctx);

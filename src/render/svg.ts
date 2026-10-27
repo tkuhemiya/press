@@ -1,6 +1,4 @@
-import type { Role } from '../model.ts';
 import type { Attrs, Item } from '../scene/scene.ts';
-import { paintItem } from '../scene/svg.ts';
 
 export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -8,10 +6,6 @@ export function esc(s: string): string {
 
 export function n(v: number): string {
   return String(Math.round(v * 100) / 100);
-}
-
-export function roleAttr(role: Role | undefined): string {
-  return role ? ` data-role="${role}"` : '';
 }
 
 export const HEAD = 9;
@@ -38,10 +32,6 @@ export const linesItem = (lines: readonly string[], cx: number, cy: number, line
   lineHeight,
 });
 
-export function textBlock(lines: string[], cx: number, cy: number, lineHeight: number, cls: string): string {
-  return paintItem(linesItem(lines, cx, cy, lineHeight, cls), '');
-}
-
 export function badgeItem(cls: string, attrs: Attrs, x: number, y: number, label: string): Item {
   return {
     type: 'group',
@@ -52,9 +42,4 @@ export function badgeItem(cls: string, attrs: Attrs, x: number, y: number, label
       { type: 'text', x, y, text: label, dy: '0.35em' },
     ],
   };
-}
-
-export function badge(cls: string, attrs: string, x: number, y: number, label: string): string {
-  const inner = paintItem(badgeItem(cls, [], x, y, label), '');
-  return inner.replace(`<g class="${cls}">`, `<g class="${cls}"${attrs}>`);
 }

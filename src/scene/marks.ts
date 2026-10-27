@@ -28,6 +28,7 @@ export type Mark =
       anchor: Anchor;
       italic?: boolean;
       tabular?: boolean;
+      underline?: boolean;
       tracking?: number;
       upper?: boolean;
     };

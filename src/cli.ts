@@ -5,15 +5,13 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 import { build, formatDiagnostic } from './index.ts';
 import { typstDocument } from './render/typst.ts';
 
 const USAGE = `Usage:
   press build <file.md> -o out.html | out.pdf               Render to HTML, or typeset to PDF (needs typst)
   press build <file.md...> --out-dir dir                    Render each file to HTML
-  press check <file.md...>                                  Report problems only
-  press pdf <file.md> [-o out.pdf]                          Print the HTML to PDF with Chromium (needs Playwright)`;
+  press check <file.md...>                                  Report problems only`;
 
 const args = process.argv.slice(2);
 const command = args.shift();
@@ -26,7 +24,7 @@ for (let i = 0; i < args.length; i++) {
   else files.push(args[i]);
 }
 
-if (!command || !['build', 'check', 'pdf'].includes(command) || !files.length) {
+if (!command || !['build', 'check'].includes(command) || !files.length) {
   console.error(USAGE);
   process.exit(command === 'help' || command === '--help' ? 0 : 2);
 }
@@ -51,37 +49,17 @@ for (const file of files) {
   }
   if (command === 'check') continue;
   const stem = basename(file).replace(/\.(md|markdown|press)$/i, '');
-  if (command === 'build' && format === 'pdf' && out) {
+  if (format === 'pdf' && out) {
     typeset(JSON.stringify(typstDocument(result.document)), resolve(out));
     console.error(`wrote ${out}`);
-  } else if (command === 'build') {
-    const target = out ?? join(outDir ?? '.', `${stem}.html`);
-    if (outDir) mkdirSync(outDir, { recursive: true });
-    writeFileSync(target, result.html);
-    console.error(`wrote ${target}`);
-  } else {
-    const target = resolve(out ?? join(outDir ?? '.', `${stem}.pdf`));
-    await printPdf(result.html, target);
-    console.error(`wrote ${target}`);
+    continue;
   }
+  const target = out ?? join(outDir ?? '.', `${stem}.html`);
+  if (outDir) mkdirSync(outDir, { recursive: true });
+  writeFileSync(target, result.html);
+  console.error(`wrote ${target}`);
 }
 process.exit(failed ? 1 : 0);
-
-async function printPdf(html: string, target: string): Promise<void> {
-  let chromium;
-  try {
-    ({ chromium } = createRequire(import.meta.url)('playwright'));
-  } catch {
-    console.error('press pdf needs Playwright: npm i -D playwright && npx playwright install chromium');
-    process.exit(2);
-  }
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'load' });
-  await page.evaluate(() => document.fonts.ready);
-  await page.pdf({ path: target, format: 'A4', printBackground: true, preferCSSPageSize: true });
-  await browser.close();
-}
 
 function typeset(json: string, target: string): void {
   const dir = mkdtempSync(join(tmpdir(), 'press-'));

@@ -27,8 +27,10 @@ import {
 } from '../parse/graph.ts';
 import { groupId, trusted } from '../brand.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock } from '../render/svg.ts';
-import { GLYPH_W, glyph, kindShape } from './kinds.ts';
+import { arrowhead, badgeItem, HEAD, linesItem, n } from '../render/svg.ts';
+import { attr, type Attrs, type Item, type Scene } from '../scene/scene.ts';
+import { paintSvg } from '../scene/svg.ts';
+import { GLYPH_W, glyphItems, kindItems } from './kinds.ts';
 
 export const SEQUENCE: DiagramDef<'sequence'> = {
   type: 'sequence',
@@ -248,23 +250,25 @@ function render(d: Sequence, context: RenderContext): Rendered {
   const bottom = y + 18;
   const height = Math.ceil(bottom + MARGIN + (d.groups.length ? GROUP_PAD : 0));
 
-  const out: string[] = [];
-  out.push(
-    `<svg class="pr-svg pr-sequence" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
-  );
-
   const groupOrder = d.groups.map((_, i) => i).sort((a, b) => depthBelow[b] - depthBelow[a]);
-  for (const g of groupOrder) {
+  const groupItems = groupOrder.flatMap((g): Item[] => {
     const members = cols.filter((c) => inGroup(d.groups, c.node.group, g));
-    if (!members.length) continue;
+    if (!members.length) return [];
     const pad = GROUP_PAD + depthBelow[g] * 10;
     const gx = Math.min(...members.map((c) => c.x - c.w / 2)) - pad;
     const gr = Math.max(...members.map((c) => c.x + c.w / 2)) + pad;
     const gy = headerTop - GROUP_TITLE - depthBelow[g] * 18;
-    out.push(
-      `<g class="pr-group"><rect x="${n(gx)}" y="${n(gy)}" width="${n(gr - gx)}" height="${n(bottom + GROUP_PAD - gy + depthBelow[g] * 4)}" rx="12"/><text x="${n(gx + 12)}" y="${n(gy + 17)}">${esc(d.groups[g].label)}</text></g>`,
-    );
-  }
+    return [
+      {
+        type: 'group',
+        cls: 'pr-group',
+        items: [
+          { type: 'rect', x: gx, y: gy, w: gr - gx, h: bottom + GROUP_PAD - gy + depthBelow[g] * 4, r: 12 },
+          { type: 'text', x: gx + 12, y: gy + 17, text: d.groups[g].label },
+        ],
+      },
+    ];
+  });
 
   const firstCol = cols[0];
   const bandBox = (depth: number) => {
@@ -274,77 +278,119 @@ function render(d: Sequence, context: RenderContext): Rendered {
     return { x0, x1 };
   };
   const bandSpot = new Map<NodeId, { x0: number; x1: number; top: number }>();
-  for (const span of [...bands].sort((a, b) => a.depth - b.depth)) {
-    const { x0, x1 } = bandBox(span.depth);
-    const id = span.p.id;
-    if (id !== undefined) bandSpot.set(id, { x0, x1, top: span.top });
-    const attrs = id === undefined ? '' : ` data-node="${esc(id)}" id="${domId}-node-${esc(id)}"`;
-    out.push(
-      `<g class="pr-phase"${attrs}><rect class="pr-phase-box" x="${n(x0)}" y="${n(span.top)}" width="${n(x1 - x0)}" height="${n(span.bottom - span.top)}" rx="6"/><path class="pr-phase-tag" d="${tag(x0, span.top, span.p.label)}"/><text class="pr-phase-label" x="${n(x0 + 10)}" y="${n(span.top + TAG_H / 2)}" dy="0.35em">${esc(span.p.label)}</text></g>`,
-    );
-  }
+  const phaseItems = [...bands]
+    .sort((a, b) => a.depth - b.depth)
+    .map((span): Item => {
+      const { x0, x1 } = bandBox(span.depth);
+      const id = span.p.id;
+      if (id !== undefined) bandSpot.set(id, { x0, x1, top: span.top });
+      return {
+        type: 'group',
+        cls: 'pr-phase',
+        attrs: id === undefined ? undefined : nodeAttrs(id, domId),
+        items: [
+          { type: 'rect', cls: 'pr-phase-box', x: x0, y: span.top, w: x1 - x0, h: span.bottom - span.top, r: 6 },
+          { type: 'path', cls: 'pr-phase-tag', d: tag(x0, span.top, span.p.label) },
+          {
+            type: 'text',
+            cls: 'pr-phase-label',
+            x: x0 + 10,
+            y: span.top + TAG_H / 2,
+            dy: '0.35em',
+            text: span.p.label,
+          },
+        ],
+      };
+    });
 
-  for (const c of cols) {
+  const columnItems = cols.map((c): Item => {
     const left = c.x - c.w / 2;
-    const attrs = ` data-node="${esc(c.node.id)}" id="${domId}-node-${esc(c.node.id)}"${roleAttr(c.node.role)}${c.node.kind ? ` data-kind="${c.node.kind}"` : ''}`;
-    let s = `<g class="pr-node pr-participant"${attrs}>`;
-    s += `<line class="pr-lifeline" x1="${n(c.x)}" y1="${headerBottom}" x2="${n(c.x)}" y2="${n(bottom)}"/>`;
-    s += kindShape(c.node.kind, left, headerTop, c.w, headH);
     const glyphW = hasGlyph(c.node) ? GLYPH_W : 0;
     const tx = c.x + glyphW / 2;
     const labelY = headerTop + HEADER_H / 2 - (c.note.length ? 3 : 0);
-    if (glyphW && c.node.kind) s += glyph(c.node.kind, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, labelY);
-    s += `<text class="pr-label" x="${n(tx)}" y="${n(labelY)}" dy="0.35em">${esc(c.node.label)}</text>`;
-    if (c.note.length)
-      s += textBlock(c.note, c.x, labelY + 17 + ((c.note.length - 1) * NOTE_LINE) / 2, NOTE_LINE, 'pr-note');
-    out.push(s + '</g>');
-  }
+    return {
+      type: 'group',
+      cls: 'pr-node pr-participant',
+      attrs: [...nodeAttrs(c.node.id, domId), ...attr('data-role', c.node.role), ...attr('data-kind', c.node.kind)],
+      items: [
+        { type: 'line', cls: 'pr-lifeline', x1: c.x, y1: headerBottom, x2: c.x, y2: bottom },
+        ...kindItems(c.node.kind, left, headerTop, c.w, headH),
+        ...(glyphW && c.node.kind
+          ? glyphItems(c.node.kind, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, labelY)
+          : []),
+        { type: 'text', cls: 'pr-label', x: tx, y: labelY, dy: '0.35em', text: c.node.label },
+        ...(c.note.length
+          ? [linesItem(c.note, c.x, labelY + 17 + ((c.note.length - 1) * NOTE_LINE) / 2, NOTE_LINE, 'pr-note')]
+          : []),
+      ],
+    };
+  });
 
-  const labels: string[] = [];
+  const labels: Item[] = [];
   const anchors = new Map<EdgeIndex, { x: number; y: number }>();
   const ends = new Map<EdgeIndex, { x: number; y: number }>();
-  for (const row of placed) {
+  const edgeItems = placed.map((row): Item => {
     const { e, a, b } = row;
     const both = e.arrow === '<->';
-    let s = `<g class="pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}" data-edge="${e.index}" data-from="${esc(e.from)}" data-to="${esc(e.to)}"${roleAttr(e.role)}>`;
+    const cls = `pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}`;
+    const attrs: Attrs = [
+      ['data-edge', String(e.index)],
+      ['data-from', e.from],
+      ['data-to', e.to],
+      ...attr('data-role', e.role),
+    ];
     if (row.self) {
       const x0 = a.x;
       const y0 = row.y;
       const y1 = y0 + SELF_H;
-      s += `<path class="pr-line" d="M${n(x0)},${n(y0)}H${n(x0 + SELF_W - 8)}Q${n(x0 + SELF_W)},${n(y0)} ${n(x0 + SELF_W)},${n(y0 + 8)}V${n(y1 - 8)}Q${n(x0 + SELF_W)},${n(y1)} ${n(x0 + SELF_W - 8)},${n(y1)}H${n(x0 + HEAD - 1)}"/>`;
-      s += `<path class="pr-head" d="${arrowhead(x0 + 1, y1, -1, 0)}"/>`;
+      const items: Item[] = [
+        {
+          type: 'path',
+          cls: 'pr-line',
+          d: `M${n(x0)},${n(y0)}H${n(x0 + SELF_W - 8)}Q${n(x0 + SELF_W)},${n(y0)} ${n(x0 + SELF_W)},${n(y0 + 8)}V${n(y1 - 8)}Q${n(x0 + SELF_W)},${n(y1)} ${n(x0 + SELF_W - 8)},${n(y1)}H${n(x0 + HEAD - 1)}`,
+        },
+        { type: 'path', cls: 'pr-head', d: arrowhead(x0 + 1, y1, -1, 0) },
+      ];
       if (row.lines.length)
-        labels.push(
-          `<g class="pr-edge-label" data-edge="${e.index}"${roleAttr(e.role)}>${leftBlock(row.lines, x0 + SELF_W + 10, (y0 + y1) / 2)}</g>`,
-        );
+        labels.push({
+          type: 'group',
+          cls: 'pr-edge-label',
+          attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+          items: [linesItem(row.lines, x0 + SELF_W + 10, (y0 + y1) / 2, LABEL_LINE, 'pr-elabel pr-left')],
+        });
       anchors.set(e.index, { x: x0 - 14, y: (y0 + y1) / 2 });
       const w = Math.max(0, ...row.lines.map((l) => textWidth(l, LABEL_FONT)));
       ends.set(e.index, { x: x0 + SELF_W + (w ? w + 22 : 14), y: (y0 + y1) / 2 });
-    } else {
-      const dir = Math.sign(b.x - a.x);
-      const x0 = a.x + (both ? dir * (HEAD - 1) : 0);
-      const x1 = b.x - dir * (HEAD - 1);
-      s += `<path class="pr-line" d="M${n(x0)},${n(row.y)}H${n(x1)}"/>`;
-      s += `<path class="pr-head" d="${arrowhead(b.x - dir, row.y, dir, 0)}"/>`;
-      if (both) s += `<path class="pr-head" d="${arrowhead(a.x + dir, row.y, -dir, 0)}"/>`;
-      const cx = (a.x + b.x) / 2;
-      if (row.lines.length) {
-        const ly = row.y - 7 - ((row.lines.length - 1) * LABEL_LINE) / 2 - LABEL_LINE / 2 + 3;
-        labels.push(
-          `<g class="pr-edge-label" data-edge="${e.index}"${roleAttr(e.role)}>${textBlock(row.lines, cx, ly, LABEL_LINE, 'pr-elabel')}</g>`,
-        );
-        const w = Math.max(...row.lines.map((l) => textWidth(l, LABEL_FONT)));
-        anchors.set(e.index, { x: cx - w / 2 - 12, y: ly });
-        ends.set(e.index, { x: cx + w / 2 + 12, y: ly });
-      } else {
-        anchors.set(e.index, { x: cx, y: row.y - 12 });
-        ends.set(e.index, { x: cx + 18, y: row.y - 12 });
-      }
+      return { type: 'group', cls, attrs, items };
     }
-    out.push(s + '</g>');
-  }
-  out.push(...labels);
+    const dir = Math.sign(b.x - a.x);
+    const x0 = a.x + (both ? dir * (HEAD - 1) : 0);
+    const x1 = b.x - dir * (HEAD - 1);
+    const items: Item[] = [
+      { type: 'path', cls: 'pr-line', d: `M${n(x0)},${n(row.y)}H${n(x1)}` },
+      { type: 'path', cls: 'pr-head', d: arrowhead(b.x - dir, row.y, dir, 0) },
+    ];
+    if (both) items.push({ type: 'path', cls: 'pr-head', d: arrowhead(a.x + dir, row.y, -dir, 0) });
+    const cx = (a.x + b.x) / 2;
+    if (row.lines.length) {
+      const ly = row.y - 7 - ((row.lines.length - 1) * LABEL_LINE) / 2 - LABEL_LINE / 2 + 3;
+      labels.push({
+        type: 'group',
+        cls: 'pr-edge-label',
+        attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+        items: [linesItem(row.lines, cx, ly, LABEL_LINE, 'pr-elabel')],
+      });
+      const w = Math.max(...row.lines.map((l) => textWidth(l, LABEL_FONT)));
+      anchors.set(e.index, { x: cx - w / 2 - 12, y: ly });
+      ends.set(e.index, { x: cx + w / 2 + 12, y: ly });
+    } else {
+      anchors.set(e.index, { x: cx, y: row.y - 12 });
+      ends.set(e.index, { x: cx + 18, y: row.y - 12 });
+    }
+    return { type: 'group', cls, attrs, items };
+  });
 
+  const markers: Item[] = [];
   const stacked = new Map<string, number>();
   d.steps.forEach((s, i) => {
     const t = s.target;
@@ -361,24 +407,38 @@ function render(d: Sequence, context: RenderContext): Rendered {
     const key = t.type === 'edge' ? 'e:' + t.index : 'n:' + t.id;
     const k = stacked.get(key) ?? 0;
     stacked.set(key, k + 1);
-    out.push(badge('pr-step-marker', ` data-step="${i + 1}"`, spot.x - k * 18, spot.y, String(i + 1)));
+    markers.push(badgeItem('pr-step-marker', [['data-step', String(i + 1)]], spot.x - k * 18, spot.y, String(i + 1)));
   });
   for (const c of cols) {
     const letter = context.marker({ type: 'node', id: c.node.id });
     if (letter !== undefined)
-      out.push(badge('pr-ref-marker', ` data-node="${esc(c.node.id)}"`, c.x + c.w / 2, headerTop, letter));
+      markers.push(badgeItem('pr-ref-marker', [['data-node', c.node.id]], c.x + c.w / 2, headerTop, letter));
   }
   for (const [id, band] of bandSpot) {
     const letter = context.marker({ type: 'edges', id });
-    if (letter !== undefined) out.push(badge('pr-ref-marker', ` data-node="${esc(id)}"`, band.x1, band.top, letter));
+    if (letter !== undefined) markers.push(badgeItem('pr-ref-marker', [['data-node', id]], band.x1, band.top, letter));
   }
   for (const [index, spot] of ends) {
     const letter = context.marker({ type: 'edge', index });
-    if (letter !== undefined) out.push(badge('pr-ref-marker', ` data-edge="${index}"`, spot.x, spot.y, letter));
+    if (letter !== undefined)
+      markers.push(badgeItem('pr-ref-marker', [['data-edge', String(index)]], spot.x, spot.y, letter));
   }
-  out.push('</svg>');
-  return { svg: trusted(out.join('')), width, height };
+
+  const scene: Scene = {
+    id: domId,
+    cls: 'pr-sequence',
+    width,
+    height,
+    hatch: false,
+    items: [...groupItems, ...phaseItems, ...columnItems, ...edgeItems, ...labels, ...markers],
+  };
+  return { svg: trusted(paintSvg(scene)), width, height, scene };
 }
+
+const nodeAttrs = (id: string, domId: string): Attrs => [
+  ['data-node', id],
+  ['id', `${domId}-node-${id}`],
+];
 
 function participantOrder(d: Sequence): Participant[] {
   const first = new Map(d.nodes.map((node, i) => [node.id, i]));
@@ -396,11 +456,6 @@ function participantOrder(d: Sequence): Participant[] {
     return [...own, ...sub].sort((a, b) => a.at - b.at);
   };
   return items(undefined).flatMap((it) => it.nodes);
-}
-
-function leftBlock(lines: string[], x: number, cy: number): string {
-  const top = cy - ((lines.length - 1) * LABEL_LINE) / 2;
-  return `<text class="pr-elabel pr-left" x="${n(x)}" y="${n(top)}">${lines.map((l, i) => `<tspan x="${n(x)}" ${i ? `dy="${LABEL_LINE}"` : 'dy="0.35em"'}>${esc(l)}</tspan>`).join('')}</text>`;
 }
 
 function hasGlyph(node: Participant): boolean {

@@ -38,4 +38,4 @@ These were settled deliberately. Don't reopen them without a good reason.
 - Diagram SVG carries meaning as classes and `data-role`, never colours; all styling lives in `style.css`, including print.
 - No comments in code; they go stale. Let names, types and tests carry the meaning. The one exception is `src/layout/pele`.
 - `src/layout/pele` is vendored. Keep changes there minimal and note them in the file header.
-- After a visual change, build the examples and look at them on screen and in print (`node src/cli.ts pdf`).
+- After a visual change, build the examples and look at them on screen and in print (`node src/cli.ts build doc.md -o doc.pdf`, which needs `typst` on PATH).

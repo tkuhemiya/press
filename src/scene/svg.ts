@@ -4,7 +4,7 @@ import type { Attrs, Item, Scene } from './scene.ts';
 const cls = (c: string | undefined): string => (c === undefined ? '' : ` class="${c}"`);
 const attrs = (a: Attrs | undefined): string => (a ?? []).map(([k, v]) => ` ${k}="${esc(v)}"`).join('');
 
-export function paintItem(item: Item, id: string): string {
+function paintItem(item: Item, id: string): string {
   switch (item.type) {
     case 'group':
       return `<g${cls(item.cls)}${attrs(item.attrs)}>${paintItems(item.items, id)}</g>`;
@@ -16,6 +16,8 @@ export function paintItem(item: Item, id: string): string {
       return `<ellipse${cls(item.cls)} cx="${n(item.cx)}" cy="${n(item.cy)}" rx="${n(item.rx)}" ry="${n(item.ry)}"/>`;
     case 'path':
       return `<path${cls(item.cls)} d="${item.d}"/>`;
+    case 'line':
+      return `<line${cls(item.cls)} x1="${n(item.x1)}" y1="${n(item.y1)}" x2="${n(item.x2)}" y2="${n(item.y2)}"/>`;
     case 'text':
       return `<text${cls(item.cls)} x="${n(item.x)}" y="${n(item.y)}"${item.dy ? ` dy="${item.dy}"` : ''}>${esc(item.text)}</text>`;
     case 'lines': {
@@ -28,8 +30,7 @@ export function paintItem(item: Item, id: string): string {
   }
 }
 
-export const paintItems = (items: readonly Item[], id: string): string =>
-  items.map((item) => paintItem(item, id)).join('');
+const paintItems = (items: readonly Item[], id: string): string => items.map((item) => paintItem(item, id)).join('');
 
 export function paintSvg(scene: Scene): string {
   const { width, height, id } = scene;

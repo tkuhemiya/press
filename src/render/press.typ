@@ -60,7 +60,7 @@
 }
 
 #let label(m, s) = for (i, line) in m.lines.enumerate() {
-  let body = text(
+  let plain = text(
     font: sans,
     size: m.size * s,
     weight: m.weight,
@@ -72,6 +72,7 @@
     bottom-edge: "baseline",
     if m.at("upper", default: false) { upper(line) } else { line },
   )
+  let body = if m.at("underline", default: false) { underline(offset: 2 * s, plain) } else { plain }
   context {
     let w = measure(body).width
     let shift = if m.anchor == "middle" { w / 2 } else if m.anchor == "end" { w } else { 0pt }

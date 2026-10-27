@@ -6,18 +6,21 @@ import { buildGraph, edgeEnds, edgeMembers, header, lean, nodeParts, resolveStep
 import { trusted } from '../brand.ts';
 import { closest, list } from '../diagnostics.ts';
 import {
-  drawText,
-  edgeSvg,
-  markers,
+  edgeItem,
+  hatchItems,
+  markerItems,
   measureLabel,
   refMarkers,
+  textItems,
   type Box,
   nodeTargets,
   edgeTargets,
   type Anchor,
 } from './draw.ts';
-import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
+import { arrowhead, HEAD, n } from '../render/svg.ts';
 import { textWidth } from '../text/measure.ts';
+import { attr, type Attrs, type Item, type Scene } from '../scene/scene.ts';
+import { paintSvg } from '../scene/svg.ts';
 
 export const CAUSAL_LOOP: DiagramDef<'causal-loop'> = {
   type: 'causal-loop',
@@ -227,8 +230,7 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
   const loopCentre = members.map((ids) => mean(ids.map(place)));
   const twoWay = (e: Link) => d.edges.some((o) => o.from === e.to && o.to === e.from);
 
-  const out: string[] = [];
-  const marks: string[] = [];
+  const marks: Item[] = [];
   const anchors = new Map<number, Anchor>();
   const extent = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   const grow = (x: number, y: number, r = 0) => {
@@ -237,7 +239,7 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
     extent.x1 = Math.max(extent.x1, x + r);
     extent.y1 = Math.max(extent.y1, y + r);
   };
-  const edgeSvgs: string[] = [];
+  const edgeItems: Item[] = [];
   const obstacles: P[] = [];
   for (const e of d.edges) {
     const a = place(e.from);
@@ -281,29 +283,38 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
     grow(sign.x, sign.y, 8);
     for (let t = 0; t <= 1; t += 0.04) obstacles.push(q(t));
     obstacles.push(sign);
-    let extra = '';
+    const extra: Item[] = [];
     if (e.delay) {
       const m = q(0.5);
       const ux = (tip.x - s.x) / (Math.hypot(tip.x - s.x, tip.y - s.y) || 1);
       const uy = (tip.y - s.y) / (Math.hypot(tip.x - s.x, tip.y - s.y) || 1);
       const bar = (o: number) =>
         `M${n(m.x + ux * o - uy * 7)},${n(m.y + uy * o + ux * 7)}L${n(m.x + ux * o + uy * 7)},${n(m.y + uy * o - ux * 7)}`;
-      extra = `<path class="pr-delay" d="${bar(-2.5)}${bar(2.5)}"/>`;
+      extra.push({ type: 'path', cls: 'pr-delay', d: `${bar(-2.5)}${bar(2.5)}` });
     }
-    const svg = edgeSvg(
-      e,
-      { d: path, sx: s.x, sy: s.y, sdx: s.x - c.x, sdy: s.y - c.y, ex: tip.x, ey: tip.y, edx: tx, edy: ty },
-      false,
+    edgeItems.push(
+      withItems(
+        edgeItem(
+          e,
+          { d: path, sx: s.x, sy: s.y, sdx: s.x - c.x, sdy: s.y - c.y, ex: tip.x, ey: tip.y, edx: tx, edy: ty },
+          false,
+        ),
+        extra,
+      ),
     );
-    edgeSvgs.push(extra ? svg.replace(/<\/g>$/, `${extra}</g>`) : svg);
-    marks.push(
-      `<g class="pr-edge-label pr-polarity-mark" data-edge="${e.index}"${roleAttr(e.role)}><text class="pr-polarity" x="${n(sign.x)}" y="${n(sign.y)}" dy="0.35em">${e.polarity === '-' ? '−' : '+'}</text></g>`,
-    );
+    marks.push({
+      type: 'group',
+      cls: 'pr-edge-label pr-polarity-mark',
+      attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+      items: [
+        { type: 'text', cls: 'pr-polarity', x: sign.x, y: sign.y, text: e.polarity === '-' ? '−' : '+', dy: '0.35em' },
+      ],
+    });
     anchors.set(e.index, { x: q(0.5).x, y: q(0.5).y });
   }
 
   const taken: Box[] = [...boxes.values()];
-  const loopSvgs = d.loops.map((l, k) => {
+  const loopItems = d.loops.map((l, k): Item => {
     const pts = members[k].map(place);
     const nameW = textWidth(l.name, 11) + 6;
     const mw = Math.max(2 * LOOP_R + 6, nameW);
@@ -334,44 +345,81 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
     grow(p.x - mw / 2, p.y - LOOP_R - 3);
     grow(p.x + mw / 2, p.y - LOOP_R - 3 + mh);
     if (l.id !== undefined) boxes.set(l.id, { x: p.x - LOOP_R, y: p.y - LOOP_R, w: 2 * LOOP_R, h: 2 * LOOP_R });
-    const named = l.id === undefined ? '' : ` data-node="${esc(l.id)}" id="${domId}-node-${esc(l.id)}"`;
-    return `<g class="pr-loop"${named} data-loop="${esc(l.label)}" data-kind="${l.reinforcing ? 'R' : 'B'}"><path class="pr-loop-arc" d="M${n(px(a0))},${n(py(a0))}A${LOOP_R},${LOOP_R} 0 1 ${sweep} ${n(px(a1))},${n(py(a1))}"/><path class="pr-loop-head" d="${arrowhead(px(a1) + tdx * 3, py(a1) + tdy * 3, tdx, tdy)}"/><text class="pr-loop-label" x="${n(p.x)}" y="${n(p.y)}" dy="0.35em">${esc(l.label)}</text><text class="pr-loop-name" x="${n(p.x)}" y="${n(p.y + LOOP_R + 14)}">${esc(l.name)}</text></g>`;
+    const named: Attrs =
+      l.id === undefined
+        ? []
+        : [
+            ['data-node', l.id],
+            ['id', `${domId}-node-${l.id}`],
+          ];
+    return {
+      type: 'group',
+      cls: 'pr-loop',
+      attrs: [...named, ['data-loop', l.label], ['data-kind', l.reinforcing ? 'R' : 'B']],
+      items: [
+        {
+          type: 'path',
+          cls: 'pr-loop-arc',
+          d: `M${n(px(a0))},${n(py(a0))}A${LOOP_R},${LOOP_R} 0 1 ${sweep} ${n(px(a1))},${n(py(a1))}`,
+        },
+        { type: 'path', cls: 'pr-loop-head', d: arrowhead(px(a1) + tdx * 3, py(a1) + tdy * 3, tdx, tdy) },
+        { type: 'text', cls: 'pr-loop-label', x: p.x, y: p.y, text: l.label, dy: '0.35em' },
+        { type: 'text', cls: 'pr-loop-name', x: p.x, y: p.y + LOOP_R + 14, text: l.name },
+      ],
+    };
   });
 
-  const nodeSvgs = d.nodes.map((node, i) => {
+  const nodeItems = d.nodes.map((node, i): Item => {
     const b = boxes.get(node.id) ?? { x: 0, y: 0, w: 0, h: 0 };
     grow(b.x, b.y);
     grow(b.x + b.w, b.y + b.h);
-    const attrs = ` data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}`;
-    let body = `<rect class="pr-box pr-variable" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="${n(Math.min(b.h / 2, 14))}"/>`;
-    if (node.role === 'error')
-      body += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="${n(Math.min(b.h / 2, 14))}" fill="url(#${domId}-hatch)"/>`;
-    body += drawText(texts[i], b.x + b.w / 2, b.y + b.h / 2);
-    return `<g class="pr-node"${attrs}>${body}</g>`;
+    const r = Math.min(b.h / 2, 14);
+    return {
+      type: 'group',
+      cls: 'pr-node',
+      attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
+      items: [
+        { type: 'rect', cls: 'pr-box pr-variable', ...b, r },
+        ...hatchItems(node, b, r),
+        ...textItems(texts[i], b.x + b.w / 2, b.y + b.h / 2),
+      ],
+    };
   });
 
   const sx = MARGIN - extent.x0;
   const sy = MARGIN - extent.y0;
   const width = Math.ceil(extent.x1 - extent.x0 + 2 * MARGIN);
   const height = Math.ceil(extent.y1 - extent.y0 + 2 * MARGIN);
-  out.push(
-    `<svg class="pr-svg pr-causal-loop" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
-  );
-  out.push(
-    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
-  );
-  out.push(`<g transform="translate(${n(sx)},${n(sy)})">`);
-  out.push(...loopSvgs, ...edgeSvgs, ...nodeSvgs, ...marks);
-  out.push(
-    ...markers(
-      d,
-      boxes,
-      anchors,
-      refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges), ...loopTargets(d.loops)]),
-    ),
-  );
-  out.push('</g></svg>');
-  return { svg: trusted(out.join('')), width, height };
+  const scene: Scene = {
+    id: domId,
+    cls: 'pr-causal-loop',
+    width,
+    height,
+    hatch: true,
+    items: [
+      {
+        type: 'group',
+        attrs: [['transform', `translate(${n(sx)},${n(sy)})`]],
+        items: [
+          ...loopItems,
+          ...edgeItems,
+          ...nodeItems,
+          ...marks,
+          ...markerItems(
+            d,
+            boxes,
+            anchors,
+            refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges), ...loopTargets(d.loops)]),
+          ),
+        ],
+      },
+    ],
+  };
+  return { svg: trusted(paintSvg(scene)), width, height, scene };
+}
+
+function withItems(item: Item, extra: readonly Item[]): Item {
+  return item.type === 'group' ? { ...item, items: [...item.items, ...extra] } : item;
 }
 
 function layout(d: CausalLoop, members: NodeId[][], size: { w: number; h: number }[]): P[] {

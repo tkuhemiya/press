@@ -19,21 +19,23 @@ import { parseTime } from '../parse/time.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { trusted } from '../brand.ts';
 import {
-  drawText,
-  edgeSvg,
-  labelSvg,
-  markers,
+  edgeItem,
+  hatchItems,
+  labelItem,
+  markerItems,
   measureLabel,
   refMarkers,
+  textItems,
+  type Anchor,
   type Box,
   type TextLines,
   nodeTargets,
   edgeTargets,
-  type Anchor,
 } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
-
+import { arrowhead, HEAD, n } from '../render/svg.ts';
+import { attr, type Item, type Scene } from '../scene/scene.ts';
+import { paintSvg } from '../scene/svg.ts';
 export const TIMELINE: DiagramDef<'timeline'> = {
   type: 'timeline',
   name: 'Timeline',
@@ -357,51 +359,53 @@ function render(d: Timeline, context: RenderContext): Rendered {
   const pt = (at: number, off: number): [number, number] =>
     across ? [origin + at, axis - off] : [axis + off, origin + at];
 
-  const out: string[] = [];
-  out.push(
-    `<svg class="pr-svg pr-timeline" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
-  );
-  out.push(
-    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
-  );
-
-  for (const b of bands) {
+  const bandItems = bands.map((b): Item => {
     if (across) {
       const y = MARGIN + b.depth * 16;
-      out.push(
-        `<g class="pr-group pr-band"><rect x="${n(origin + b.from)}" y="${n(y)}" width="${n(b.to - b.from)}" height="${n(axis + 10 - y)}" rx="8"/><text x="${n(origin + b.from + 10)}" y="${n(y + 17)}">${esc(b.label)}</text></g>`,
-      );
-    } else {
-      const x = MARGIN + b.depth * 8;
-      out.push(
-        `<g class="pr-group pr-band"><rect x="${n(x)}" y="${n(origin + b.from)}" width="${n(width - MARGIN - x)}" height="${n(b.to - b.from)}" rx="8"/><text class="pr-band-end" x="${n(width - MARGIN - 10)}" y="${n(origin + b.from + 17)}">${esc(b.label)}</text></g>`,
-      );
+      return {
+        type: 'group',
+        cls: 'pr-group pr-band',
+        items: [
+          { type: 'rect', x: origin + b.from, y, w: b.to - b.from, h: axis + 10 - y, r: 8 },
+          { type: 'text', x: origin + b.from + 10, y: y + 17, text: b.label },
+        ],
+      };
     }
-  }
+    const x = MARGIN + b.depth * 8;
+    return {
+      type: 'group',
+      cls: 'pr-group pr-band',
+      items: [
+        { type: 'rect', x, y: origin + b.from, w: width - MARGIN - x, h: b.to - b.from, r: 8 },
+        { type: 'text', cls: 'pr-band-end', x: width - MARGIN - 10, y: origin + b.from + 17, text: b.label },
+      ],
+    };
+  });
 
   const [ax0, ay0] = pt(-8, 0);
   const [ax1, ay1] = pt(length + 14, 0);
-  out.push(
-    `<g class="pr-axis"><path class="pr-axis-line" d="M${n(ax0)},${n(ay0)}L${n(ax1)},${n(ay1)}"/><path class="pr-axis-head" d="${arrowhead(ax1, ay1, ax1 - ax0, ay1 - ay0)}"/>`,
-  );
   const ends = arcs.flatMap(({ a, b }) => [a, b]);
-  for (const t of ticks) {
+  const tickItems = ticks.flatMap((t): Item[] => {
     const [x, y] = pt(t.at, 0);
-    if (ends.some((at) => Math.abs(at - t.at) < (across ? 24 : 10))) {
-      out.push(
-        across ? `<path class="pr-tick" d="M${n(x)},${n(y)}v4"/>` : `<path class="pr-tick" d="M${n(x)},${n(y)}h-4"/>`,
-      );
-      continue;
-    }
-    out.push(
-      across
-        ? `<path class="pr-tick" d="M${n(x)},${n(y)}v4"/><text class="pr-tick-label" x="${n(x)}" y="${n(y + 17)}">${esc(t.label)}</text>`
-        : `<path class="pr-tick" d="M${n(x)},${n(y)}h-4"/><text class="pr-tick-label pr-tick-down" x="${n(x - 9)}" y="${n(y)}" dy="0.35em">${esc(t.label)}</text>`,
-    );
-  }
-  out.push('</g>');
+    const mark: Item = { type: 'path', cls: 'pr-tick', d: across ? `M${n(x)},${n(y)}v4` : `M${n(x)},${n(y)}h-4` };
+    if (ends.some((at) => Math.abs(at - t.at) < (across ? 24 : 10))) return [mark];
+    const label: Item = across
+      ? { type: 'text', cls: 'pr-tick-label', x, y: y + 17, text: t.label }
+      : { type: 'text', cls: 'pr-tick-label pr-tick-down', x: x - 9, y, text: t.label, dy: '0.35em' };
+    return [mark, label];
+  });
+  const axisItem: Item = {
+    type: 'group',
+    cls: 'pr-axis',
+    items: [
+      { type: 'path', cls: 'pr-axis-line', d: `M${n(ax0)},${n(ay0)}L${n(ax1)},${n(ay1)}` },
+      { type: 'path', cls: 'pr-axis-head', d: arrowhead(ax1, ay1, ax1 - ax0, ay1 - ay0) },
+      ...tickItems,
+    ],
+  };
 
-  const labels: string[] = [];
+  const edges: Item[] = [];
+  const labels: Item[] = [];
   const anchors = new Map<number, Anchor>();
   for (const { edge: e, a, b } of arcs) {
     const k = depth(a, b);
@@ -414,8 +418,8 @@ function render(d: Timeline, context: RenderContext): Rendered {
     const [sx, sy] = both ? pt(a, -DOT - 2 - HEAD + 1) : [x1, y1];
     const tip = pt(b, -DOT - 2);
     const start = pt(a, -DOT - 2);
-    out.push(
-      edgeSvg(
+    edges.push(
+      edgeItem(
         e,
         {
           d: `M${n(sx)},${n(sy)}C${n(c1x)},${n(c1y)} ${n(c2x)},${n(c2y)} ${n(x2)},${n(y2)}`,
@@ -434,37 +438,40 @@ function render(d: Timeline, context: RenderContext): Rendered {
     if (e.label) {
       const [lw, lh] = labelBox(e.label);
       const [lx, ly] = across ? [mx, my + lh / 2 - 2] : [mx - lw / 2 + 2, my];
-      labels.push(labelSvg(e, lx, ly, false));
+      labels.push(labelItem(e, lx, ly, false));
       anchors.set(e.index, { x: lx - lw / 2 - 4, y: ly, w: lw + 8 });
     } else anchors.set(e.index, { x: mx, y: my });
   }
 
-  for (const e of events) {
+  const eventItems = events.map((e) => {
     const b = e.box;
     const [dx, dy] = pt(e.at, 0);
     const [cx, cy] = across ? [dx, b.y + b.h] : [b.x, Math.min(Math.max(dy, b.y + 10), b.y + b.h - 10)];
     const stem = `M${n(dx)},${n(dy)}${across ? `V${n(cy)}` : `L${n(cx - 6)},${n(cy)}H${n(cx)}`}`;
-    let span = '';
-    if (e.end !== undefined) {
-      const [sx, sy] = pt(e.at, 6 + e.lane * SPAN_LANE + SPAN_H / 2);
-      const [ex, ey] = pt(e.end, 6 + e.lane * SPAN_LANE + SPAN_H / 2);
-      span = across
-        ? `<rect class="pr-span" x="${n(sx)}" y="${n(sy - SPAN_H / 2)}" width="${n(Math.max(SPAN_H, ex - sx))}" height="${SPAN_H}" rx="${SPAN_H / 2}"/>`
-        : `<rect class="pr-span" x="${n(sx - SPAN_H / 2)}" y="${n(sy)}" width="${SPAN_H}" height="${n(Math.max(SPAN_H, ey - sy))}" rx="${SPAN_H / 2}"/>`;
-    }
-    out.push(eventSvg(e, domId, dx, dy, stem, span));
-  }
-  out.push(...labels);
-  out.push(
-    ...markers(
-      d,
-      new Map(events.map((e) => [e.node.id, e.box])),
-      anchors,
-      refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)]),
-    ),
-  );
-  out.push('</svg>');
-  return { svg: trusted(out.join('')), width, height };
+    return eventItem(e, domId, dx, dy, stem, spanItems(e, pt, across));
+  });
+
+  const scene: Scene = {
+    id: domId,
+    cls: 'pr-timeline',
+    width,
+    height,
+    hatch: true,
+    items: [
+      ...bandItems,
+      axisItem,
+      ...edges,
+      ...eventItems,
+      ...labels,
+      ...markerItems(
+        d,
+        new Map(events.map((e) => [e.node.id, e.box])),
+        anchors,
+        refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)]),
+      ),
+    ],
+  };
+  return { svg: trusted(paintSvg(scene)), width, height, scene };
 }
 
 function stack(events: readonly Card[]): number {
@@ -578,36 +585,40 @@ function renderLanes(d: Timeline, context: RenderContext): Rendered {
   const width = Math.ceil(origin + right + MARGIN);
   const height = Math.ceil(tickY + (ticks.length ? 14 : 0) + MARGIN);
 
-  const out: string[] = [];
-  out.push(
-    `<svg class="pr-svg pr-timeline pr-lanes" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`,
-  );
-  out.push(
-    `<defs><pattern id="${domId}-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="pr-hatch"/></pattern></defs>`,
-  );
-  for (const b of bandsAll) {
+  const bandItems = bandsAll.map((b): Item => {
     const top = MARGIN + b.depth * 16;
-    out.push(
-      `<g class="pr-group pr-band"><rect x="${n(origin + b.from)}" y="${n(top)}" width="${n(b.to - b.from)}" height="${n(lastLine + 10 - top)}" rx="8"/><text x="${n(origin + b.from + 10)}" y="${n(top + 17)}">${esc(b.label)}</text></g>`,
-    );
-  }
+    return {
+      type: 'group',
+      cls: 'pr-group pr-band',
+      items: [
+        { type: 'rect', x: origin + b.from, y: top, w: b.to - b.from, h: lastLine + 10 - top, r: 8 },
+        { type: 'text', x: origin + b.from + 10, y: top + 17, text: b.label },
+      ],
+    };
+  });
   const firstTop = rows[0]?.top ?? MARGIN;
-  for (const t of ticks)
-    out.push(
-      `<path class="pr-grid" d="M${n(origin + t.at)},${n(firstTop)}V${n(lastLine)}"/><text class="pr-tick-label" x="${n(origin + t.at)}" y="${n(tickY)}">${esc(t.label)}</text>`,
-    );
-  for (const r of rows) {
+  const tickItems = ticks.flatMap((t): Item[] => [
+    { type: 'path', cls: 'pr-grid', d: `M${n(origin + t.at)},${n(firstTop)}V${n(lastLine)}` },
+    { type: 'text', cls: 'pr-tick-label', x: origin + t.at, y: tickY, text: t.label },
+  ]);
+  const laneItems = rows.map((r): Item => {
     const x0 = origin - 8;
     const x1 = origin + length + 14;
-    out.push(
-      `<g class="pr-lane"><text class="pr-lane-label" x="${MARGIN}" y="${n(r.line)}" dy="0.35em">${esc(r.lane.label)}</text><path class="pr-axis-line" d="M${n(x0)},${n(r.line)}H${n(x1)}"/></g>`,
-    );
-  }
+    return {
+      type: 'group',
+      cls: 'pr-lane',
+      items: [
+        { type: 'text', cls: 'pr-lane-label', x: MARGIN, y: r.line, text: r.lane.label, dy: '0.35em' },
+        { type: 'path', cls: 'pr-axis-line', d: `M${n(x0)},${n(r.line)}H${n(x1)}` },
+      ],
+    };
+  });
 
-  const labels: string[] = [];
+  const labels: Item[] = [];
   const taken: Box[] = [];
   const anchors = new Map<number, Anchor>();
   const dot = (c: Card): [number, number] => [origin + c.at, lineOf.get(laneOf.get(c.node.id) ?? -1) ?? 0];
+  const edges: Item[] = [];
   for (const e of d.edges) {
     const a = byId.get(e.from);
     const b = byId.get(e.to);
@@ -652,7 +663,7 @@ function renderLanes(d: Timeline, context: RenderContext): Rendered {
       };
       mid = [(ax + bx) / 2, my];
     }
-    out.push(edgeSvg(e, path, both));
+    edges.push(edgeItem(e, path, both));
     if (e.label) {
       const lw = Math.max(...wrap(e.label, LABEL_FONT, 150).map((l) => textWidth(l, LABEL_FONT)));
       const lh = labelH(e.label);
@@ -664,33 +675,55 @@ function renderLanes(d: Timeline, context: RenderContext): Rendered {
       const spot = along.map((t) => (ay === by ? mid : bezier(ax, ay, bx, by, t))).find(([x, y]) => free(x, y));
       if (spot) mid = spot;
       taken.push({ x: mid[0] - lw / 2 - 4, y: mid[1] - lh / 2, w: lw + 8, h: lh });
-      labels.push(labelSvg(e, mid[0], mid[1], false));
+      labels.push(labelItem(e, mid[0], mid[1], false));
       anchors.set(e.index, { x: mid[0] - lw / 2 - 8, y: mid[1], w: lw + 16 });
     } else anchors.set(e.index, { x: mid[0], y: mid[1] });
   }
 
-  for (const r of rows)
-    for (const c of r.mine) {
+  const eventItems = rows.flatMap((r) =>
+    r.mine.map((c) => {
       const b = c.box;
       const [dx, dy] = dot(c);
-      let span = '';
-      if (c.end !== undefined) {
-        const sy = dy - 6 - c.lane * SPAN_LANE - SPAN_H;
-        span = `<rect class="pr-span" x="${n(dx)}" y="${n(sy)}" width="${n(Math.max(SPAN_H, c.end - c.at))}" height="${SPAN_H}" rx="${SPAN_H / 2}"/>`;
-      }
-      out.push(eventSvg(c, domId, dx, dy, `M${n(dx)},${n(dy)}V${n(b.y + b.h)}`, span));
-    }
-  out.push(...labels);
-  out.push(
-    ...markers(
-      d,
-      new Map(cards.map((c) => [c.node.id, c.box])),
-      anchors,
-      refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)]),
-    ),
+      const span: Item[] =
+        c.end === undefined
+          ? []
+          : [
+              {
+                type: 'rect',
+                cls: 'pr-span',
+                x: dx,
+                y: dy - 6 - c.lane * SPAN_LANE - SPAN_H,
+                w: Math.max(SPAN_H, c.end - c.at),
+                h: SPAN_H,
+                r: SPAN_H / 2,
+              },
+            ];
+      return eventItem(c, domId, dx, dy, `M${n(dx)},${n(dy)}V${n(b.y + b.h)}`, span);
+    }),
   );
-  out.push('</svg>');
-  return { svg: trusted(out.join('')), width, height };
+
+  const scene: Scene = {
+    id: domId,
+    cls: 'pr-timeline pr-lanes',
+    width,
+    height,
+    hatch: true,
+    items: [
+      ...bandItems,
+      ...tickItems,
+      ...laneItems,
+      ...edges,
+      ...eventItems,
+      ...labels,
+      ...markerItems(
+        d,
+        new Map(cards.map((c) => [c.node.id, c.box])),
+        anchors,
+        refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)]),
+      ),
+    ],
+  };
+  return { svg: trusted(paintSvg(scene)), width, height, scene };
 }
 
 function bezier(ax: number, ay: number, bx: number, by: number, t: number): [number, number] {
@@ -724,24 +757,50 @@ function causalOrder(d: Timeline): Moment[] {
   return out;
 }
 
-function eventSvg(e: Card, domId: string, dx: number, dy: number, stem: string, span: string): string {
+function eventItem(e: Card, domId: string, dx: number, dy: number, stem: string, span: Item[]): Item {
   const node = e.node;
   const b = e.box;
-  const attrs = ` data-node="${esc(node.id)}" id="${domId}-node-${esc(node.id)}"${roleAttr(node.role)}`;
-  let s = `<g class="pr-node pr-event${e.end !== undefined ? ' pr-lasting' : ''}"${attrs}>`;
-  s += `<path class="pr-stem" d="${stem}"/>`;
-  s += span;
-  s += `<circle class="pr-event-dot" cx="${n(dx)}" cy="${n(dy)}" r="${DOT}"/>`;
-  s += `<rect class="pr-box" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8"/>`;
-  if (node.role === 'error')
-    s += `<rect class="pr-hatch-fill" x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" rx="8" fill="url(#${domId}-hatch)"/>`;
   let top = b.y + PAD_Y;
-  if (e.time) {
-    s += `<text class="pr-when" x="${n(b.x + PAD_X)}" y="${n(top + TIME_H / 2 - 1)}" dy="0.35em">${esc(e.time)}</text>`;
-    top += TIME_H;
-  }
-  s += drawText(e.text, b.x + PAD_X, top + e.text.h / 2, 'start');
-  return s + '</g>';
+  const when: Item[] = e.time
+    ? [{ type: 'text', cls: 'pr-when', x: b.x + PAD_X, y: top + TIME_H / 2 - 1, text: e.time, dy: '0.35em' }]
+    : [];
+  if (e.time) top += TIME_H;
+  return {
+    type: 'group',
+    cls: `pr-node pr-event${e.end !== undefined ? ' pr-lasting' : ''}`,
+    attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
+    items: [
+      { type: 'path', cls: 'pr-stem', d: stem },
+      ...span,
+      { type: 'circle', cls: 'pr-event-dot', cx: dx, cy: dy, r: DOT },
+      { type: 'rect', cls: 'pr-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 8 },
+      ...hatchItems(node, b, 8),
+      ...when,
+      ...textItems(e.text, b.x + PAD_X, top + e.text.h / 2, 'start'),
+    ],
+  };
+}
+
+function spanItems(e: Card, pt: (at: number, off: number) => [number, number], across: boolean): Item[] {
+  if (e.end === undefined) return [];
+  const off = 6 + e.lane * SPAN_LANE + SPAN_H / 2;
+  const [sx, sy] = pt(e.at, off);
+  const [ex, ey] = pt(e.end, off);
+  if (across)
+    return [
+      {
+        type: 'rect',
+        cls: 'pr-span',
+        x: sx,
+        y: sy - SPAN_H / 2,
+        w: Math.max(SPAN_H, ex - sx),
+        h: SPAN_H,
+        r: SPAN_H / 2,
+      },
+    ];
+  return [
+    { type: 'rect', cls: 'pr-span', x: sx - SPAN_H / 2, y: sy, w: SPAN_H, h: Math.max(SPAN_H, ey - sy), r: SPAN_H / 2 },
+  ];
 }
 
 function groupBands(groups: readonly Group[], events: readonly Card[]): Band[] {

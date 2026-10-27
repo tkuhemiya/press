@@ -4,7 +4,6 @@ import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badgeItem, linesItem } from '../render/svg.ts';
 import { attr, type Attrs, type Item } from '../scene/scene.ts';
-import { paintItem, paintItems } from '../scene/svg.ts';
 
 const LABEL_FONT = 12.5;
 const LABEL_LINE = 16;
@@ -60,9 +59,6 @@ export function textItems(t: TextLines, x: number, cy: number, align: 'middle' |
   ];
 }
 
-export const drawText = (t: TextLines, x: number, cy: number, align: 'middle' | 'start' = 'middle'): string =>
-  paintItems(textItems(t, x, cy, align), '');
-
 export interface Labelled {
   index: number;
   label?: string;
@@ -85,8 +81,6 @@ export function edgeItem(e: EdgeLike, p: EdgePath, both: boolean): Item {
   };
 }
 
-export const edgeSvg = (e: EdgeLike, p: EdgePath, both: boolean): string => paintItem(edgeItem(e, p, both), '');
-
 export function labelItem(e: Labelled, x: number, y: number, onGroup: boolean): Item {
   const lines = e.label ? wrap(e.label, LABEL_FONT, MAX_EDGE_LABEL) : [];
   const w = Math.max(...lines.map((l) => textWidth(l, LABEL_FONT))) + 8;
@@ -101,9 +95,6 @@ export function labelItem(e: Labelled, x: number, y: number, onGroup: boolean): 
     ],
   };
 }
-
-export const labelSvg = (e: Labelled, x: number, y: number, onGroup: boolean): string =>
-  paintItem(labelItem(e, x, y, onGroup), '');
 
 export const nodeTargets = (nodes: readonly { id: NodeId }[]): Target[] =>
   nodes.map((node) => ({ type: 'node', id: node.id }));
@@ -169,6 +160,3 @@ export function markerItems(
   }
   return out;
 }
-
-export const markers = (...args: Parameters<typeof markerItems>): string[] =>
-  markerItems(...args).map((item) => paintItem(item, ''));

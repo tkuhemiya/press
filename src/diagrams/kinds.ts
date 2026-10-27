@@ -1,6 +1,5 @@
 import { n } from '../render/svg.ts';
 import type { Item } from '../scene/scene.ts';
-import { paintItems } from '../scene/svg.ts';
 
 export function kindItems(kind: string | undefined, x: number, y: number, w: number, h: number): Item[] {
   if (kind === 'database') {
@@ -20,10 +19,6 @@ export function kindItems(kind: string | undefined, x: number, y: number, w: num
   }
   const cls = kind === 'external' ? 'pr-box pr-external' : 'pr-box';
   return [{ type: 'rect', cls, x, y, w, h, r: 9 }];
-}
-
-export function kindShape(kind: string | undefined, x: number, y: number, w: number, h: number): string {
-  return paintItems(kindItems(kind, x, y, w, h), '');
 }
 
 export const GLYPH_W = 22;
@@ -84,8 +79,4 @@ function glyphParts(kind: string, x: number, y: number): Item[] {
 export function glyphItems(kind: string, x: number, y: number): Item[] {
   const items = glyphParts(kind, x, y);
   return items.length ? [{ type: 'group', cls: 'pr-glyph', items }] : [];
-}
-
-export function glyph(kind: string, x: number, y: number): string {
-  return paintItems(glyphItems(kind, x, y), '');
 }

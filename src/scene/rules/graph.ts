@@ -36,6 +36,16 @@ export function graph(item: Leaf, ctx: Context): Mark {
       if (within('pr-glyph')) return { ...ring, ...GLYPH_LINE };
       return { ...ring, fill: INK.ink };
     }
+    case 'line':
+      return {
+        k: 'path',
+        segs: [
+          ['M', item.x1, item.y1],
+          ['L', item.x2, item.y2],
+        ],
+        stroke: INK.edge,
+        sw: 1,
+      };
     case 'path': {
       const segs = parsePath(item.d);
       if (within('pr-glyph')) return { k: 'path', segs, ...GLYPH_LINE };
