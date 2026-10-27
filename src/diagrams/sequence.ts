@@ -3,7 +3,7 @@
 import type { Diagram, DiagramEdge, DiagramNode } from '../model.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badge, esc, HEAD, n, roleAttr, textBlock, type Rendered } from '../render/svg.ts';
-import { glyph, kindShape } from './kinds.ts';
+import { GLYPH_W, glyph, kindShape } from './kinds.ts';
 
 const FONT = 14;
 const LABEL_FONT = 12.5;
@@ -29,7 +29,7 @@ interface Column {
 export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domId: string): Rendered {
   const order = participantOrder(d);
   const cols: Column[] = order.map((node) => {
-    const glyphW = node.kind === 'user' || node.kind === 'queue' ? 20 : 0;
+    const glyphW = hasGlyph(node) ? GLYPH_W : 0;
     return { node, w: Math.max(MIN_HEADER, Math.ceil(textWidth(node.label, FONT, 'sans500') + 2 * HEADER_PAD + glyphW)), x: 0 };
   });
   const at = new Map(cols.map((c, i) => [c.node.id, i]));
@@ -113,9 +113,9 @@ export function renderSequence(d: Diagram, refMarkers: Map<string, string>, domI
     let s = `<g class="pr-node pr-participant"${attrs}>`;
     s += `<line class="pr-lifeline" x1="${n(c.x)}" y1="${headerBottom}" x2="${n(c.x)}" y2="${n(bottom)}"/>`;
     s += kindShape(c.node.kind, left, headerTop, c.w, HEADER_H);
-    const glyphW = c.node.kind === 'user' || c.node.kind === 'queue' ? 20 : 0;
+    const glyphW = hasGlyph(c.node) ? GLYPH_W : 0;
     const tx = c.x + glyphW / 2;
-    if (glyphW) s += glyph(c.node.kind!, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 12, headerTop + HEADER_H / 2);
+    if (glyphW) s += glyph(c.node.kind!, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, headerTop + HEADER_H / 2);
     s += `<text class="pr-label" x="${n(tx)}" y="${n(headerTop + HEADER_H / 2)}" dy="0.35em">${esc(c.node.label)}</text>`;
     out.push(s + '</g>');
   }
@@ -212,4 +212,9 @@ function participantOrder(d: Diagram): DiagramNode[] {
 function leftBlock(lines: string[], x: number, cy: number): string {
   const top = cy - ((lines.length - 1) * LABEL_LINE) / 2;
   return `<text class="pr-elabel pr-left" x="${n(x)}" y="${n(top)}">${lines.map((l, i) => `<tspan x="${n(x)}" ${i ? `dy="${LABEL_LINE}"` : 'dy="0.35em"'}>${esc(l)}</tspan>`).join('')}</text>`;
+}
+
+// Every kind but database has a glyph; a database's cylinder already says what it is.
+function hasGlyph(node: DiagramNode): boolean {
+  return node.kind !== undefined && node.kind !== 'database';
 }

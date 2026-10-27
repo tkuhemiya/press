@@ -63,7 +63,7 @@ export function renderHtml(doc: PressDocument, options: HtmlOptions = {}): strin
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="Press 0.1">
+<meta name="generator" content="Press 0.2">
 <title>${esc(doc.title ?? 'Press')}</title>
 <style>
 ${options.embedFonts === false ? '' : fonts()}

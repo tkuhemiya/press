@@ -30,8 +30,9 @@ group "Name" { ... }           nesting
 - Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`.
 - A node belongs to the group it is declared in. A bare node line inside a group (`api` alone) moves an existing node into that group, so members can be listed after they are declared.
 - A line may hold just a node and its attributes: `draft {role=focus}`.
-- Ids are `[a-z0-9_-]+`. Labels are quoted strings.
+- Ids are lowercase letters, digits, `_` and `-`. A `-` must sit between two other characters, so `a-->b` reads as an edge, never as an id. Labels are quoted strings.
 - Values containing spaces are quoted: `{note="retried up to 3 times"}`.
+- `note` is the one attribute besides `role` that every type accepts. In `state-machine` and `architecture` a node's note prints in small type under its label; it is for a short qualifier, not a sentence. Other types keep it in the source but do not draw it yet.
 - Chains may mix arrows (`a -> b --> c`). Attributes at the end of a chain apply to every segment, so `start -> draft -> paid {role=happy}` marks a whole path. A label is ambiguous on a chain and is an error; give the labelled edge its own line.
 - `steps` is a reserved word in every diagram type, and each type may reserve more (see its keywords). Using one as a node id is an error.
 

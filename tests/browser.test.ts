@@ -1,6 +1,6 @@
 // Checks the rendered page in Chromium: the walkthrough, prose references and the print
 // rules in SPEC.md. Skipped when Playwright is not installed.
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -109,5 +109,47 @@ describe.skipIf(!playwright)('in the browser', () => {
       const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
       expect(pages).toBeLessThanOrEqual(2);
     });
+  });
+});
+
+// Every example, whatever its diagram types: the walkthrough steps, and each figure prints as
+// one frame that fits on a page.
+const EXAMPLES = new URL('../examples/', import.meta.url);
+const examples = readdirSync(EXAMPLES).filter((f) => f.endsWith('.md'));
+
+describe.skipIf(!playwright)('every example in the browser', () => {
+  let browser: any;
+  beforeAll(async () => {
+    browser = await playwright.chromium.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
+
+  it.each(examples)('%s walks through and prints', async (name) => {
+    const html = build(readFileSync(new URL(name, EXAMPLES), 'utf8')).html;
+    const file = join(mkdtempSync(join(tmpdir(), 'press-')), name.replace(/\.md$/, '.html'));
+    writeFileSync(file, html);
+    const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, reducedMotion: 'reduce' });
+    await page.goto(pathToFileURL(file).href);
+
+    for (const fig of await page.$$('.pr-figure[data-steps]')) {
+      const total = JSON.parse(await fig.$eval('.pr-steps', (el: Element) => el.textContent)).length;
+      await (await fig.$('[data-act="next"]')).click();
+      expect(await fig.$eval('.pr-count', (el: Element) => el.textContent)).toBe(`1 / ${total}`);
+      expect(await fig.$$('.is-current')).not.toHaveLength(0);
+    }
+
+    await page.setViewportSize({ width: Math.floor(PAGE_W), height: Math.floor(PAGE_H) });
+    await page.emulateMedia({ media: 'print' });
+    const figures = await page.$$eval('.pr-figure', (els: Element[]) =>
+      els.map((el) => ({ height: el.getBoundingClientRect().height, markers: el.querySelectorAll('.pr-step-marker').length, steps: el.querySelectorAll('.pr-legend li').length }))
+    );
+    expect(figures.length).toBeGreaterThan(0);
+    for (const f of figures) {
+      expect(f.height).toBeLessThan(PAGE_H);
+      expect(f.markers).toBe(f.steps);
+    }
+    await page.close();
   });
 });
