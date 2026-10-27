@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
-import { markers, refMarkers, type Box } from './draw.ts';
+import { markers, refMarkers, type Box, nodeTargets, propTargets } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { esc, n, roleAttr, textBlock } from '../render/svg.ts';
 
@@ -254,7 +254,14 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
   });
 
   const cells = d.cells.map((c) => ({ node: c.option, key: c.criterion }));
-  out.push(...markers(d, boxes, new Map(), refMarkers(context, [...d.options, ...d.criteria], cells)));
+  out.push(
+    ...markers(
+      d,
+      boxes,
+      new Map(),
+      refMarkers(context, [...nodeTargets([...d.options, ...d.criteria]), ...propTargets(cells)]),
+    ),
+  );
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }

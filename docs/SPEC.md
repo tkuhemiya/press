@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.3)
+# Press language spec (draft, v0.4)
 
 ## Document
 
@@ -73,7 +73,7 @@ steps:
   failed -> submitted    "They retry with a new card"
 ```
 
-In types with properties, a step can also name one (`redis.ops "caption"`), and in `er` an edge between two fields (`orders.user_id -> users.id "caption"`).
+In types with properties, a step can also name one (`redis.ops "caption"`), and in `er` an edge between two fields (`orders.user_id -> users.id "caption"`). A step can also name a sequence phase or a causal loop by its id (`tcp "caption"`); it highlights the phase or loop and everything in it.
 
 When more than one edge joins the same two nodes, as with repeated messages in a `sequence`, the step names the edge by its label: `api -> db : insert "caption"`. If the step is still ambiguous, the parser reports an error that lists the matching edges. `->` and `-->` are interchangeable in a step.
 
@@ -87,12 +87,19 @@ When the card is declined, [the failed state](#order.failed) loops back.
 
 In types with properties, a reference can name one: `[the foreign key](#shop.orders.user_id)`.
 
+*New in v0.4.* A reference can also name:
+
+- **An edge**, by its two ends: `[the retry](#order.failed->submitted)`. If more than one edge joins the two, the reference is ambiguous and is an error. In a sequence, put the message in a phase and point at the phase.
+- **A sequence phase or a causal loop**, by its id: `[the handshake](#req.tcp)`, `[word of mouth](#growth.wom)`.
+
+On screen, hovering highlights the edge, or the phase or loop with everything in it. On paper, the letter sits beside the edge label, or at the corner of the phase or loop.
+
 ## Rendering targets
 
 ### HTML
 
 - `steps` become an interactive walkthrough: next/previous, with the current edge highlighted and the caption shown.
-- Hovering a prose reference highlights the node.
+- Hovering a prose reference highlights what it names: a node, an edge, or a phase or loop.
 
 ### Print
 
@@ -129,12 +136,29 @@ shipped -> end
 
 Participants appear left to right in order of first use. Edges are messages, top to bottom. `-->` is a reply or async message.
 
-Node kinds: `user`, `service`, `database`, `queue`, `external`, the same names as in `architecture`. `group "Name" { ... }` draws a labelled box around the participants it contains. `direction` has no meaning here; the parser ignores it with a warning.
+Node kinds: `user`, `client`, `service`, `database`, `queue`, `external`, the same names as in `architecture`. `group "Name" { ... }` draws a labelled box around the participants it contains. `direction` has no meaning here; the parser ignores it with a warning.
+
+Keyword: `phase`, reserved. *New in v0.4.*
+
+```
+phase <id> "Label" {
+  a -> b : message
+}
+```
+
+- A phase brackets the messages written inside it: a handshake, a round trip, "async from here". It draws as a labelled frame across all the lifelines, from its first message to its last.
+- The id is optional. Give one to point at the phase from a step or from prose. Phase ids share the namespace with participants, so a phase cannot reuse a participant's id.
+- Phases nest. Closing a phase with `}` returns to the one around it.
+- A phase covers messages only. A participant first used inside a phase is still a top-level participant. A `group` cannot be inside a phase, and a phase cannot be inside a `group`, because groups box participants.
+- A phase with no messages is a warning, since it would draw nothing.
+- To say "everything from here on", put the remaining messages in one phase that runs to the end of the fence.
 
 ```sequence
 client -> api : POST /orders
-api -> db : insert
-db --> api : ok
+phase "In the request" {
+  api -> db : insert
+  db --> api : ok
+}
 api --> queue : order.created
 api --> client : 201 Created
 ```
@@ -178,7 +202,7 @@ Keyword: `loop`, reserved.
 
 - `{delay=yes}` on an edge marks a delay, drawn with the standard ‖ mark. `yes` is the only value; leave the attribute out when there is no delay.
 - A variable cannot link to itself (`a -> a`). Name what carries the effect and route the link through it.
-- `loop "Name": a -> b -> a` names a feedback loop. The chain must close (it ends where it starts) and each segment must be an edge in the diagram. **Press works out the loop's type from the edge polarities**: an even number of `-` makes it reinforcing (R), an odd number balancing (B). Loops are numbered in order (R1, R2, B1) and marked inside the diagram with their name.
+- `loop "Name": a -> b -> a` names a feedback loop. `loop wom "Name": …` gives it an id, so steps and prose can point at it; loop ids share the namespace with variables. The chain must close (it ends where it starts) and each segment must be an edge in the diagram. **Press works out the loop's type from the edge polarities**: an even number of `-` makes it reinforcing (R), an odd number balancing (B). Loops are numbered in order (R1, R2, B1) and marked inside the diagram with their name.
 - `direction` has no meaning here; the parser ignores it with a warning.
 - Layout keeps each named loop open, with its mark inside: a circular arrow turning the way the loop runs, its number, and its name. A two-variable loop draws as a lens.
 

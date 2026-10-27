@@ -15,7 +15,7 @@ The language is in `docs/SPEC.md`. This file is how to write it well.
 2. Choose the parts a diagram makes clearer. Use one diagram for one idea.
 3. Pick a type from the table below.
 4. Write the fence. Set `id` and `title` when prose will refer to the diagram.
-5. Add `steps:` when order matters. Link a node from prose with `[text](#id.node)`.
+5. Add `steps:` when order matters. Link a node from prose with `[text](#id.node)`, an edge with `[text](#id.from->to)`.
 6. Run `press check doc.md`. Fix every error and every warning. Each message names the line and states a fix you can apply as written.
 
 ## Choose a type
@@ -41,7 +41,7 @@ If two types fit, pick the one whose edges mean what you want to say. A sequence
 - **Ids are short and lowercase.** `db`, `user_id`, and `payment_ok` are ids. Put the reader-facing text in a label, as in `db: database "Orders DB"`. Press draws an undeclared id as words, so `wage_demands` reads "wage demands". Declare a label when you need capitals, symbols, or different wording. Causal-loop variables and tradeoffs criteria take `id: "Label"` the same way.
 - **Labels are short.** A node label is a noun phrase. An edge label is a few words. Put detail in prose or in a step caption. `note` is a short qualifier under a label.
 - **Steps tell the story.** Use three to six steps. Each caption says why the move happens. Step through the path that matters. Leave the other edges out of `steps:`.
-- **Prose and the diagram work together.** Point at a node from the text with `[the failed state](#order.failed)`. On screen, the reader hovers the link and Press highlights that node. On paper, the reference is a lettered marker.
+- **Prose and the diagram work together.** Point at a node from the text with `[the failed state](#order.failed)`. Point at an edge with `[the retry](#order.failed->submitted)`, and at a sequence phase or a causal loop by its id. On screen, the reader hovers the link and Press highlights what it names. On paper, the reference is a lettered marker.
 - **`direction` is the only layout hint.** Leave it out unless you have a reason. Press picks the direction that fits the page. Put it in the fence header, as in `` ```architecture direction=down ``. Do not add extra nodes, or reorder lines, to push the layout around.
 
 ## The shared grammar
@@ -78,16 +78,22 @@ paid -> end
 
 ### sequence
 
-Participants appear in order of first use. `-->` is a reply. The kinds are `user`, `service`, `database`, `queue`, and `external`. Sequence has no `client` kind. A plain declaration draws a plain box. `group "Name" { ... }` boxes participants together. You cannot yet bracket a run of messages into a phase. Put phases in step captions or in prose.
+Participants appear in order of first use. `-->` is a reply. The kinds are `user`, `client`, `service`, `database`, `queue`, and `external`. A plain declaration draws a plain box. `group "Name" { ... }` boxes participants together.
 
-```sequence
-client: user "Browser"
+`phase "Name" { ... }` brackets the messages inside it: a handshake, a round trip, the front channel, "async from here". Phases nest. Give a phase an id, as in `phase tls "TLS handshake" {`, to point at it from a step (`tls "Caption"`) or from prose (`#flow.tls`). A phase holds messages only. Declare participants and groups above the first phase.
+
+```sequence id=flow
+browser: client "Browser"
 api: service "API"
 db: database "Postgres"
-client -> api : POST /orders
+phase tls "TLS handshake" {
+  browser -> api : ClientHello
+  api --> browser : ServerHello
+}
+browser -> api : POST /orders
 api -> db : insert
 db --> api : ok
-api --> client : 201 Created
+api --> browser : 201 Created
 ```
 
 ### architecture
@@ -120,7 +126,7 @@ deploy -> alerts : caused
 
 ### causal-loop
 
-Every edge label is a polarity. `+` means the same direction. `-` means the opposite direction. `{delay=yes}` marks a delayed link with ‖. Name each loop so the reader can see it. Press marks the loop R when it reinforces, and B when it balances. Declare a variable with a label, as in `rate: "Interest rate"`.
+Every edge label is a polarity. `+` means the same direction. `-` means the opposite direction. `{delay=yes}` marks a delayed link with ‖. Name each loop so the reader can see it. Give a loop an id, as in `loop wom "Word of mouth": …`, to point at it from a step or from prose. Press marks the loop R when it reinforces, and B when it balances. Declare a variable with a label, as in `rate: "Interest rate"`.
 
 ```causal-loop title="Word of mouth"
 customers -> referrals : +

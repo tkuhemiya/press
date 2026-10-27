@@ -1,7 +1,17 @@
 import type { Direction, Edge, EdgeTarget, Group, Node, NodeId, NodeTarget, Step } from '../model.ts';
 import type { RenderContext, Rendered } from './diagram.ts';
 import { trusted } from '../brand.ts';
-import { edgeSvg, labelSvg, markers, refMarkers, type Box, type NodeShape } from './draw.ts';
+import {
+  edgeSvg,
+  labelSvg,
+  markers,
+  refMarkers,
+  type Box,
+  type NodeShape,
+  nodeTargets,
+  edgeTargets,
+  type Anchor,
+} from './draw.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
 import { loopPath, routePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -142,7 +152,7 @@ export function renderGraph<N extends Node>(
     });
 
   const labels: string[] = [];
-  const anchors = new Map<number, { x: number; y: number }>();
+  const anchors = new Map<number, Anchor>();
   for (const { e, ce } of routed) {
     const route = ce.route.map((v, i) => (i % 3 === 2 ? v : v + (i % 3 === 0 ? ox : oy)));
     const both = e.arrow === '<->';
@@ -151,7 +161,7 @@ export function renderGraph<N extends Node>(
     const ly = ce.labelY + oy;
     if (e.label) {
       labels.push(labelSvg(e, lx, ly, onGroup(lx, ly)));
-      anchors.set(e.index, { x: lx - labelSize(e)[0] / 2 - 4, y: ly });
+      anchors.set(e.index, { x: lx - labelSize(e)[0] / 2 - 4, y: ly, w: labelSize(e)[0] + 8 });
     } else {
       const mid = Math.floor(route.length / 6) * 3;
       anchors.set(e.index, { x: route[mid] + 12, y: route[mid + 1] });
@@ -179,7 +189,7 @@ export function renderGraph<N extends Node>(
   }
   out.push(...labels);
   const boxes = new Map(placed.map((p) => [p.node.id, p.box]));
-  out.push(...markers(d, boxes, anchors, refMarkers(context, d.nodes)));
+  out.push(...markers(d, boxes, anchors, refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)])));
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }

@@ -603,3 +603,120 @@ describe('fixes from the authoring eval', () => {
     expect(e.hint).toMatch(/00:00:05.*crash: "Label"/);
   });
 });
+
+describe('sequence phases', () => {
+  const body = `phase conn "Connection" {
+  phase tcp "TCP" {
+    a -> b : SYN
+    b --> a : SYN-ACK
+  }
+  a -> b : hello
+}
+a -> b : GET
+steps:
+  tcp "Handshake"
+  a -> b : GET "Request"`;
+
+  it('brackets the messages written inside, nesting included', () => {
+    const doc = parse('sequence', body, 'id=s');
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'sequence');
+    expect(d.phases).toEqual([
+      { id: 'conn', label: 'Connection', edges: [0, 1, 2], line: 4 },
+      { id: 'tcp', label: 'TCP', parent: 0, edges: [0, 1], line: 5 },
+    ]);
+    expect(d.nodes.map((n) => n.id)).toEqual(['a', 'b']);
+    expect(d.steps.map((s) => s.target)).toEqual([
+      { type: 'edges', id: 'tcp' },
+      { type: 'edge', index: 3 },
+    ]);
+  });
+
+  it('takes a phase without an id', () => {
+    const d = first(parse('sequence', 'phase "Setup" {\n  a -> b\n}'), 'sequence');
+    expect(d.phases).toEqual([{ label: 'Setup', edges: [0], line: 4 }]);
+  });
+
+  it('accepts the client kind', () => {
+    const doc = parse('sequence', 'web: client "Browser"\nweb -> api');
+    expect(doc.diagnostics).toEqual([]);
+    expect(first(doc, 'sequence').nodes[0].kind).toBe('client');
+  });
+
+  it('reports phase mistakes with a fix', () => {
+    const cases: [string, RegExp][] = [
+      ['phase "X" {\n  a -> b', /never closed/],
+      ['phase X {\n}', /quoted name and an opening brace/],
+      ['group "G" {\n  phase "X" {\n  a -> b\n  }\n}', /phase cannot be inside a group/],
+      ['phase "X" {\n  group "G" {\n  a\n  }\n  a -> b\n}', /group cannot be inside a phase/],
+      ['a -> b\nphase a "X" {\n  a -> b\n}', /already a participant/],
+      ['phase p "X" {\n  a -> b\n}\nphase p "Y" {\n  a -> b\n}', /already used on line/],
+      ['phase -> b', /quoted name/],
+    ];
+    for (const [src, message] of cases) {
+      const errs = errors(parse('sequence', src));
+      expect(errs.map((e) => e.message).join('\n')).toMatch(message);
+      expect(errs.every((e) => e.hint)).toBe(true);
+    }
+  });
+
+  it('warns about an empty phase', () => {
+    const doc = parse('sequence', 'a -> b\nphase "Nothing" {\n}');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringMatching(/no messages/) });
+  });
+
+  it('keeps phases to sequences', () => {
+    const errs = errors(parse('state-machine', 'phase "X" {\n  a -> b\n}'));
+    expect(errs[0].message).toMatch(/has no phases/);
+    expect(errs[0].hint).toMatch(/sequence/);
+  });
+});
+
+describe('references to edges, phases and loops', () => {
+  const doc = parseDocument(`# T
+
+\`\`\`sequence id=s
+phase tcp "TCP" {
+  a -> b : SYN
+}
+a -> b : GET
+b -> c : fetch
+\`\`\`
+
+\`\`\`causal-loop id=c
+x -> y : +
+y -> x : +
+loop growth "Growth": x -> y -> x
+\`\`\`
+
+See [the fetch](#s.b->c), [the handshake](#s.tcp) and [growth](#c.growth).
+Bad: [x](#s.a->b) [y](#s.c->a) [z](#c.x->z).
+`);
+
+  it('resolves an edge by its ends, and a phase or loop by its id', () => {
+    expect(doc.refs.map((r) => [r.target, r.marker])).toEqual([
+      [{ type: 'edge', index: 2 }, 'a'],
+      [{ type: 'edges', id: 'tcp' }, 'b'],
+      [{ type: 'edges', id: 'growth' }, 'a'],
+    ]);
+  });
+
+  it('explains ambiguous and missing edges', () => {
+    const errs = errors(doc);
+    expect(errs.map((e) => e.message)).toEqual([
+      expect.stringMatching(/ambiguous: 2 edges join `a` and `b`/),
+      expect.stringMatching(/does not have/),
+      expect.stringMatching(/does not have/),
+    ]);
+    expect(errs[1].hint).toBe('Edges in `s`: `a->b`, `a->b`, `b->c`.');
+  });
+
+  it('steps through a named loop', () => {
+    const d = first(
+      parse('causal-loop', 'x -> y : +\ny -> x : +\nloop g "G": x -> y -> x\nsteps:\n  g "Grows"'),
+      'causal-loop',
+    );
+    expect(d.loops[0].id).toBe('g');
+    expect(d.steps[0].target).toEqual({ type: 'edges', id: 'g' });
+  });
+});

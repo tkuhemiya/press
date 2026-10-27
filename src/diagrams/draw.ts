@@ -1,12 +1,4 @@
-import {
-  targetName,
-  type Arrow,
-  type EdgeTarget,
-  type NodeId,
-  type NodeTarget,
-  type PropTarget,
-  type Role,
-} from '../model.ts';
+import { targetName, type Arrow, type EdgeIndex, type NodeId, type Role, type Target } from '../model.ts';
 import type { RenderContext } from './diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -85,15 +77,16 @@ export function labelSvg(e: Labelled, x: number, y: number, onGroup: boolean): s
   return `<g class="pr-edge-label${onGroup ? ' pr-on-group' : ''}" data-edge="${e.index}"${roleAttr(e.role)}>${plate}${textBlock(lines, x, y, LABEL_LINE, 'pr-elabel')}</g>`;
 }
 
-export function refMarkers(
-  context: RenderContext,
-  nodes: readonly { id: NodeId }[],
-  props: readonly { node: NodeId; key: NodeId }[] = [],
-): Map<string, string> {
-  const targets: (NodeTarget | PropTarget)[] = [
-    ...nodes.map((node): NodeTarget => ({ type: 'node', id: node.id })),
-    ...props.map((p): PropTarget => ({ type: 'prop', node: p.node, key: p.key })),
-  ];
+export const nodeTargets = (nodes: readonly { id: NodeId }[]): Target[] =>
+  nodes.map((node) => ({ type: 'node', id: node.id }));
+
+export const propTargets = (props: readonly { node: NodeId; key: NodeId }[]): Target[] =>
+  props.map((p) => ({ type: 'prop', node: p.node, key: p.key }));
+
+export const edgeTargets = (edges: readonly { index: EdgeIndex }[]): Target[] =>
+  edges.map((e) => ({ type: 'edge', index: e.index }));
+
+export function refMarkers(context: RenderContext, targets: readonly Target[]): Map<string, string> {
   return new Map(
     targets.flatMap((t) => {
       const letter = context.marker(t);
@@ -102,10 +95,16 @@ export function refMarkers(
   );
 }
 
+export interface Anchor {
+  x: number;
+  y: number;
+  w?: number;
+}
+
 export function markers(
-  d: { steps: readonly { target: NodeTarget | EdgeTarget | PropTarget }[] },
+  d: { steps: readonly { target: Target }[] },
   boxes: ReadonlyMap<string, Box>,
-  anchors: ReadonlyMap<number, { x: number; y: number }>,
+  anchors: ReadonlyMap<number, Anchor>,
   refMarkers: ReadonlyMap<string, string>,
 ): string[] {
   const out: string[] = [];
@@ -121,6 +120,15 @@ export function markers(
     out.push(badge('pr-step-marker', ` data-step="${i + 1}"`, x - k * 18, spot.y, String(i + 1)));
   });
   for (const [id, letter] of refMarkers) {
+    const edge = /^#(\d+)$/.exec(id);
+    const a = edge ? anchors.get(Number(edge[1])) : undefined;
+    if (edge) {
+      if (a)
+        out.push(
+          badge('pr-ref-marker', ` data-edge="${edge[1]}"`, a.w === undefined ? a.x + 14 : a.x + a.w + 6, a.y, letter),
+        );
+      continue;
+    }
     const b = boxes.get(id);
     if (!b) continue;
     out.push(badge('pr-ref-marker', ` data-node="${esc(id)}"`, b.x + b.w, b.y, letter));

@@ -1,11 +1,21 @@
-import type { CausalLoop, Link, Loop, NodeId, Polarity } from '../model.ts';
+import type { CausalLoop, Link, Loop, NodeId, Polarity, Target } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
-import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
+import { buildGraph, edgeEnds, edgeMembers, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
 import { closest, list } from '../diagnostics.ts';
-import { drawText, edgeSvg, markers, measureLabel, refMarkers, type Box } from './draw.ts';
+import {
+  drawText,
+  edgeSvg,
+  markers,
+  measureLabel,
+  refMarkers,
+  type Box,
+  nodeTargets,
+  edgeTargets,
+  type Anchor,
+} from './draw.ts';
 import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 import { textWidth } from '../text/measure.ts';
 
@@ -14,11 +24,19 @@ export const CAUSAL_LOOP: DiagramDef<'causal-loop'> = {
   name: 'Causal loop',
   build,
   render,
-  targets: (d) => nodeParts(d.nodes),
+  targets: (d) => [
+    ...nodeParts(d.nodes),
+    ...d.loops.flatMap((l) => (l.id === undefined ? [] : [{ target: { type: 'edges' as const, id: l.id } }])),
+  ],
   ends: (d, edge) => edgeEnds(d.edges, edge),
+  members(d, id) {
+    const loop = d.loops.find((l) => l.id === id);
+    return loop && edgeMembers(d.edges, loop.edges);
+  },
   withoutMuted(d, pinned) {
-    if (d.loops.length) return undefined;
-    const kept = lean(d, pinned);
+    const steps = d.steps.flatMap((s) => (s.target.type === 'edges' ? [] : [{ ...s, target: s.target }]));
+    if (d.loops.length || steps.length < d.steps.length) return undefined;
+    const kept = lean({ ...d, steps }, pinned);
     return kept && { ...d, ...kept };
   },
 };
@@ -143,9 +161,26 @@ function build(fence: Fence, report: Reporter): CausalLoop {
     const negatives = path.filter((i) => edges[i]?.polarity === '-').length;
     const reinforcing = negatives % 2 === 0;
     const label = `${reinforcing ? 'R' : 'B'}${loops.filter((l) => l.reinforcing === reinforcing).length + 1}`;
-    loops.push({ name: s.name, label, reinforcing, edges: [head, ...rest], line: s.line });
+    const loop: Loop = { name: s.name, label, reinforcing, edges: [head, ...rest], line: s.line };
+    if (s.id !== undefined) {
+      const clash = nodes.some((node) => node.id === s.id) || loops.some((l) => l.id === s.id);
+      if (clash)
+        error(
+          s.line,
+          `\`${s.id}\` is already used in this diagram, so it cannot also name a loop.`,
+          `Loops, variables and other loops share ids. Rename the loop, e.g. \`loop ${s.id}_loop "${s.name}": …\`.`,
+        );
+      else loop.id = s.id;
+    }
+    loops.push(loop);
   }
-  const steps = resolveSteps(fence.steps, nodes, edges, report);
+  const loopIds = new Set(loops.flatMap((l) => l.id ?? []));
+  const steps = fence.steps.flatMap((raw): CausalLoop['steps'] => {
+    const id = raw.to === undefined && raw.from.key === undefined ? raw.from.node : undefined;
+    if (id !== undefined && loopIds.has(id))
+      return [{ target: { type: 'edges', id }, caption: raw.caption, line: raw.line }];
+    return resolveSteps([raw], nodes, edges, report);
+  });
   return { ...header(fence, 'causal-loop'), nodes, edges, groups: graph.groups, steps, loops };
 }
 
@@ -194,7 +229,7 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
 
   const out: string[] = [];
   const marks: string[] = [];
-  const anchors = new Map<number, { x: number; y: number }>();
+  const anchors = new Map<number, Anchor>();
   const extent = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   const grow = (x: number, y: number, r = 0) => {
     extent.x0 = Math.min(extent.x0, x - r);
@@ -298,7 +333,9 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
     const tdy = Math.cos(a1);
     grow(p.x - mw / 2, p.y - LOOP_R - 3);
     grow(p.x + mw / 2, p.y - LOOP_R - 3 + mh);
-    return `<g class="pr-loop" data-loop="${esc(l.label)}" data-kind="${l.reinforcing ? 'R' : 'B'}"><path class="pr-loop-arc" d="M${n(px(a0))},${n(py(a0))}A${LOOP_R},${LOOP_R} 0 1 ${sweep} ${n(px(a1))},${n(py(a1))}"/><path class="pr-loop-head" d="${arrowhead(px(a1) + tdx * 3, py(a1) + tdy * 3, tdx, tdy)}"/><text class="pr-loop-label" x="${n(p.x)}" y="${n(p.y)}" dy="0.35em">${esc(l.label)}</text><text class="pr-loop-name" x="${n(p.x)}" y="${n(p.y + LOOP_R + 14)}">${esc(l.name)}</text></g>`;
+    if (l.id !== undefined) boxes.set(l.id, { x: p.x - LOOP_R, y: p.y - LOOP_R, w: 2 * LOOP_R, h: 2 * LOOP_R });
+    const named = l.id === undefined ? '' : ` data-node="${esc(l.id)}" id="${domId}-node-${esc(l.id)}"`;
+    return `<g class="pr-loop"${named} data-loop="${esc(l.label)}" data-kind="${l.reinforcing ? 'R' : 'B'}"><path class="pr-loop-arc" d="M${n(px(a0))},${n(py(a0))}A${LOOP_R},${LOOP_R} 0 1 ${sweep} ${n(px(a1))},${n(py(a1))}"/><path class="pr-loop-head" d="${arrowhead(px(a1) + tdx * 3, py(a1) + tdy * 3, tdx, tdy)}"/><text class="pr-loop-label" x="${n(p.x)}" y="${n(p.y)}" dy="0.35em">${esc(l.label)}</text><text class="pr-loop-name" x="${n(p.x)}" y="${n(p.y + LOOP_R + 14)}">${esc(l.name)}</text></g>`;
   });
 
   const nodeSvgs = d.nodes.map((node, i) => {
@@ -325,7 +362,14 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
   );
   out.push(`<g transform="translate(${n(sx)},${n(sy)})">`);
   out.push(...loopSvgs, ...edgeSvgs, ...nodeSvgs, ...marks);
-  out.push(...markers(d, boxes, anchors, refMarkers(context, d.nodes)));
+  out.push(
+    ...markers(
+      d,
+      boxes,
+      anchors,
+      refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges), ...loopTargets(d.loops)]),
+    ),
+  );
   out.push('</g></svg>');
   return { svg: trusted(out.join('')), width, height };
 }
@@ -445,4 +489,8 @@ function signedArea(ps: P[]): number {
     a += p.x * q.y - q.x * p.y;
   }
   return a;
+}
+
+function loopTargets(loops: readonly Loop[]): Target[] {
+  return loops.flatMap((l) => (l.id === undefined ? [] : [{ type: 'edges', id: l.id }]));
 }

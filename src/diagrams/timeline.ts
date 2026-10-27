@@ -17,7 +17,19 @@ import {
 } from '../parse/graph.ts';
 import { parseTime } from '../parse/time.ts';
 import { trusted } from '../brand.ts';
-import { drawText, edgeSvg, labelSvg, markers, measureLabel, refMarkers, type Box, type TextLines } from './draw.ts';
+import {
+  drawText,
+  edgeSvg,
+  labelSvg,
+  markers,
+  measureLabel,
+  refMarkers,
+  type Box,
+  type TextLines,
+  nodeTargets,
+  edgeTargets,
+  type Anchor,
+} from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, esc, HEAD, n, roleAttr } from '../render/svg.ts';
 
@@ -362,7 +374,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
   out.push('</g>');
 
   const labels: string[] = [];
-  const anchors = new Map<number, { x: number; y: number }>();
+  const anchors = new Map<number, Anchor>();
   for (const { edge: e, a, b } of arcs) {
     const k = depth(a, b);
     const [x1, y1] = pt(a, -DOT - 2);
@@ -395,7 +407,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
       const [lw, lh] = labelBox(e.label);
       const [lx, ly] = across ? [mx, my + lh / 2 - 2] : [mx - lw / 2 + 2, my];
       labels.push(labelSvg(e, lx, ly, false));
-      anchors.set(e.index, { x: lx - lw / 2 - 4, y: ly });
+      anchors.set(e.index, { x: lx - lw / 2 - 4, y: ly, w: lw + 8 });
     } else anchors.set(e.index, { x: mx, y: my });
   }
 
@@ -427,7 +439,14 @@ function render(d: Timeline, context: RenderContext): Rendered {
     out.push(s + '</g>');
   }
   out.push(...labels);
-  out.push(...markers(d, new Map(events.map((e) => [e.node.id, e.box])), anchors, refMarkers(context, d.nodes)));
+  out.push(
+    ...markers(
+      d,
+      new Map(events.map((e) => [e.node.id, e.box])),
+      anchors,
+      refMarkers(context, [...nodeTargets(d.nodes), ...edgeTargets(d.edges)]),
+    ),
+  );
   out.push('</svg>');
   return { svg: trusted(out.join('')), width, height };
 }

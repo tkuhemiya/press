@@ -50,6 +50,8 @@ export interface Edge<A extends Arrow = Arrow> {
 export type NodeTarget = { type: 'node'; id: NodeId };
 export type EdgeTarget = { type: 'edge'; index: EdgeIndex };
 export type PropTarget = { type: 'prop'; node: NodeId; key: NodeId };
+export type EdgesTarget = { type: 'edges'; id: NodeId };
+export type Target = NodeTarget | EdgeTarget | PropTarget | EdgesTarget;
 
 export interface Step<T> {
   target: T;
@@ -75,12 +77,23 @@ export type StateMachine = Graph<Node, Edge, NodeTarget | EdgeTarget> & {
   direction?: Direction;
 };
 
-export const SEQUENCE_KINDS = ['user', 'service', 'database', 'queue', 'external'] as const;
+export const SEQUENCE_KINDS = ['user', 'client', 'service', 'database', 'queue', 'external'] as const;
 export type SequenceKind = (typeof SEQUENCE_KINDS)[number];
 export type Participant = Node & { kind?: SequenceKind };
 
-export type Sequence = Graph<Participant, Edge, NodeTarget | EdgeTarget> & {
+export type PhaseIndex = number & { readonly __brand: 'PhaseIndex' };
+
+export interface Phase {
+  id?: NodeId;
+  label: string;
+  parent?: PhaseIndex;
+  edges: EdgeIndex[];
+  line: number;
+}
+
+export type Sequence = Graph<Participant, Edge, NodeTarget | EdgeTarget | EdgesTarget> & {
   type: 'sequence';
+  phases: Phase[];
 };
 
 export const ARCHITECTURE_KINDS = [
@@ -105,6 +118,7 @@ export type Polarity = '+' | '-';
 export type Link = Edge<'->' | '-->'> & { polarity: Polarity; delay: boolean };
 
 export interface Loop {
+  id?: NodeId;
   name: string;
   label: string;
   reinforcing: boolean;
@@ -112,7 +126,7 @@ export interface Loop {
   line: number;
 }
 
-export type CausalLoop = Graph<Node, Link, NodeTarget | EdgeTarget> & {
+export type CausalLoop = Graph<Node, Link, NodeTarget | EdgeTarget | EdgesTarget> & {
   type: 'causal-loop';
   loops: Loop[];
 };
@@ -206,16 +220,28 @@ export interface DiagramMap {
 export type DiagramType = keyof DiagramMap;
 export type Diagram<T extends DiagramType = DiagramType> = DiagramMap[T];
 
-export const targetName = (t: NodeTarget | PropTarget): string => (t.type === 'node' ? t.id : `${t.node}.${t.key}`);
+export function targetName(t: Target): string {
+  switch (t.type) {
+    case 'prop':
+      return `${t.node}.${t.key}`;
+    case 'edge':
+      return `#${t.index}`;
+    case 'node':
+    case 'edges':
+      return t.id;
+  }
+}
+
+export type Named = NodeTarget | PropTarget | EdgesTarget;
 
 export interface Part {
-  target: NodeTarget | PropTarget;
+  target: Named;
   role?: Role;
 }
 
 export interface Ref {
   diagram: DiagramId;
-  target: NodeTarget | PropTarget;
+  target: Target;
   marker: string;
   line: number;
 }

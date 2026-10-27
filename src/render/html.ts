@@ -34,12 +34,23 @@ export function renderHtml(doc: Document, options: HtmlOptions = {}): string {
   const body = renderDocument(doc, {
     figure: (f) => trusted(figure(f)),
     refOpen(ref, f) {
-      const name = targetName(ref.target);
-      const role = view(f.diagram)
-        .targets()
-        .find((p) => targetName(p.target) === name)?.role;
+      const v = view(f.diagram);
+      const t = ref.target;
+      const marker = `data-marker="${esc(ref.marker)}"`;
+      if (t.type === 'edge') {
+        const ends = v.ends(t.index) ?? [];
+        return trusted(
+          `<a class="pr-ref" href="#${f.domId}" data-figure="${f.domId}" data-edge="${t.index}" ${marker} data-near-nodes="${esc(ends.join(' '))}">`,
+        );
+      }
+      const name = targetName(t);
+      const role = v.targets().find((p) => targetName(p.target) === name)?.role;
+      const members = t.type === 'edges' ? v.members(t.id) : undefined;
+      const near = members
+        ? ` data-near-edges="${members.edges.join(' ')}" data-near-nodes="${esc(members.nodes.join(' '))}"`
+        : '';
       return trusted(
-        `<a class="pr-ref" href="#${f.domId}-node-${esc(name)}" data-figure="${f.domId}" data-node="${esc(name)}" data-marker="${esc(ref.marker)}"${role ? ` data-role="${role}"` : ''}>`,
+        `<a class="pr-ref" href="#${f.domId}-node-${esc(name)}" data-figure="${f.domId}" data-node="${esc(name)}" ${marker}${near}${role ? ` data-role="${role}"` : ''}>`,
       );
     },
   });
@@ -78,6 +89,8 @@ function draw(v: View, f: Figure, domId: string, direction?: Direction): Rendere
 interface StepJson {
   node?: string;
   edge?: number;
+  edges?: number[];
+  nodes?: string[];
   from?: string;
   to?: string;
   caption: string;
@@ -105,7 +118,14 @@ function figure(f: Figure): string {
       step = ends
         ? { edge: t.index, from: ends[0], to: ends[1], caption: s.caption, html: s.caption }
         : { edge: t.index, caption: s.caption, html: s.caption };
-    } else step = { node: targetName(t), caption: s.caption, html: s.caption };
+    } else {
+      step = { node: targetName(t), caption: s.caption, html: s.caption };
+      const members = t.type === 'edges' ? v.members(t.id) : undefined;
+      if (members) {
+        step.edges = members.edges;
+        step.nodes = members.nodes;
+      }
+    }
     const trail = v.trail(i);
     if (trail) step.trail = trail;
     return step;
@@ -153,8 +173,12 @@ function printVariant(v: View, f: Figure, drawn: Rendered): Rendered | undefined
   const scale = printScale(drawn);
   if (scale >= 0.85) return undefined;
   const directions: (Direction | undefined)[] = v.turnable() ? DIRECTIONS : [undefined];
-  const pinned = (id: NodeId) => f.refs.some((r) => (r.target.type === 'node' ? r.target.id : r.target.node) === id);
-  const lean = v.withoutMuted(pinned);
+  const pinned = (id: NodeId) =>
+    f.refs.some(
+      (r) => (r.target.type === 'node' && r.target.id === id) || (r.target.type === 'prop' && r.target.node === id),
+    );
+  const onEdges = f.refs.some((r) => r.target.type === 'edge' || r.target.type === 'edges');
+  const lean = onEdges ? undefined : v.withoutMuted(pinned);
   let best: { r: Rendered; scale: number } | undefined;
   for (const base of lean ? [v, view(lean)] : [v]) {
     for (const direction of directions) {
