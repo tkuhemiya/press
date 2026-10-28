@@ -18,6 +18,8 @@ function paintItem(item: Item, id: string): string {
       return `<path${cls(item.cls)} d="${item.d}"/>`;
     case 'line':
       return `<line${cls(item.cls)} x1="${n(item.x1)}" y1="${n(item.y1)}" x2="${n(item.x2)}" y2="${n(item.y2)}"/>`;
+    case 'image':
+      return `<image${cls(item.cls)} x="${n(item.x)}" y="${n(item.y)}" width="${n(item.w)}" height="${n(item.h)}" href="data:image/svg+xml;base64,${Buffer.from(item.svg).toString('base64')}"/>`;
     case 'text':
       return `<text${cls(item.cls)} x="${n(item.x)}" y="${n(item.y)}"${item.dy ? ` dy="${item.dy}"` : ''}>${esc(item.text)}</text>`;
     case 'lines': {

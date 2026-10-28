@@ -1,5 +1,6 @@
 import { n } from '../render/svg.ts';
 import type { Item } from '../scene/scene.ts';
+import { iconSvg } from '../icons.ts';
 
 export function kindItems(kind: string | undefined, x: number, y: number, w: number, h: number): Item[] {
   if (kind === 'database') {
@@ -80,3 +81,10 @@ export function glyphItems(kind: string, x: number, y: number): Item[] {
   const items = glyphParts(kind, x, y);
   return items.length ? [{ type: 'group', cls: 'pr-glyph', items }] : [];
 }
+
+export const ICON = 24;
+export const ICON_W = ICON + 8;
+
+export const iconItems = (icon: string, x: number, cy: number): Item[] => [
+  { type: 'image', cls: 'pr-icon', x, y: cy - ICON / 2, w: ICON, h: ICON, svg: iconSvg(icon) },
+];

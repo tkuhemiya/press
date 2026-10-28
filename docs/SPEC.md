@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.5)
+# Press language spec (draft, v0.6)
 
 ## Document
 
@@ -184,7 +184,7 @@ api --> client : 201 Created
 
 Components, the boundaries around them, and the connections between them. Edges are connections; the label says what travels on them (a protocol, a payload). `-->` is an async or fire-and-forget connection. Groups are boundaries: a network, a trust zone, a deployment. `direction` defaults to `right`.
 
-Node kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Each draws with its own shape or icon. A node without a kind draws as a plain component box.
+Node kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Each draws with its own shape or icon. A node without a kind draws as a plain component box. A vendor icon can take the place of the kind; see [Vendor icons](#vendor-icons).
 
 ```architecture id=checkout title="Checkout"
 user: user "Shopper"
@@ -417,3 +417,22 @@ steps:
 Each diagram type has a fixed list of node kinds, and each kind has a designed shape or icon. The list is closed so that every kind looks good. A kind the renderer doesn't know draws as a plain box, and the parser emits a warning naming the known kinds. To add a kind, add it to the spec.
 
 `architecture` kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. `sequence` uses the same names (in v0.2, a subset: `user`, `service`, `database`, `queue`, `external`).
+
+### Vendor icons
+
+*New in v0.6.* In `architecture` and `sequence`, a declaration can name a vendor's own icon where a kind would go. The name is the icon set, a dot, and the product:
+
+```architecture title="Uploads on AWS"
+fn: aws.lambda "Resize"
+bucket: aws.s3 "Photos"
+jobs: aws.sqs "Thumbnail jobs"
+fn -> bucket : put
+fn -> jobs
+```
+
+- **Icon sets.** `aws` (AWS Architecture Icons), `azure` (Azure Public Service Icons), `gcp` (Google Cloud core products and categories) and `k8s` (Kubernetes resources and infrastructure). `press icons` lists the sets; `press icons aws` lists every name in one, and `press icons aws dynamo` only the names containing a word.
+- **Names** are the product's name in lower case with hyphens, without the vendor prefix: `aws.api-gateway`, `azure.cosmos-db`, `gcp.cloud-run`, `k8s.deployment`. AWS services known by their initials use them: `aws.s3`, `aws.sqs`, `aws.sns`, `aws.ses`, `aws.ecs`, `aws.eks`, `aws.ecr`, `aws.ebs`, `aws.elb`, `aws.iam`, `aws.kms`, `aws.vpc`, `aws.msk`.
+- **They are drawn as the vendor publishes them**, in colour, beside the label, on screen and on paper. This is the one place Press shows colour it did not choose: a reader who works with a cloud recognises its icons faster than any label. Roles still apply to the box around the icon.
+- **The label still matters.** Without one, the node shows its id. Name the instance (`"Photos"`), not the product; the icon already says the product.
+- **An unknown icon** draws as a plain box, and the parser warns with the nearest name and the command that lists them. Icons are not available in other diagram types; there the parser warns and ignores the icon.
+- **Licences.** The icons belong to their vendors and are not covered by Press's MIT licence. Each vendor allows them in architecture diagrams and documentation; see `assets/icons/NOTICE.md`. `scripts/import-icons.ts` rebuilds the sets from the vendors' packages.

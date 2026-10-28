@@ -7,12 +7,14 @@ import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, formatDiagnostic } from './index.ts';
 import { typstDocument } from './render/typst.ts';
+import { ICON_VENDORS, iconNames, isVendor } from './icons.ts';
 import { parseReports, settle, unfitSections, type Choices, type Report } from './render/settle.ts';
 
 const USAGE = `Usage:
   press build <file.md> -o out.html | out.pdf               Render to HTML, or typeset to PDF (needs typst)
   press build <file.md...> --out-dir dir                    Render each file to HTML
-  press check <file.md...>                                  Report problems only`;
+  press check <file.md...>                                  Report problems only
+  press icons [aws|azure|gcp|k8s] [word]                    List icon names, optionally only those containing word`;
 
 const MAX_ROUNDS = 50;
 
@@ -25,6 +27,20 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === '-o' || args[i] === '--out') out = args[++i];
   else if (args[i] === '--out-dir') outDir = args[++i];
   else files.push(args[i]);
+}
+
+if (command === 'icons') {
+  const [vendor, word = ''] = files;
+  if (vendor === undefined) {
+    for (const v of ICON_VENDORS) console.log(`${v}  ${iconNames(v).length} icons`);
+    process.exit(0);
+  }
+  if (!isVendor(vendor)) {
+    console.error(`Unknown icon set \`${vendor}\`. Icon sets: ${ICON_VENDORS.join(', ')}.`);
+    process.exit(2);
+  }
+  for (const name of iconNames(vendor)) if (name.includes(word)) console.log(`${vendor}.${name}`);
+  process.exit(0);
 }
 
 if (!command || !['build', 'check'].includes(command) || !files.length) {

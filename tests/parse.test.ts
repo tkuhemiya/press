@@ -129,6 +129,28 @@ api --> db`,
     const doc = parse('architecture', 'db: databse "Postgres"');
     expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`database`') });
   });
+
+  it('reads a vendor icon in place of a kind', () => {
+    const doc = parse('architecture', 'fn: aws.lambda "Resize"\npod: k8s.pod\nfn -> pod');
+    expect(doc.diagnostics).toEqual([]);
+    expect(first(doc, 'architecture').nodes.map((n) => [n.id, n.icon, n.kind, n.label])).toEqual([
+      ['fn', 'aws.lambda', undefined, 'Resize'],
+      ['pod', 'k8s.pod', undefined, 'pod'],
+    ]);
+  });
+
+  it('suggests a known icon and a known icon set', () => {
+    const name = parse('architecture', 'fn: aws.lambada "Resize"');
+    expect(name.diagnostics[0]).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`aws.lambda`') });
+    expect(first(name, 'architecture').nodes[0].icon).toBeUndefined();
+    const vendor = parse('sequence', 'fn: awz.lambda "Resize"');
+    expect(vendor.diagnostics[0]).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`aws.lambda`') });
+  });
+
+  it('warns that icons belong to architecture and sequence only', () => {
+    const doc = parse('state-machine', 'a: aws.lambda "A"\na -> b');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringContaining('no icons') });
+  });
 });
 
 describe('diagnostics name the line and suggest a fix', () => {

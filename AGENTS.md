@@ -20,6 +20,7 @@ These were settled deliberately. Don't reopen them without a good reason.
 - **Steps live inside the fence.**
 - **Paper is a budget.** Print should compress (annotate a single frame), not expand (one frame per step). See `docs/SPEC.md`.
 - **Pre-1.0 versioning:** 0.1, 0.2, 0.3…
+- **Vendor icons are the one exception to Press-chosen colour.** `aws.lambda`, `k8s.pod` and the like draw the vendor's own artwork in colour, because readers recognise them. Everything else stays meaning, not styling.
 - **Light themes only.** No dark mode. A light page reads well on screen and is already what print needs, so there is one visual language to get right.
 
 ## How to work here

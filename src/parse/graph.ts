@@ -23,6 +23,7 @@ export interface DraftNode {
   id: NodeId;
   label: string;
   kind?: string;
+  icon?: string;
   role?: Role;
   note?: string;
   attrs: Map<string, string>;
@@ -103,6 +104,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
         node.line = s.line;
         if (s.label !== undefined) node.label = s.label;
         if (s.kind !== undefined) node.kind = s.kind;
+        if (s.icon !== undefined) node.icon = s.icon;
         apply(node, s);
         break;
       }

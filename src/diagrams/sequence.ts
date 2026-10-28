@@ -30,7 +30,7 @@ import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badgeItem, HEAD, linesItem, n } from '../render/svg.ts';
 import { attr, type Attrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
-import { GLYPH_W, glyphItems, kindItems } from './kinds.ts';
+import { GLYPH_W, ICON_W, glyphItems, iconItems, kindItems } from './kinds.ts';
 
 export const SEQUENCE: DiagramDef<'sequence'> = {
   type: 'sequence',
@@ -64,6 +64,7 @@ function build(fence: Fence, report: Reporter): Sequence {
   const nodes = graph.nodes.map((draft): Participant => {
     const node: Participant = toNode(draft);
     if (isKind(draft.kind)) node.kind = draft.kind;
+    if (draft.icon !== undefined) node.icon = draft.icon;
     return node;
   });
   const phases = buildPhases(fence, graph.edges, new Set(nodes.map((node) => node.id)), report);
@@ -159,7 +160,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
   const { domId } = context;
   const order = participantOrder(d);
   const cols: Column[] = order.map((node) => {
-    const glyphW = hasGlyph(node) ? GLYPH_W : 0;
+    const glyphW = slotW(node);
     const note = node.note ? wrap(node.note, NOTE_FONT, MAX_LABEL) : [];
     const w = Math.max(textWidth(node.label, FONT, 'sans500') + glyphW, ...note.map((l) => textWidth(l, NOTE_FONT)));
     return { node, note, w: Math.max(MIN_HEADER, Math.ceil(w + 2 * HEADER_PAD)), x: 0 };
@@ -305,7 +306,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
 
   const columnItems = cols.map((c): Item => {
     const left = c.x - c.w / 2;
-    const glyphW = hasGlyph(c.node) ? GLYPH_W : 0;
+    const glyphW = slotW(c.node);
     const tx = c.x + glyphW / 2;
     const labelY = headerTop + HEADER_H / 2 - (c.note.length ? 3 : 0);
     return {
@@ -315,7 +316,10 @@ function render(d: Sequence, context: RenderContext): Rendered {
       items: [
         { type: 'line', cls: 'pr-lifeline', x1: c.x, y1: headerBottom, x2: c.x, y2: bottom },
         ...kindItems(c.node.kind, left, headerTop, c.w, headH),
-        ...(glyphW && c.node.kind
+        ...(c.node.icon
+          ? iconItems(c.node.icon, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - ICON_W, labelY)
+          : []),
+        ...(glyphW && c.node.kind && !c.node.icon
           ? glyphItems(c.node.kind, tx - textWidth(c.node.label, FONT, 'sans500') / 2 - 15, labelY)
           : []),
         { type: 'text', cls: 'pr-label', x: tx, y: labelY, dy: '0.35em', text: c.node.label },
@@ -466,3 +470,5 @@ function tag(x: number, y: number, label: string): string {
   const w = textWidth(label.toUpperCase(), 10.5, 'sans600') * 1.18 + 22;
   return `M${n(x + 6)},${n(y)}H${n(x + w)}V${n(y + TAG_H - 6)}L${n(x + w - 6)},${n(y + TAG_H)}H${n(x)}V${n(y + 6)}Q${n(x)},${n(y)} ${n(x + 6)},${n(y)}Z`;
 }
+
+const slotW = (node: Participant): number => (node.icon ? ICON_W : hasGlyph(node) ? GLYPH_W : 0);

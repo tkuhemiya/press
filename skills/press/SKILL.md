@@ -114,6 +114,8 @@ app -> bucket : PUT file
 bucket --> jobs : object created
 ```
 
+For a system on a cloud, name the vendor's icon where the kind goes: `fn: aws.lambda "Resize"`, `db: azure.cosmos-db "Orders"`, `run: gcp.cloud-run "API"`, `pod: k8s.pod "web"`. This works in `architecture` and `sequence`. Run `press icons aws lambda` to find a name rather than guessing. Label the node with what this instance does, since the icon already names the product. Use the plain kinds when the vendor does not matter to the point.
+
 ### timeline
 
 Start an event line with its time. The forms are `2019`, `2019-03`, `2019-03-14`, `14:02`, `14:02:30`, and `2019-03-14T14:02`. For latencies and timeouts, use a time since the start: `0ms`, `+150ms`, `+2s`, `+5min`. Use one kind throughout, and keep the lines in order. `{until=…}` makes a span. A group becomes a shaded band across the time its members cover. Leave the times off when you want evenly spaced stages.

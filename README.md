@@ -75,3 +75,5 @@ npm run build:examples
 Node runs the TypeScript directly, so there is no build step. Layout for graph diagrams
 is pele's layered layout, vendored in `src/layout/pele` (MIT); see `docs/PRIOR_ART.md` for why.
 Fonts are Inter, Source Serif 4 and JetBrains Mono (SIL OFL), embedded in each page.
+Vendor icons in `assets/icons` (AWS, Azure, Google Cloud, Kubernetes) belong to their vendors and are
+not MIT; see [`assets/icons/NOTICE.md`](assets/icons/NOTICE.md).

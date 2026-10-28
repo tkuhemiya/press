@@ -5,7 +5,7 @@ import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
 import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
-import { GLYPH_W, glyphItems, kindItems } from './kinds.ts';
+import { GLYPH_W, ICON, ICON_W, glyphItems, iconItems, kindItems } from './kinds.ts';
 
 export const ARCHITECTURE: DiagramDef<'architecture'> = {
   type: 'architecture',
@@ -37,6 +37,7 @@ function build(fence: Fence, report: Reporter): Architecture {
   const nodes = graph.nodes.map((draft): Component => {
     const node: Component = toNode(draft);
     if (isKind(draft.kind)) node.kind = draft.kind;
+    if (draft.icon !== undefined) node.icon = draft.icon;
     return node;
   });
   const steps = resolveSteps(fence.steps, nodes, graph.edges, report);
@@ -52,11 +53,11 @@ const MAX_LABEL = 170;
 function componentShape(node: Component): NodeShape {
   const { kind } = node;
   const text = measureLabel(node.label, node.note, MAX_LABEL);
-  const icon = kind && kind !== 'database' ? GLYPH_W : 0;
+  const icon = node.icon ? ICON_W : kind && kind !== 'database' ? GLYPH_W : 0;
   const pad = kind === 'database' ? PAD_Y + CAP : PAD_Y;
   return {
     w: Math.max(MIN_W, Math.ceil(text.w + icon + 2 * PAD_X)),
-    h: Math.ceil(text.h + 2 * pad),
+    h: Math.ceil(Math.max(text.h, node.icon ? ICON : 0) + 2 * pad),
     draw(b, attrs) {
       const cx = b.x + b.w / 2 + icon / 2;
       const cy = b.y + b.h / 2 + (kind === 'database' ? CAP / 2 : 0);
@@ -67,6 +68,7 @@ function componentShape(node: Component): NodeShape {
         items: [
           ...kindItems(kind, b.x, b.y, b.w, b.h),
           ...(kind === 'database' ? [] : hatchItems(node, b, 9)),
+          ...(node.icon ? iconItems(node.icon, cx - text.w / 2 - ICON_W, b.y + b.h / 2) : []),
           ...(icon && kind ? glyphItems(kind, cx - text.first / 2 - 15, b.y + pad + 9) : []),
           ...textItems(text, cx, cy),
         ],
