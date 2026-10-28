@@ -897,3 +897,40 @@ describe('page hints on headings', () => {
     ]);
   });
 });
+
+describe('readability warnings', () => {
+  const warnings = (src: string) => parseDocument(src).diagnostics.filter((d) => d.severity === 'warning');
+  const chain = (n: number) => Array.from({ length: n }, (_, i) => `n${i} -> n${i + 1}`).join('\n');
+
+  it('warns when a diagram has too many nodes, with a fix', () => {
+    const [w] = warnings('```architecture\n' + chain(31) + '\n```\n');
+    expect(w).toMatchObject({ severity: 'warning', line: 1, message: expect.stringContaining('32 components') });
+    expect(w.hint).toContain('Split it into several smaller diagrams');
+  });
+
+  it('stays quiet at the limit and builds either way', () => {
+    expect(warnings('```architecture\n' + chain(29) + '\n```\n')).toEqual([]);
+    const { diagnostics } = parseDocument('```architecture\n' + chain(31) + '\n```\n');
+    expect(diagnostics.some((d) => d.severity === 'error')).toBe(false);
+  });
+
+  it('uses a lower limit for sequences and a higher one for timelines', () => {
+    const people = Array.from({ length: 11 }, (_, i) => `p${i} -> p${(i + 1) % 11}`).join('\n');
+    expect(warnings('```sequence\n' + people + '\n```\n')[0].message).toContain('11 participants');
+    const events = Array.from({ length: 41 }, (_, i) => `e${i}: "E${i}"`).join('\n');
+    expect(warnings('```timeline\n' + events + '\n```\n')[0].message).toContain('41 events');
+    expect(warnings('```timeline\n' + events.split('\n').slice(0, 40).join('\n') + '\n```\n')).toEqual([]);
+  });
+
+  it('warns about a long unbroken word in a label, on its own line', () => {
+    const url = 'https://example.com/' + 'a'.repeat(40);
+    const [w] = warnings(`\`\`\`architecture\nweb -> api : ${url}\n\`\`\`\n`);
+    expect(w).toMatchObject({ line: 2, message: expect.stringContaining('no spaces') });
+    expect(w.hint).toMatch(/Shorten it, add spaces/);
+  });
+
+  it('does not warn about long labels made of short words', () => {
+    const label = 'a label with many short words that is rather long indeed';
+    expect(warnings(`\`\`\`architecture\nweb -> api : ${label}\n\`\`\`\n`)).toEqual([]);
+  });
+});

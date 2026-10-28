@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { build, parseDocument } from '../src/index.ts';
 import { typstDocument } from '../src/render/typst.ts';
-import { textWidth } from '../src/text/measure.ts';
+import { textWidth, wrap } from '../src/text/measure.ts';
 
 const checkout = readFileSync(new URL('../docs/examples/checkout.md', import.meta.url), 'utf8');
 const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
@@ -80,7 +80,7 @@ waiting -> end
 \`\`\``;
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
-    expect(count(html, /class="pr-group"/g)).toBe(1);
+    expect(count(html, /class="pr-group pr-depth-1"/g)).toBe(1);
     expect(count(html, /class="pr-head"/g)).toBe(7);
     expect(html.slice(html.indexOf('<svg'), html.indexOf('</svg>'))).not.toMatch(/NaN|Infinity|undefined/);
   });
@@ -112,9 +112,9 @@ waiting -> end
     for (const kind of ['user', 'client', 'service', 'database', 'cache', 'queue', 'storage', 'external'])
       expect(svg).toMatch(new RegExp(`class="pr-node pr-component"[^>]*data-kind="${kind}"`));
     expect(count(svg, /class="pr-glyph"/g)).toBe(8);
-    expect(count(svg, /class="pr-group"/g)).toBe(1);
+    expect(count(svg, /class="pr-group pr-depth-1"/g)).toBe(1);
     expect(count(svg, /class="pr-step-marker"/g)).toBe(6);
-    expect(svg).toMatch(/class="pr-edge-label pr-on-group"[^>]*>.*?resize/);
+    expect(svg).toMatch(/class="pr-edge-label pr-on-group pr-depth-1"[^>]*>.*?resize/);
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
@@ -360,5 +360,43 @@ describe('print sections from page hints', () => {
   it('gives the heading block its page hint', () => {
     const doc = typstDocument(parseDocument('## Appendix {page=new}\n\nText.\n'));
     expect(doc.sections[0]?.heading).toMatchObject({ t: 'heading', level: 2, page: 'new' });
+  });
+});
+
+describe('long labels', () => {
+  const longest = (lines: string[], size: number) => Math.max(...lines.map((l) => textWidth(l, size)));
+
+  it('breaks a word wider than the line into pieces that fit', () => {
+    const lines = wrap('x'.repeat(300), 12.5, 150);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.join('')).toBe('x'.repeat(300));
+    expect(longest(lines, 12.5)).toBeLessThanOrEqual(150);
+  });
+
+  it('keeps ordinary words whole', () => {
+    expect(wrap('a short label', 14, 200)).toEqual(['a short label']);
+  });
+
+  it('keeps a long edge label inside a drawing of reasonable width', () => {
+    const src = '```architecture\nweb -> api : ' + 'y'.repeat(300) + '\n```\n';
+    const { html } = build(src, { embedFonts: false });
+    const width = Number(/viewBox="0 0 (\d+)/.exec(html)?.[1]);
+    expect(width).toBeLessThan(700);
+  });
+});
+
+describe('nested groups', () => {
+  const nested = '```architecture\ngroup "A" {\n  group "B" {\n    group "C" {\n      x\n    }\n  }\n}\nx -> y\n```\n';
+
+  it('tints each level deeper on screen', () => {
+    const { html } = build(nested, { embedFonts: false });
+    expect(html).toContain('class="pr-group pr-depth-1"');
+    expect(html).toContain('class="pr-group pr-depth-2"');
+    expect(html).toContain('class="pr-group pr-depth-3"');
+  });
+
+  it('tints each level deeper on paper', () => {
+    const fills = JSON.stringify(typstDocument(parseDocument(nested)));
+    for (const fill of ['#f5f3ed', '#edeae1', '#e4e1d6']) expect(fills).toContain(fill);
   });
 });

@@ -3,6 +3,9 @@ import type { RenderContext, Rendered } from './diagram.ts';
 import { trusted } from '../brand.ts';
 import {
   edgeItem,
+  groupClass,
+  groupDepths,
+  depthWhere,
   labelItem,
   markerItems,
   refMarkers,
@@ -130,13 +133,14 @@ export function renderGraph<N extends Node>(
   for (const p of placed)
     p.box = { x: ox + p.c.x - p.shape.w / 2, y: oy + p.c.y - p.shape.h / 2, w: p.shape.w, h: p.shape.h };
 
+  const depths = groupDepths(d.groups);
   const out: Item[] = d.groups.map((g, i) => {
     const c = cnodes[i];
     const x = ox + c.x - c.w / 2;
     const y = oy + c.y - c.h / 2;
     return {
       type: 'group',
-      cls: 'pr-group',
+      cls: groupClass(depths[i]),
       items: [
         { type: 'rect', x, y, w: c.w, h: c.h, r: 12 },
         { type: 'text', x: x + 14, y: y + 19, text: g.label },
@@ -144,8 +148,8 @@ export function renderGraph<N extends Node>(
     };
   });
 
-  const onGroup = (x: number, y: number): boolean =>
-    d.groups.some((_, i) => {
+  const onGroup = (x: number, y: number): number =>
+    depthWhere(depths, (i) => {
       const c = cnodes[i];
       return Math.abs(ox + c.x - x) < c.w / 2 && Math.abs(oy + c.y - y) < c.h / 2;
     });

@@ -12,6 +12,9 @@ import {
   type Mark,
 } from '../marks.ts';
 
+const groupFill = (within: (c: string) => boolean): string =>
+  within('pr-depth-3') ? INK.groupNested[1] : within('pr-depth-2') ? INK.groupNested[0] : INK.groupFill;
+
 export function graph(item: Leaf, ctx: Context): Mark {
   const { has, within } = look(item, ctx);
   const role = ctx.role;
@@ -19,8 +22,8 @@ export function graph(item: Leaf, ctx: Context): Mark {
     case 'rect': {
       const box = { k: 'rect' as const, x: item.x, y: item.y, w: item.w, h: item.h, r: item.r };
       if (item.hatch) return { ...box, hatch: ROLE.error.line };
-      if (has('pr-elabel-plate')) return { ...box, fill: within('pr-on-group') ? INK.groupFill : INK.paper };
-      if (within('pr-group')) return { ...box, fill: INK.groupFill, stroke: INK.groupLine, sw: 1 };
+      if (has('pr-elabel-plate')) return { ...box, fill: within('pr-on-group') ? groupFill(within) : INK.paper };
+      if (within('pr-group')) return { ...box, fill: groupFill(within), stroke: INK.groupLine, sw: 1 };
       if (within('pr-glyph')) return { ...box, ...GLYPH_LINE };
       return { ...box, ...nodeBox(role, has('pr-outcome')), ...(has('pr-external') ? DASH : {}) };
     }
