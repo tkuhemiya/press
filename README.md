@@ -41,7 +41,12 @@ npm install
 node src/cli.ts build docs/examples/checkout.md --out-dir out   # HTML
 node src/cli.ts build doc.md -o doc.pdf                    # PDF, typeset by Typst (needs typst on PATH)
 node src/cli.ts check doc.md                               # problems only
+node src/cli.ts preview doc.md                             # read it in the terminal
 ```
+
+`press preview` draws the whole document in the terminal, figures included, laid out for the
+terminal's width. It is dark by default, plain text when piped, and `--ascii` avoids box-drawing
+characters.
 
 Problems are reported with the line and a fix, so an LLM can correct its own source:
 

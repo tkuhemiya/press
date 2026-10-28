@@ -127,6 +127,15 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 
 Small multiples (several frames) are allowed only when the author asks for them explicitly. This is not part of v0.1.
 
+### Terminal
+
+*New in v0.6.* `press preview doc.md` writes the document to the terminal, the way glamour renders Markdown. It is for reading where there is no browser, and for agents checking their own work. A terminal is a fixed number of columns wide and scrolls without end, so figures are laid out for that rather than shrunk from the screen.
+
+- **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off.
+- **Steps and references work as on paper.** Steps become numbered markers (①) on the figure with the captions as a legend below it, and prose references become letters ([a]) in both the prose and the figure.
+- **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Colour only repeats them.
+- **Dark by default.** Terminals are usually dark, so colours are chosen for a dark background; `--theme light` is for light terminals. When the output is not a terminal, or `NO_COLOR` is set, it is plain text. `--ascii` draws with ASCII only.
+
 ## Diagram types in v0.1
 
 See `VISUALIZATIONS.md` for the full list and status.

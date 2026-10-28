@@ -1,0 +1,84 @@
+
+  OAuth’s authorization code flow, step by step
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  “Log in with GitHub” looks like one click, but four parties exchange six
+  messages, and the security of the whole thing rests on which of those messages
+  the browser can see.
+
+  Authorization code flow with PKCE
+
+                        ╭─ Your app ───╮  ╭─ GitHub ──────────╮
+   ┌───┐      ┌───────┐ ┌──────────────┐  ┌─────────────┐ ┌───┐
+   │You│      │Browser│ │App server [c]│  │Authorization│ │API│
+   │   │      │       │ │              │  │   server    │ │   │
+   └─┬─┘      └───┬───┘ └───────┬──────┘  └──────┬──────┘ └─┬─┘
+     ┊            ┊             ┊                ┊          ┊
+  ╭─ Front channel: through the browser [b] ─────┼──────────┼────╮
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊click "Log  ┊             ┊                ┊          ┊    │
+  │  ┊  in with   ┊             ┊                ┊          ┊    │
+  │  ┊  GitHub"   ┊             ┊                ┊          ┊    │
+  │  ├───────────▶┊             ┊                ┊          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊          redirect            ┊          ┊    │
+  │  ┊            ┊            with              ┊          ┊    │
+  │  ┊            ┊         client_id,           ┊          ┊    │
+  │  ┊            ┊         challenge ①          ┊          ┊    │
+  │  ┊            ├─────────────┼───────────────▶┊          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊             ┊     Allow      ┊          ┊    │
+  │  ┊            ┊             ┊   access? ②    ┊          ┊    │
+  │  ┊◀───────────┼─────────────┼────────────────┤          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊  approve   ┊             ┊                ┊          ┊    │
+  │  ├────────────┼─────────────┼───────────────▶┊          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊             ┊   redirect     ┊          ┊    │
+  │  ┊            ┊             ┊  with code ③   ┊          ┊    │
+  │  ┊            ┊◀╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊   code ④    ┊                ┊          ┊    │
+  │  ┊            ├────────────▶┊                ┊          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  ╰──┼────────────┼─────────────┼────────────────┼──────────┼────╯
+     ┊            ┊             ┊                ┊          ┊
+  ╭─ Back channel: server to server [d] ─────────┼──────────┼────╮
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊             ┊    code +      ┊          ┊    │
+  │  ┊            ┊             ┊  verifier +    ┊          ┊    │
+  │  ┊            ┊             ┊ secret ⑤ [a]   ┊          ┊    │
+  │  ┊            ┊             ├━━━━━━━━━━━━━━━▶┊          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊             ┊    access      ┊          ┊    │
+  │  ┊            ┊             ┊    token ⑥     ┊          ┊    │
+  │  ┊            ┊             ┊◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤          ┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊             ┊    request     ┊          ┊    │
+  │  ┊            ┊             ┊ with token ⑦   ┊          ┊    │
+  │  ┊            ┊             ├────────────────┼─────────▶┊    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  │  ┊            ┊             ┊                ┊  your    ┊    │
+  │  ┊            ┊             ┊                ┊ profile  ┊    │
+  │  ┊            ┊             ┊◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤    │
+  │  ┊            ┊             ┊                ┊          ┊    │
+  ╰──┼────────────┼─────────────┼────────────────┼──────────┼────╯
+     ┊            ┊             ┊                ┊          ┊
+
+  ① The app sends you to GitHub with its id and a hashed one-time challenge.
+  ② GitHub, not the app, asks for your consent.
+  ③ GitHub sends the browser back with a short-lived code. The code is not a
+     token.
+  ④ The browser hands the code to the app’s server.
+  ⑤ The server trades the code for a token, proving it is the same party that
+     started (verifier) and the real app (secret).
+  ⑥ The token goes straight to the server; it never passes through the
+     browser.
+  ⑦ The server can now call the API on your behalf.
+
+  The key move is the code exchange[a]: anything in the front channel[b] passes
+  through the browser and can be stolen, so the browser only ever carries a code
+  that is useless without the secret held by the app server[c]. The token itself
+  travels only in the back channel[d]. The challenge and verifier (PKCE) close
+  the remaining gap: even someone who intercepts the code cannot redeem it,
+  because only the party that started the flow knows the verifier.

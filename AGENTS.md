@@ -21,7 +21,7 @@ These were settled deliberately. Don't reopen them without a good reason.
 - **Paper is a budget.** Print should compress (annotate a single frame), not expand (one frame per step). See `docs/SPEC.md`.
 - **Pre-1.0 versioning:** 0.1, 0.2, 0.3…
 - **Vendor icons are the one exception to Press-chosen colour.** `aws.lambda`, `k8s.pod` and the like draw the vendor's own artwork in colour, because readers recognise them. Everything else stays meaning, not styling.
-- **Light themes only.** No dark mode. A light page reads well on screen and is already what print needs, so there is one visual language to get right.
+- **Light themes only.** No dark mode. A light page reads well on screen and is already what print needs, so there is one visual language to get right. The exception is `press preview`: terminals are usually dark, so the terminal output is dark by default, with a light theme for light terminals and plain text when piped.
 
 ## How to work here
 
@@ -34,9 +34,9 @@ These were settled deliberately. Don't reopen them without a good reason.
 ## Code
 
 - Node 26+, TypeScript run directly (erasable syntax only: no enums, namespaces or parameter properties). `npm test`; `npm run check` checks formatting (oxfmt), lints (oxlint, type-aware) and typechecks.
-- `src/model.ts` has one type per diagram. `src/parse/grammar.ts` turns a fence into plain statements, and each type's file in `src/diagrams` builds its model from them (with its own checks) and draws it; `src/diagrams/diagram.ts` registers them. `src/parse/document.ts` reads the Markdown, and `src/render` builds the page (`style.css`, `client.js`) and the paper (`typst.ts` and `press.typ`).
+- `src/model.ts` has one type per diagram. `src/parse/grammar.ts` turns a fence into plain statements, and each type's file in `src/diagrams` builds its model from them (with its own checks) and draws it; `src/diagrams/diagram.ts` registers them. `src/parse/document.ts` reads the Markdown, and `src/render` builds the page (`style.css`, `client.js`) and the paper (`typst.ts` and `press.typ`). `src/render/terminal.ts` and `src/render/term` draw the document for the terminal on a grid of character cells; graph layout there takes ranks and order from pele and routes edges itself.
 - No `as` or `!` (lint errors); brand ids and `Html` in `src/brand.ts` only.
 - Diagram SVG carries meaning as classes and `data-role`, never colours; styling lives in `style.css` for the screen and in `src/render/press.typ` for paper. Print has no browser stylesheet.
 - No comments in code; they go stale. Let names, types and tests carry the meaning. The one exception is `src/layout/pele`.
 - `src/layout/pele` is vendored. Keep changes there minimal and note them in the file header.
-- After a visual change, build the examples and look at them on screen and in print (`node src/cli.ts build doc.md -o doc.pdf`, which needs `typst` on PATH).
+- After a visual change, build the examples and look at them on screen, in print (`node src/cli.ts build doc.md -o doc.pdf`, which needs `typst` on PATH) and in the terminal (`node src/cli.ts preview doc.md`). The terminal snapshots in `tests/__snapshots__/terminal` show what changed.

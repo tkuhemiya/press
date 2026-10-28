@@ -1,0 +1,101 @@
+
+  How photo uploads work
+  ━━━━━━━━━━━━━━━━━━━━━━
+
+  A photo upload looks like one request, but most of the work happens after the
+  response. The browser never sends the image through the API: it uploads
+  straight to object storage, and the API only hands out permission and records
+  what arrived. This page shows the parts involved, then follows one upload
+  through them.
+
+  ## The parts
+
+  Photo uploads
+
+                     ┌──────────────┐
+                     │ Photographer │
+                     └───────┬──────┘
+                             │
+                             │
+                             │
+                             ▼
+                        ┌─────────┐
+                        │ Web app │
+                        └───┬─┬───┘
+                            │ ┃
+                            │ ┃
+         ╭──────────────────╯ ┃
+     request                  ┃
+   upload URL ①               ┃
+         │                    ┃
+         │                    ┃
+         │                    ┃
+   ╭─────╯                    ┗━━━━━━━━━━━━━━━━━━┓
+  ╭┼ Private network ───────────────────╮        ┃
+  ││                                    │        ┃
+  ││               ┌─────────────┐      │        ┃
+  ││               │ resize-jobs │      │        ┃
+  ││               └───────────┬─┘      │        ┃
+  ││                    ▲      ╎        │        ┃
+  ││             ╭╌╌╌╌╌╌╯      ╎        │        ┃
+  ││             ╎             ╎        │        ┃
+  ││             ╎         resize ⑤     │        ┃
+  │╰─────╮       ╎             ╎        │        ┃
+  │      ▼       ╎             ▼        │        ┃
+  │ ┌─────────┐  ╎      ┌─────────────┐ │        ┃
+  │ │ Uploads │  ╎      │ Resizer [c] │ │        ┃        ┌─────┐
+  │ │ API [b] │  ╎      │  scales to  │ │      PUT        │ CDN │
+  │ └────┬────┘  ╎      │   4 sizes   │ │   original ③    └──┬──┘
+  │      ┊       ╎      └─┬────────┬──┘ │        ┃           │
+  │      ┊       ╎        ┃        │    │        ┃           │
+  │      ┊       ╎        ┃        │    │        ┃           │
+  │      ┊       ╎        ┃        │    │        ┃           │
+  │    check     ╎  mark ready ⑥   │    │        ┃           │
+  │  session ②   ╎        ┃        │    │        ┃           │
+  │      ▼       ╎        ┃        │    │        ┃           │
+  │ ┌─────────┐  ╎        ▼        │    │        ┃           │
+  │ │ Session │  ╎  ┌───────────┐  │    │        ┃           │
+  │ │  cache  │  ╎  │ Photos DB │  │    │        ┃           │
+  │ └─────────┘  ╎  └───────────┘  │    │        ┃           │
+  │              ╎                 │    │        ┃           │
+  ╰──────────────┼─────────────────┼────╯        ┃           │
+                 ╎                 │             ┃           │
+                 ╎                 │             ┃           │
+                 ╎                 │             ┃           │
+                 ╎                 │             ┃           │
+                 ╎                 │             ┃           │
+              object             write           ┃       fetch on
+             created ④           sizes           ┃         miss
+                 ╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╮   ┃           │
+                                   │         ╎   ┃           │
+                                   │         ╎   ┃           │
+                                   │         ╎   ┃           │
+                                   ╰─────────┼─╮ ┃ ╭─────────╯
+                                             ╎ ▼ ▼ ▼
+                                        ╔════╩════════╗
+                                        ║   Object    ║
+                                        ║ storage [a] ║
+                                        ╚═════════════╝
+
+  ① The app asks the API for permission to upload, not to upload.
+  ② The API checks who is asking and signs a short-lived upload URL.
+  ③ The app sends the original straight to storage; the API never sees the
+     bytes.
+  ④ Storage announces the new object on a queue.
+  ⑤ A resizer picks the job up whenever it has capacity.
+  ⑥ Once every size exists, the photo is marked ready and appears in the
+     feed.
+
+  The key decision is that object storage[a] takes the upload directly. A large
+  file would otherwise tie up the API[b] for the whole transfer, and the API
+  would need as much bandwidth as every photographer combined.
+
+  The queue matters as much. Resizing is slow and bursty, so the resizer[c]
+  works at its own pace and a spike in uploads only makes the queue longer.
+  Nothing the photographer is waiting on gets slower.
+
+  ## What can go wrong
+
+  If the resizer falls behind, photos stay in the queue and the feed shows them
+  late, but no upload fails. If the API is down, no new uploads can start, but
+  the ones already in flight still finish, because they only need storage.

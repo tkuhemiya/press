@@ -17,7 +17,7 @@ The language is in `docs/SPEC.md`. This file is how to write it well.
 4. Write the fence. Set `id` and `title` when prose will refer to the diagram.
 5. Add `steps:` when order matters. Link a node from prose with `[text](#id.node)`, an edge with `[text](#id.from->to)`.
 6. Run `press check doc.md`. Fix every error and every warning. Each message names the line and states a fix you can apply as written.
-7. Build it and look: `press build doc.md --out-dir out`, then open the HTML, and `press build doc.md -o doc.pdf` for paper. The checker cannot see raw ids used as labels, text shrunk too small, or a figure that says something other than you meant. If you cannot open a browser, say so to the user rather than skipping this step silently.
+7. Build it and look: `press build doc.md --out-dir out`, then open the HTML, and `press build doc.md -o doc.pdf` for paper. The checker cannot see raw ids used as labels, text shrunk too small, or a figure that says something other than you meant. If you cannot open a browser, run `press preview doc.md` and read the output: every figure is drawn in text, and the same mistakes show there. Say so to the user if you could look neither way.
 
 ## Choose a type
 
