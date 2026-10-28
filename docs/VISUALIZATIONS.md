@@ -6,12 +6,12 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 
 ## Roadmap
 
-- **v0.1:** core grammar, parser, HTML + print renderers, `state-machine`, `sequence`, steps, prose references
-- **v0.2:** `architecture`, `causal-loop`, `timeline`
-- **v0.3:** properties in the shared grammar, `decision-tree`, `er`, `tradeoffs`, and a skill file that teaches agents to write Press
-- **v0.4:** phases in `sequence`, lanes and times since the start in `timeline`, caveats in `tradeoffs`, prose links to edges, phases and loops. Chosen from the authoring eval (`docs/eval/REPORT.md`)
-- **v0.5:** native Typst print, page-aware figure sizing, and page hints on headings
-- **v0.5 and later:** the rest, prioritized by what software explanations need most
+- **v0.1** (shipped): core grammar, parser, HTML + print renderers, `state-machine`, `sequence`, steps, prose references
+- **v0.2** (shipped): `architecture`, `causal-loop`, `timeline`
+- **v0.3** (shipped): properties in the shared grammar, `decision-tree`, `er`, `tradeoffs`, and a skill file that teaches agents to write Press
+- **v0.4** (shipped): phases in `sequence`, lanes and times since the start in `timeline`, caveats in `tradeoffs`, prose links to edges, phases and loops. Chosen from the authoring eval (`docs/eval/REPORT.md`)
+- **v0.5** (shipped): native Typst print, page-aware figure sizing, and page hints on headings
+- **v0.6 and later:** the rest, prioritized by what software explanations need most
 
 ## Software
 
