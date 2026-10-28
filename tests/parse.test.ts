@@ -181,6 +181,26 @@ describe('diagnostics name the line and suggest a fix', () => {
     expect(doc.diagnostics[0].hint).toContain('state-machine');
     expect(doc.figures).toHaveLength(0);
   });
+
+  it('warns when a fence of another type looks like a diagram', () => {
+    const doc = parseDocument('```flowchart\na -> b\n```\n\n```\nstart -> idle : boot\n```\n');
+    expect(doc.diagnostics).toMatchObject([
+      {
+        severity: 'warning',
+        line: 1,
+        message: expect.stringContaining('`flowchart`'),
+        hint: expect.stringContaining('state-machine'),
+      },
+      { severity: 'warning', line: 5, message: expect.stringContaining('no diagram type') },
+    ]);
+  });
+
+  it('leaves ordinary and verbatim code fences alone', () => {
+    const doc = parseDocument(
+      '```rust\nfn next(&self) -> u32 {}\n```\n\n```ts\nconst x = 1;\n```\n\n```text\na -> b\n```\n',
+    );
+    expect(doc.diagnostics).toEqual([]);
+  });
 });
 
 describe('steps', () => {

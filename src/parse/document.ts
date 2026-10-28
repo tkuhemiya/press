@@ -48,6 +48,8 @@ interface Parsed {
 const parsed = new WeakMap<Document, Parsed>();
 
 const REF = /^#([a-z0-9_]+(?:-[a-z0-9_]+)*)\.(.+)$/;
+const EDGE_LINE = /^\s*[\w.]+\s*(?:->|-->|<->)\s*[\w.]+(?:\s*(?:->|-->|<->)\s*[\w.]+)*\s*(?::.*|\{.*\})?$/m;
+const VERBATIM = new Set(['markdown', 'md', 'text', 'txt', 'plaintext']);
 const TYPES: DiagramType[] = Object.keys(GRAMMARS).filter(isDiagramType);
 
 export function parseDocument(source: string): Document {
@@ -70,13 +72,7 @@ export function parseDocument(source: string): Document {
     const lang = info.split(/\s+/)[0] ?? '';
     const line = (t.map?.[0] ?? 0) + 1;
     if (!isDiagramType(lang)) {
-      const near = closest(lang, TYPES);
-      if (near && lang && near !== lang)
-        report.warn(
-          line,
-          `\`${lang}\` is not a Press diagram type, so this fence renders as code.`,
-          `Did you mean \`${near}\`? Diagram types: ${list(TYPES)}.`,
-        );
+      warnStrayFence(lang, t.content, line, report);
       continue;
     }
     const fence = parseFence(
@@ -296,4 +292,23 @@ function letter(n: number): string {
     n = Math.floor(n / 26);
   }
   return s;
+}
+
+function warnStrayFence(lang: string, body: string, line: number, report: Reporter): void {
+  const near = closest(lang, TYPES);
+  const types = `Diagram types: ${list(TYPES)}.`;
+  if (lang && near)
+    report.warn(
+      line,
+      `\`${lang}\` is not a Press diagram type, so this fence renders as code.`,
+      `Did you mean \`${near}\`? ${types}`,
+    );
+  else if (!VERBATIM.has(lang.toLowerCase()) && EDGE_LINE.test(body))
+    report.warn(
+      line,
+      lang
+        ? `\`${lang}\` is not a Press diagram type, so this fence renders as code although it looks like a diagram.`
+        : 'This fence has no diagram type, so it renders as code although it looks like a diagram.',
+      `Name a diagram type after the opening backticks, e.g. \`state-machine\`. ${types}`,
+    );
 }

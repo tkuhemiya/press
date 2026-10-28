@@ -48,7 +48,7 @@ If two types fit, pick the one whose edges mean what you want to say. A sequence
 
 ## The shared grammar
 
-```
+```text
 a -> b : label               edge. --> is dashed. <-> goes both ways.
 a -> b -> c                  chain. One edge per segment. No label on a chain.
 id: kind "Label" {attrs}     declaration. kind and label are optional.

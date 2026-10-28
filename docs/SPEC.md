@@ -2,7 +2,7 @@
 
 ## Document
 
-A Press document is CommonMark. A fenced code block whose language tag is a known diagram type is rendered as that diagram. All other fences are ordinary code blocks.
+A Press document is CommonMark. A fenced code block whose language tag is a known diagram type is rendered as that diagram. All other fences are ordinary code blocks. Press warns when such a fence looks like a mistake: its tag is close to a diagram type, or its body has edge lines such as `a -> b` (unless the tag is `text` or `markdown`, which show source verbatim).
 
 Fence header:
 
