@@ -1,4 +1,14 @@
-import type { Architecture, CausalLoop, DecisionTree, Direction, Edge, Er, Node, StateMachine } from '../../model.ts';
+import type {
+  C4Diagram,
+  CausalLoop,
+  DecisionTree,
+  Direction,
+  Edge,
+  Er,
+  Group,
+  Node,
+  StateMachine,
+} from '../../model.ts';
 import type { Line, Seg, TermEdge, TermGraph, TermNode } from './graph.ts';
 import { edgeLook, errorMark, labelLines, nodeLook, type Markers } from './style.ts';
 import type { Theme } from './theme.ts';
@@ -59,10 +69,27 @@ export function stateMachineGraph(d: StateMachine, ctx: Ctx): TermGraph {
   return { nodes, edges: d.edges.map((e) => plainEdge(e, ctx)), groups: d.groups };
 }
 
-export function architectureGraph(d: Architecture, ctx: Ctx): TermGraph {
+interface Kinded {
+  nodes: readonly (Node & { kind?: string; icon?: string })[];
+  edges: readonly Edge[];
+  groups: readonly Group[];
+}
+
+export function kindedGraph(d: Kinded, ctx: Ctx): TermGraph {
   const nodes = d.nodes.map((node) => {
     const tag = ctx.maxLabel > 10 ? (node.icon ?? node.kind) : undefined;
     return plainNode(node, ctx, tag ? { tag } : {});
+  });
+  return { nodes, edges: d.edges.map((e) => plainEdge(e, ctx)), groups: d.groups };
+}
+
+export function c4Graph(d: C4Diagram, ctx: Ctx): TermGraph {
+  const nodes = d.nodes.map((node) => {
+    const sub = [node.tech === undefined ? undefined : `[${node.tech}]`, node.note].filter((t) => t !== undefined);
+    const shown: Node = sub.length ? { ...node, note: sub.join(' · ') } : node;
+    const tag = ctx.maxLabel > 10 ? node.kind : undefined;
+    const term = plainNode(shown, ctx, tag ? { tag } : {});
+    return node.external && term.border === 'light' ? { ...term, border: 'dashed' as const } : term;
   });
   return { nodes, edges: d.edges.map((e) => plainEdge(e, ctx)), groups: d.groups };
 }

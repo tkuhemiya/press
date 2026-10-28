@@ -105,8 +105,10 @@
 
 // Prose
 
+#let soft(s) = s.replace(regex("\\S{20}"), m => m.text + "\u{200B}")
+
 #let inl(xs) = xs.map(x => {
-  if x.t == "text" { x.s }
+  if x.t == "text" { soft(x.s) }
   else if x.t == "strong" { strong(inl(x.c)) }
   else if x.t == "em" { emph(inl(x.c)) }
   else if x.t == "code" { raw(x.s) }
@@ -157,7 +159,7 @@
 #let figure-block(f, i: 0, k: 1.0) = {
   let variant = f.variants.at(i)
   block(breakable: false, width: 100%, above: 1.3em, below: 1.4em, {
-    if "title" in f { block(below: 6pt, text(font: sans, size: 9pt, weight: 600, fill: ink2, f.title)) }
+    if "title" in f { block(below: 6pt, text(font: sans, size: 9pt, weight: 600, fill: ink2, soft(f.title))) }
     let art = drawing(variant.scene, doc.scale * variant.fit * k * 1pt)
     if f.steps.len() == 0 { align(center, art) }
     else if variant.beside { grid(columns: (auto, 1fr), column-gutter: 18pt, align: horizon, art, legend(f.steps)) }

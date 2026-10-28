@@ -3,11 +3,12 @@ import type { Figure } from '../../parse/document.ts';
 import { view } from '../../diagrams/diagram.ts';
 import { htmlInlines } from '../blocks.ts';
 import {
-  architectureGraph,
+  c4Graph,
   causalLoopGraph,
   decisionTreeGraph,
   directionsFor,
   erGraph,
+  kindedGraph,
   loopLegend,
   stateMachineGraph,
   type Ctx,
@@ -58,7 +59,11 @@ function body(f: Figure, theme: Theme, mark: Markers, width: number): string[] {
     case 'state-machine':
       return graph((c) => stateMachineGraph(d, c), directionsFor(d.direction, turnable));
     case 'architecture':
-      return graph((c) => architectureGraph(d, c), directionsFor(d.direction, turnable));
+    case 'data-flow':
+    case 'deployment':
+      return graph((c) => kindedGraph(d, c), directionsFor(d.direction, turnable));
+    case 'c4':
+      return graph((c) => c4Graph(d, c), directionsFor(d.direction, turnable));
     case 'decision-tree':
       return graph((c) => decisionTreeGraph(d, c), directionsFor(d.direction, turnable));
     case 'causal-loop':

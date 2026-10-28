@@ -213,6 +213,30 @@ export function header<T extends string>(
   return out;
 }
 
+export function buildKinded<K extends string>(
+  fence: Fence,
+  report: Reporter,
+  kinds: readonly K[],
+): GraphParts<Node & { kind?: K; icon?: string }> {
+  const graph = buildGraph(fence, report, {
+    label: (id) => id.replace(/_/g, ' '),
+    empty: 'Add at least one edge, e.g. `a -> b : label`.',
+  });
+  const nodes = graph.nodes.map((draft) => {
+    const node: Node & { kind?: K; icon?: string } = toNode(draft);
+    const kind = kinds.find((k) => k === draft.kind);
+    if (kind !== undefined) node.kind = kind;
+    if (draft.icon !== undefined) node.icon = draft.icon;
+    return node;
+  });
+  return {
+    nodes,
+    edges: graph.edges,
+    groups: graph.groups,
+    steps: resolveSteps(fence.steps, nodes, graph.edges, report),
+  };
+}
+
 export function inGroup(groups: readonly Group[], start: GroupId | undefined, g: number): boolean {
   for (let p = start; p !== undefined; p = groups[p].parent) if (p === g) return true;
   return false;

@@ -118,6 +118,7 @@ for (const file of files) {
 process.exit(failed ? 1 : 0);
 
 function typeset(json: string, target: string): void {
+  requireTypst();
   const dir = mkdtempSync(join(tmpdir(), 'press-'));
   const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
   try {
@@ -169,4 +170,16 @@ function fitReports(entry: string, common: string[], choices: Choices): Report[]
     { encoding: 'utf8' },
   );
   return parseReports(out);
+}
+
+function requireTypst(): void {
+  try {
+    execFileSync('typst', ['--version'], { stdio: 'ignore' });
+  } catch {
+    console.error(
+      'error: `typst` was not found on PATH, so the PDF cannot be typeset.\n' +
+        '  fix: Install Typst (https://github.com/typst/typst) and put `typst` on PATH, or build HTML with `-o out.html` or `--out-dir`.',
+    );
+    process.exit(1);
+  }
 }

@@ -1,4 +1,4 @@
-import { targetName, type Arrow, type EdgeIndex, type NodeId, type Role, type Target } from '../model.ts';
+import { targetName, type Arrow, type Group, type EdgeIndex, type NodeId, type Role, type Target } from '../model.ts';
 import type { RenderContext } from './diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
@@ -81,13 +81,28 @@ export function edgeItem(e: EdgeLike, p: EdgePath, both: boolean): Item {
   };
 }
 
-export function labelItem(e: Labelled, x: number, y: number, onGroup: boolean): Item {
+const MAX_GROUP_DEPTH = 3;
+
+export function groupDepths(groups: readonly Group[]): number[] {
+  const depth = (i: number): number => {
+    const parent = groups[i].parent;
+    return parent === undefined ? 1 : depth(parent) + 1;
+  };
+  return groups.map((_, i) => Math.min(MAX_GROUP_DEPTH, depth(i)));
+}
+
+export const groupClass = (depth: number): string => `pr-group pr-depth-${depth}`;
+
+export const depthWhere = (depths: readonly number[], inside: (group: number) => boolean): number =>
+  Math.max(0, ...depths.filter((_, i) => inside(i)));
+
+export function labelItem(e: Labelled, x: number, y: number, depth: number): Item {
   const lines = e.label ? wrap(e.label, LABEL_FONT, MAX_EDGE_LABEL) : [];
   const w = Math.max(...lines.map((l) => textWidth(l, LABEL_FONT))) + 8;
   const h = lines.length * LABEL_LINE + 2;
   return {
     type: 'group',
-    cls: `pr-edge-label${onGroup ? ' pr-on-group' : ''}`,
+    cls: `pr-edge-label${depth ? ` pr-on-group pr-depth-${depth}` : ''}`,
     attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
     items: [
       { type: 'rect', cls: 'pr-elabel-plate', x: x - w / 2, y: y - h / 2, w, h, r: 3 },

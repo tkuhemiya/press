@@ -121,7 +121,7 @@ function iconProblem(icon: string, grammar: Grammar, type: string): [string, str
   if (!grammar.icons)
     return [
       `${type} has no icons; \`${icon}\` is ignored.`,
-      'Icons are for `architecture` and `sequence`. Drop it and keep the label.',
+      'Icons are for `architecture`, `sequence` and `deployment`. Drop it and keep the label.',
     ];
   const [vendor = '', name = ''] = icon.split('.');
   if (!isVendor(vendor)) {

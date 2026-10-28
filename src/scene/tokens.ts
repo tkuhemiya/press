@@ -11,6 +11,7 @@ export const INK = {
   edge: '#77736a',
   groupFill: '#f5f3ed',
   groupLine: '#e4e0d5',
+  groupNested: ['#edeae1', '#e4e1d6'],
   mutedLine: '#dcd8ce',
   mutedInk: '#aaa59a',
 } as const;

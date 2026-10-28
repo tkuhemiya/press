@@ -1,8 +1,12 @@
-import type { Direction, Edge, EdgeTarget, Group, Node, NodeId, NodeTarget, Step } from '../model.ts';
+import type { Direction, Edge, EdgeIndex, EdgeTarget, Group, Node, NodeId, NodeTarget, Part, Step } from '../model.ts';
 import type { RenderContext, Rendered } from './diagram.ts';
 import { trusted } from '../brand.ts';
+import { edgeEnds, lean, nodeParts, type GraphParts } from '../parse/graph.ts';
 import {
   edgeItem,
+  groupClass,
+  groupDepths,
+  depthWhere,
   labelItem,
   markerItems,
   refMarkers,
@@ -42,6 +46,29 @@ export interface DrawableGraph<N extends Node> {
   edges: readonly Edge[];
   groups: readonly Group[];
   steps: readonly Step<NodeTarget | EdgeTarget>[];
+}
+
+interface GraphMethods<D> {
+  render(d: D, context: RenderContext): Rendered;
+  targets(d: D): Part[];
+  ends(d: D, edge: EdgeIndex): [string, string] | undefined;
+  turnable(d: D): boolean;
+  withoutMuted(d: D, pinned: (id: NodeId) => boolean): D | undefined;
+}
+
+export function graphMethods<N extends Node, D extends GraphParts<N> & { direction?: Direction }>(
+  style: GraphStyle<N>,
+): GraphMethods<D> {
+  return {
+    render: (d, context) => renderGraph(d, context, style),
+    targets: (d) => nodeParts(d.nodes),
+    ends: (d, edge) => edgeEnds(d.edges, edge),
+    turnable: (d) => d.direction === undefined,
+    withoutMuted(d, pinned) {
+      const kept = lean(d, pinned);
+      return kept && { ...d, ...kept };
+    },
+  };
 }
 
 interface Placed<N extends Node> {
@@ -130,13 +157,14 @@ export function renderGraph<N extends Node>(
   for (const p of placed)
     p.box = { x: ox + p.c.x - p.shape.w / 2, y: oy + p.c.y - p.shape.h / 2, w: p.shape.w, h: p.shape.h };
 
+  const depths = groupDepths(d.groups);
   const out: Item[] = d.groups.map((g, i) => {
     const c = cnodes[i];
     const x = ox + c.x - c.w / 2;
     const y = oy + c.y - c.h / 2;
     return {
       type: 'group',
-      cls: 'pr-group',
+      cls: groupClass(depths[i]),
       items: [
         { type: 'rect', x, y, w: c.w, h: c.h, r: 12 },
         { type: 'text', x: x + 14, y: y + 19, text: g.label },
@@ -144,8 +172,8 @@ export function renderGraph<N extends Node>(
     };
   });
 
-  const onGroup = (x: number, y: number): boolean =>
-    d.groups.some((_, i) => {
+  const onGroup = (x: number, y: number): number =>
+    depthWhere(depths, (i) => {
       const c = cnodes[i];
       return Math.abs(ox + c.x - x) < c.w / 2 && Math.abs(oy + c.y - y) < c.h / 2;
     });

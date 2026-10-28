@@ -114,6 +114,33 @@ export type Architecture = Graph<Component, Edge, NodeTarget | EdgeTarget> & {
   direction?: Direction;
 };
 
+export const DATA_FLOW_KINDS = ['external', 'process', 'store'] as const;
+export type DataFlowKind = (typeof DATA_FLOW_KINDS)[number];
+export type FlowNode = Node & { kind?: DataFlowKind };
+
+export type DataFlow = Graph<FlowNode, Edge, NodeTarget | EdgeTarget> & {
+  type: 'data-flow';
+  direction?: Direction;
+};
+
+export const C4_KINDS = ['person', 'system', 'container'] as const;
+export type C4Kind = (typeof C4_KINDS)[number];
+export type C4Node = Node & { kind?: C4Kind; external: boolean; tech?: string };
+
+export type C4Diagram = Graph<C4Node, Edge, NodeTarget | EdgeTarget> & {
+  type: 'c4';
+  direction?: Direction;
+};
+
+export const DEPLOYMENT_KINDS = ['node', 'workload', 'lb', 'cdn', 'volume'] as const;
+export type DeploymentKind = (typeof DEPLOYMENT_KINDS)[number];
+export type Placement = Node & { kind?: DeploymentKind; icon?: string };
+
+export type Deployment = Graph<Placement, Edge, NodeTarget | EdgeTarget> & {
+  type: 'deployment';
+  direction?: Direction;
+};
+
 export type Polarity = '+' | '-';
 export type Link = Edge<'->' | '-->'> & { polarity: Polarity; delay: boolean };
 
@@ -220,6 +247,9 @@ export interface DiagramMap {
   'state-machine': StateMachine;
   sequence: Sequence;
   architecture: Architecture;
+  'data-flow': DataFlow;
+  c4: C4Diagram;
+  deployment: Deployment;
   'causal-loop': CausalLoop;
   timeline: Timeline;
   'decision-tree': DecisionTree;

@@ -11,6 +11,8 @@
   --edge: #77736a;
   --group-fill: #f5f3ed;
   --group-line: #e4e0d5;
+  --group-fill-2: #edeae1;
+  --group-fill-3: #e4e1d6;
 
   --focus: #2f5bd3;
   --focus-fill: #eef2fd;
@@ -178,6 +180,11 @@ th {
     0 0 0 2px var(--paper),
     0 0 0 4px color-mix(in srgb, var(--signal) 45%, transparent);
 }
+.pr-title,
+.pr-legend,
+.pr-caption {
+  overflow-wrap: anywhere;
+}
 .pr-title {
   font: 600 13.5px/1.3 var(--sans);
   color: var(--ink-2);
@@ -221,6 +228,14 @@ th {
 .pr-external {
   stroke-dasharray: 4 3;
 }
+.pr-box.pr-faint {
+  fill: var(--group-fill);
+}
+.pr-store-fill {
+  fill: var(--node-fill);
+  stroke: none;
+  transition: fill 0.35s var(--ease);
+}
 .pr-label {
   font-weight: 500;
   font-size: 14px;
@@ -256,6 +271,7 @@ th {
   stroke: var(--edge);
   stroke-width: 1.4;
   stroke-linecap: round;
+  stroke-linejoin: round;
   transition:
     stroke 0.35s var(--ease),
     stroke-width 0.35s var(--ease);
@@ -294,6 +310,24 @@ th {
   fill: var(--group-fill);
   stroke: var(--group-line);
   stroke-width: 1;
+}
+.pr-group.pr-depth-2 rect {
+  fill: var(--group-fill-2);
+}
+.pr-group.pr-depth-3 rect {
+  fill: var(--group-fill-3);
+}
+.pr-on-group.pr-depth-2 .pr-elabel-plate {
+  fill: var(--group-fill-2);
+}
+.pr-on-group.pr-depth-2 .pr-elabel {
+  stroke: var(--group-fill-2);
+}
+.pr-on-group.pr-depth-3 .pr-elabel-plate {
+  fill: var(--group-fill-3);
+}
+.pr-on-group.pr-depth-3 .pr-elabel {
+  stroke: var(--group-fill-3);
 }
 .pr-group text {
   font-weight: 600;
@@ -633,6 +667,15 @@ th {
   fill: var(--focus-fill);
   stroke-width: 2;
 }
+.pr-node[data-role='focus'] .pr-store-fill {
+  fill: var(--focus-fill);
+}
+.pr-node[data-role='happy'] .pr-store-fill {
+  fill: var(--happy-fill);
+}
+.pr-node[data-role='error'] .pr-store-fill {
+  fill: var(--error-fill);
+}
 .pr-node[data-role='happy'] .pr-box {
   stroke: var(--happy);
   fill: var(--happy-fill);
@@ -768,7 +811,8 @@ th {
     stroke: var(--signal);
     stroke-width: 2;
   }
-  .pr-walking .pr-node.is-arrived .pr-box {
+  .pr-walking .pr-node.is-arrived .pr-box,
+  .pr-walking .pr-node.is-arrived .pr-store-fill {
     fill: color-mix(in srgb, var(--signal) 7%, white);
   }
   .pr-walking .pr-node.is-current .pr-event-dot {

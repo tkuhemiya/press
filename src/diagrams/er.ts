@@ -6,6 +6,9 @@ import { buildGraph, header, leanBy, nodeParts, resolvePartSteps, toNode } from 
 import { trusted } from '../brand.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/compound.ts';
 import {
+  groupClass,
+  groupDepths,
+  depthWhere,
   labelItem,
   markerItems,
   refMarkers,
@@ -335,13 +338,14 @@ function render(d: Er, context: RenderContext): Rendered {
   }
 
   let maxX = layout.width + MARGIN;
+  const depths = groupDepths(d.groups);
   const groups: Item[] = d.groups.map((g, i) => {
     const c = cnodes[i];
     const x = MARGIN + c.x - c.w / 2;
     const y = MARGIN + c.y - c.h / 2;
     return {
       type: 'group',
-      cls: 'pr-group',
+      cls: groupClass(depths[i]),
       items: [
         { type: 'rect', x, y, w: c.w, h: c.h, r: 12 },
         { type: 'text', x: x + 14, y: y + 19, text: g.label },
@@ -366,8 +370,8 @@ function render(d: Er, context: RenderContext): Rendered {
     } else anchors.set(e.index, { x: mx, y: my });
   }
 
-  function onGroup(x: number, y: number): boolean {
-    return d.groups.some((_, i) => {
+  function onGroup(x: number, y: number): number {
+    return depthWhere(depths, (i) => {
       const c = cnodes[i];
       return Math.abs(MARGIN + c.x - x) < c.w / 2 && Math.abs(MARGIN + c.y - y) < c.h / 2;
     });
