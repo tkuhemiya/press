@@ -16,6 +16,7 @@ export type Mark =
   | ({ k: 'circle'; cx: number; cy: number; r: number; fill?: string } & Stroke)
   | ({ k: 'ellipse'; cx: number; cy: number; rx: number; ry: number; fill?: string } & Stroke)
   | ({ k: 'path'; segs: Seg[]; fill?: string } & Stroke)
+  | { k: 'image'; x: number; y: number; w: number; h: number; svg: string }
   | {
       k: 'text';
       x: number;

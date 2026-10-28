@@ -7,12 +7,18 @@ import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, formatDiagnostic } from './index.ts';
 import { typstDocument } from './render/typst.ts';
+import { ICON_VENDORS, iconNames, isVendor } from './icons.ts';
+import { renderTerminal } from './render/terminal.ts';
+import type { ThemeName } from './render/term/theme.ts';
 import { parseReports, settle, unfitSections, type Choices, type Report } from './render/settle.ts';
 
 const USAGE = `Usage:
   press build <file.md> -o out.html | out.pdf               Render to HTML, or typeset to PDF (needs typst)
   press build <file.md...> --out-dir dir                    Render each file to HTML
-  press check <file.md...>                                  Report problems only`;
+  press check <file.md...>                                  Report problems only
+  press preview <file.md...> [--width N] [--theme dark|light|plain] [--ascii]
+                                                            Render to the terminal, like glamour
+  press icons [aws|azure|gcp|k8s] [word]                    List icon names, optionally only those containing word`;
 
 const MAX_ROUNDS = 50;
 
@@ -20,11 +26,58 @@ const args = process.argv.slice(2);
 const command = args.shift();
 let out: string | undefined;
 let outDir: string | undefined;
+let width: number | undefined;
+let theme: string | undefined;
+let ascii = false;
 const files: string[] = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '-o' || args[i] === '--out') out = args[++i];
   else if (args[i] === '--out-dir') outDir = args[++i];
+  else if (args[i] === '--width') width = Number(args[++i]);
+  else if (args[i] === '--theme') theme = args[++i];
+  else if (args[i] === '--ascii') ascii = true;
   else files.push(args[i]);
+}
+
+if (command === 'icons') {
+  const [vendor, word = ''] = files;
+  if (vendor === undefined) {
+    for (const v of ICON_VENDORS) console.log(`${v}  ${iconNames(v).length} icons`);
+    process.exit(0);
+  }
+  if (!isVendor(vendor)) {
+    console.error(`Unknown icon set \`${vendor}\`. Icon sets: ${ICON_VENDORS.join(', ')}.`);
+    process.exit(2);
+  }
+  for (const name of iconNames(vendor)) if (name.includes(word)) console.log(`${vendor}.${name}`);
+  process.exit(0);
+}
+
+if (command === 'preview') {
+  if (!files.length) {
+    console.error(USAGE);
+    process.exit(2);
+  }
+  if (theme !== undefined && !isTheme(theme)) {
+    console.error(`Unknown theme \`${theme}\`. Themes: dark, light, plain.`);
+    process.exit(2);
+  }
+  const tty = process.stdout.isTTY === true;
+  const colour = !process.env.NO_COLOR && (tty || Boolean(process.env.FORCE_COLOR));
+  const name: ThemeName = theme ?? (colour ? 'dark' : 'plain');
+  const columns = width ?? (tty ? Math.min(process.stdout.columns || 80, 100) : 80);
+  let failed = false;
+  for (const file of files) {
+    const document = build(readFileSync(file, 'utf8')).document;
+    for (const d of document.diagnostics) console.error(formatDiagnostic(d, file));
+    if (document.diagnostics.some((d) => d.severity === 'error')) failed = true;
+    process.stdout.write(renderTerminal(document, { width: columns, theme: name, ascii, links: tty }) + '\n');
+  }
+  process.exit(failed ? 1 : 0);
+}
+
+function isTheme(t: string): t is ThemeName {
+  return t === 'dark' || t === 'light' || t === 'plain';
 }
 
 if (!command || !['build', 'check'].includes(command) || !files.length) {

@@ -41,7 +41,12 @@ npm install
 node src/cli.ts build docs/examples/checkout.md --out-dir out   # HTML
 node src/cli.ts build doc.md -o doc.pdf                    # PDF, typeset by Typst (needs typst on PATH)
 node src/cli.ts check doc.md                               # problems only
+node src/cli.ts preview doc.md                             # read it in the terminal
 ```
+
+`press preview` draws the whole document in the terminal, figures included, laid out for the
+terminal's width. It is dark by default, plain text when piped, and `--ascii` avoids box-drawing
+characters.
 
 Problems are reported with the line and a fix, so an LLM can correct its own source:
 
@@ -75,3 +80,5 @@ npm run build:examples
 Node runs the TypeScript directly, so there is no build step. Layout for graph diagrams
 is pele's layered layout, vendored in `src/layout/pele` (MIT); see `docs/PRIOR_ART.md` for why.
 Fonts are Inter, Source Serif 4 and JetBrains Mono (SIL OFL), embedded in each page.
+Vendor icons in `assets/icons` (AWS, Azure, Google Cloud, Kubernetes) belong to their vendors and are
+not MIT; see [`assets/icons/NOTICE.md`](assets/icons/NOTICE.md).

@@ -58,6 +58,7 @@ export const sequence: Rule = (item, ctx) => {
       return linesMark(item, edgeLabel(ctx.role), 'start');
     case 'circle':
     case 'ellipse':
+    case 'image':
       return undefined;
   }
 };

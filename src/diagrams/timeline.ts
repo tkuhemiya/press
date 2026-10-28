@@ -734,7 +734,7 @@ function bezier(ax: number, ay: number, bx: number, by: number, t: number): [num
   return [x, y];
 }
 
-function causalOrder(d: Timeline): Moment[] {
+export function causalOrder(d: Timeline): Moment[] {
   const nodes = [...d.nodes].sort((a, b) => a.line - b.line);
   const before = new Map<NodeId, NodeId[]>(nodes.map((node) => [node.id, []]));
   const lastIn = new Map<number | undefined, NodeId>();
@@ -814,7 +814,7 @@ function groupBands(groups: readonly Group[], events: readonly Card[]): Band[] {
   });
 }
 
-function formatTime(t: Time): string {
+export function formatTime(t: Time): string {
   if (t.form === 'clock') return t.text.replace(/^(\d):/, '0$1:');
   if (t.form === 'elapsed') return formatElapsed(t.value);
   const date = new Date(t.value);

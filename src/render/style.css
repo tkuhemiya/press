@@ -649,6 +649,9 @@ th {
 .pr-node[data-role='muted'] .pr-label {
   fill: var(--muted-ink);
 }
+.pr-node[data-role='muted'] .pr-icon {
+  opacity: 0.45;
+}
 .pr-edge[data-role='focus'] .pr-line {
   stroke: var(--focus);
   stroke-width: 2.2;

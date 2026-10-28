@@ -1,0 +1,51 @@
+
+  Where to keep login sessions
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Every web app has to remember who is logged in between requests. There are
+  three usual places to keep that, and each one is fast or cheap or safe, but
+  not all three. The one question that usually decides it: when someone’s
+  account is compromised, can you log them out right now?
+
+  Where to keep sessions
+
+  ┌──────────────────┬──────────────────┬──────────────────┬───────────────────┐
+  │                  │ Redis            │ ★ Postgres ④     │ Signed cookie [a] │
+  ├──────────────────┼──────────────────┼──────────────────┼───────────────────┤
+  │ Read latency     │ ✓ <1 ms          │ ~2 ms            │ ✓ none            │
+  ├──────────────────┼──────────────────┼──────────────────┼───────────────────┤
+  │ Revoke at once ① │ ✓ yes            │ ✓ yes            │ ✗ not before      │
+  │ [b]              │                  │                  │ expiry ② [c]      │
+  ├──────────────────┼──────────────────┼──────────────────┼───────────────────┤
+  │ Session size     │ none             │ none             │ ✗ 4 KB            │
+  │ limit            │                  │                  │                   │
+  ├──────────────────┴──────────────────┴──────────────────┴───────────────────┤
+  │ Operations                                                                 │
+  ├──────────────────┬──────────────────┬──────────────────┬───────────────────┤
+  │ Scales out       │ ✓ yes            │ with replicas    │ ✓ nothing to      │
+  │                  │                  │                  │ scale             │
+  ├──────────────────┼──────────────────┼──────────────────┼───────────────────┤
+  │ Running cost     │ ✗ another        │ ✓ already        │ ✓ none            │
+  │                  │ service ③        │ running          │                   │
+  └──────────────────┴──────────────────┴──────────────────┴───────────────────┘
+
+  ① The deciding question: can you log someone out right now?
+  ② A signed cookie stays valid until it expires, whatever the server knows.
+  ③ Redis revokes at once, but it is one more service to run and watch.
+  ④ Postgres revokes at once, is fast enough, and is already running.
+
+  Signed cookies[a] win on every cost, which is why they are tempting. But
+  revocation[b] is the row that matters when something goes wrong, and there a
+  cookie cannot help[c].
+
+  When there are many options, direction=down lists them down the side instead:
+
+  Picking a queue
+
+  ┌──────────┬──────────────────┬─────────────────────┬────────────┐
+  │          │ Ordering         │ Replay old messages │ Operations │
+  ├──────────┼──────────────────┼─────────────────────┼────────────┤
+  │ SQS      │ FIFO queues only │ ✗ no                │ ✓ managed  │
+  │ ★ Kafka  │ ✓ per partition  │ ✓ yes               │ ✗ heavy    │
+  │ RabbitMQ │ per queue        │ streams only        │ moderate   │
+  └──────────┴──────────────────┴─────────────────────┴────────────┘
