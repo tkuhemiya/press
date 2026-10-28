@@ -43,6 +43,7 @@ group "Name" { ... }           nesting
 
 - Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`. An undeclared node is labelled with its id, `_` read as a space (`wage_demands` shows as "wage demands"); in `er` an entity's id is a table name and shows as written.
 - A group with no members is a warning, since it would draw nothing.
+- Groups draw as tinted regions with a soft border. A nested group is tinted a little darker than its parent, to three levels, so depth reads without heavy strokes.
 - A node belongs to the group it is declared in. A bare node line inside a group (`api` alone) moves an existing node into that group, so members can be listed after they are declared.
 - A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are lowercase letters, digits, `_` and `-`. A `-` must sit between two other characters, so `a-->b` reads as an edge, never as an id. Labels are quoted strings.
@@ -124,6 +125,12 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 - **A figure that would print small may print differently.** Press tries it in the other direction (only when the author gave no `direction`) and without its `muted` elements (only when no step or prose reference points at one), and prints whichever layout keeps the text largest. The screen always shows the diagram as written.
 - **Diagrams never split across pages.**
 - **Figures fill the page they are on.** A figure that does not fit in the space left on its page prints smaller, down to 60% of its size, or in its other direction, before it moves to the next page. Figures never move out of reading order, and a heading never ends a page alone.
+
+### Readability
+
+A diagram that is too big to read in print gets a warning, and the build still succeeds. The warning names the line and says to split the diagram into several smaller ones linked from prose. The limits are 30 states, components or decision nodes, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities and 40 tradeoffs cells.
+
+A label word longer than 40 characters with no spaces is also a warning. Labels wrap at a fixed width, and a word longer than that width is broken into pieces on screen and on paper, so nothing leaves its card.
 
 Small multiples (several frames) are allowed only when the author asks for them explicitly. This is not part of v0.1.
 

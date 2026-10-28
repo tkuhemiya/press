@@ -15,6 +15,7 @@ import {
 import { definition, view } from '../diagrams/diagram.ts';
 import { formsElsewhere, GRAMMARS, isDiagramType } from './grammars.ts';
 import { parseFence } from './grammar.ts';
+import { checkReadability } from './readability.ts';
 import { headingHint, type PageHint } from './heading.ts';
 import { closest, into, list, type Reporter } from '../diagnostics.ts';
 import { diagramId, edgeIndex, trusted } from '../brand.ts';
@@ -84,6 +85,7 @@ export function parseDocument(source: string): Document {
       report,
     );
     const diagram: Diagram = definition(lang).build(fence, report);
+    checkReadability(diagram, report);
     const figure: Figure = {
       domId: diagram.id ? `press-${diagram.id}` : `press-figure-${figures.length + 1}`,
       diagram,

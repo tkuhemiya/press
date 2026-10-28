@@ -438,7 +438,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
     if (e.label) {
       const [lw, lh] = labelBox(e.label);
       const [lx, ly] = across ? [mx, my + lh / 2 - 2] : [mx - lw / 2 + 2, my];
-      labels.push(labelItem(e, lx, ly, false));
+      labels.push(labelItem(e, lx, ly, 0));
       anchors.set(e.index, { x: lx - lw / 2 - 4, y: ly, w: lw + 8 });
     } else anchors.set(e.index, { x: mx, y: my });
   }
@@ -675,7 +675,7 @@ function renderLanes(d: Timeline, context: RenderContext): Rendered {
       const spot = along.map((t) => (ay === by ? mid : bezier(ax, ay, bx, by, t))).find(([x, y]) => free(x, y));
       if (spot) mid = spot;
       taken.push({ x: mid[0] - lw / 2 - 4, y: mid[1] - lh / 2, w: lw + 8, h: lh });
-      labels.push(labelItem(e, mid[0], mid[1], false));
+      labels.push(labelItem(e, mid[0], mid[1], 0));
       anchors.set(e.index, { x: mid[0] - lw / 2 - 8, y: mid[1], w: lw + 16 });
     } else anchors.set(e.index, { x: mid[0], y: mid[1] });
   }
