@@ -22,7 +22,9 @@ export function graph(item: Leaf, ctx: Context): Mark {
       if (has('pr-elabel-plate')) return { ...box, fill: within('pr-on-group') ? INK.groupFill : INK.paper };
       if (within('pr-group')) return { ...box, fill: INK.groupFill, stroke: INK.groupLine, sw: 1 };
       if (within('pr-glyph')) return { ...box, ...GLYPH_LINE };
-      return { ...box, ...nodeBox(role, has('pr-outcome')), ...(has('pr-external') ? DASH : {}) };
+      if (has('pr-store-fill')) return { ...box, fill: nodeBox(role, false).fill };
+      const faint = has('pr-faint') && !role ? { fill: INK.groupFill } : {};
+      return { ...box, ...nodeBox(role, has('pr-outcome')), ...faint, ...(has('pr-external') ? DASH : {}) };
     }
     case 'circle': {
       const dot = { k: 'circle' as const, cx: item.cx, cy: item.cy, r: item.r };

@@ -131,6 +131,100 @@ api --> db`,
   });
 });
 
+describe('software architecture types', () => {
+  it('reads data-flow kinds and a boundary', () => {
+    const doc = parse(
+      'data-flow',
+      `customer: external "Customer"
+group "Ours" {
+  validate: process "Validate cart"
+  orders: store "Orders"
+}
+customer -> validate : Cart
+validate -> orders : Paid order`,
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'data-flow');
+    expect(d.nodes.map((n) => [n.id, n.kind, n.group])).toEqual([
+      ['customer', 'external', undefined],
+      ['validate', 'process', 0],
+      ['orders', 'store', 0],
+    ]);
+    expect(d.edges[1]).toMatchObject({ from: 'validate', to: 'orders', label: 'Paid order' });
+  });
+
+  it('suggests a data-flow kind', () => {
+    const w = parse('data-flow', 'db: stor "Orders"').diagnostics[0];
+    expect(w).toMatchObject({ severity: 'warning', line: 4, hint: expect.stringContaining('`store`') });
+  });
+
+  it('reads c4 kinds, external systems and technology', () => {
+    const doc = parse(
+      'c4',
+      `customer: person "Customer"
+group "Shop" {
+  api: container "API" {tech=Go, note="stateless"}
+}
+mail: system "Email" {external=yes}
+customer -> api : Uses
+api -> mail : Sends mail`,
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'c4');
+    expect(d.nodes.map((n) => [n.id, n.kind, n.external, n.tech, n.group])).toEqual([
+      ['customer', 'person', false, undefined, undefined],
+      ['api', 'container', false, 'Go', 0],
+      ['mail', 'system', true, undefined, undefined],
+    ]);
+  });
+
+  it('names the fix for a c4 kind typo, an unclear external and a typo in tech', () => {
+    const doc = parse('c4', 'a: sytem "A" {external=true}\nb: system "B" {tecn=Go}\na -> b');
+    expect(doc.diagnostics).toMatchObject([
+      { line: 4, hint: expect.stringContaining('`system`') },
+      { line: 4, message: expect.stringContaining('external=true'), hint: expect.stringContaining('{external=yes}') },
+      { line: 5, hint: expect.stringContaining('`tech`') },
+    ]);
+  });
+
+  it('warns that c4 takes no level in the header', () => {
+    const w = parse('c4', 'a -> b', 'level=context').diagnostics[0];
+    expect(w).toMatchObject({ severity: 'warning', message: expect.stringContaining('`level`') });
+  });
+
+  it('nests deployment places and reads notes', () => {
+    const doc = parse(
+      'deployment',
+      `group "us-east-1" {
+  group "Zone a" {
+    api: workload "orders-api" {note="3 replicas"}
+  }
+}
+lb: lb "Balancer"
+lb -> api : HTTPS`,
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'deployment');
+    expect(d.groups).toMatchObject([{ label: 'us-east-1' }, { label: 'Zone a', parent: 0 }]);
+    expect(d.nodes.map((n) => [n.id, n.kind, n.group, n.note])).toEqual([
+      ['api', 'workload', 1, '3 replicas'],
+      ['lb', 'lb', undefined, undefined],
+    ]);
+  });
+
+  it('suggests a deployment kind', () => {
+    const w = parse('deployment', 'v: volum "Disk"').diagnostics[0];
+    expect(w).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`volume`') });
+  });
+
+  it('resolves steps on all three', () => {
+    for (const type of ['data-flow', 'c4', 'deployment'])
+      expect(errors(parse(type, 'a -> b : go\n\nsteps:\n  a -> b "Caption"\n  c "Missing"'))).toMatchObject([
+        { line: 8, message: expect.stringContaining('`c`') },
+      ]);
+  });
+});
+
 describe('diagnostics name the line and suggest a fix', () => {
   const cases: [string, string, string, RegExp, RegExp][] = [
     ['uppercase id', 'state-machine', 'Draft -> paid', /uppercase/, /draft: "Draft"/],
