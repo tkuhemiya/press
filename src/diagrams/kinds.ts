@@ -1,5 +1,7 @@
+import type { Node } from '../model.ts';
 import { n } from '../render/svg.ts';
 import type { Item } from '../scene/scene.ts';
+import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
 
 export function kindItems(kind: string | undefined, x: number, y: number, w: number, h: number): Item[] {
   if (kind === 'database') {
@@ -44,6 +46,7 @@ function glyphParts(kind: string, x: number, y: number): Item[] {
         { type: 'path', d: `M${n(x - 3)},${n(y + 6)}H${n(x + 3)}M${n(x)},${n(y + 3.5)}V${n(y + 6)}` },
       ];
     case 'service':
+    case 'node':
       return [
         { type: 'rect', x: x - 6, y: y - 6, w: 12, h: 5, r: 1.2 },
         { type: 'rect', x: x - 6, y: y + 1, w: 12, h: 5, r: 1.2 },
@@ -57,12 +60,29 @@ function glyphParts(kind: string, x: number, y: number): Item[] {
         },
       ];
     case 'storage':
+    case 'volume':
       return [
         { type: 'ellipse', cx: x, cy: y - 4, rx: 6, ry: 1.8 },
         {
           type: 'path',
           d: `M${n(x - 6)},${n(y - 4)}L${n(x - 4.5)},${n(y + 5)}Q${n(x)},${n(y + 7.2)} ${n(x + 4.5)},${n(y + 5)}L${n(x + 6)},${n(y - 4)}`,
         },
+      ];
+    case 'lb':
+      return [
+        { type: 'circle', cx: x - 5, cy: y, r: 1.6 },
+        {
+          type: 'path',
+          d: `M${n(x - 3.4)},${n(y)}H${n(x - 1)}L${n(x + 4)},${n(y - 4.5)}M${n(x - 1)},${n(y)}L${n(x + 4)},${n(y + 4.5)}`,
+        },
+        { type: 'circle', cx: x + 5.5, cy: y - 4.5, r: 1.6 },
+        { type: 'circle', cx: x + 5.5, cy: y + 4.5, r: 1.6 },
+      ];
+    case 'cdn':
+      return [
+        { type: 'circle', cx: x, cy: y, r: 6.5 },
+        { type: 'ellipse', cx: x, cy: y, rx: 2.8, ry: 6.5 },
+        { type: 'path', d: `M${n(x - 6.5)},${n(y)}H${n(x + 6.5)}` },
       ];
     case 'external':
       return [
@@ -79,4 +99,38 @@ function glyphParts(kind: string, x: number, y: number): Item[] {
 export function glyphItems(kind: string, x: number, y: number): Item[] {
   const items = glyphParts(kind, x, y);
   return items.length ? [{ type: 'group', cls: 'pr-glyph', items }] : [];
+}
+
+const hasGlyph = (kind: string): boolean => glyphParts(kind, 0, 0).length > 0;
+
+const PAD_X = 16;
+const PAD_Y = 12;
+const CAP = 4;
+const MIN_W = 96;
+const MAX_LABEL = 170;
+
+export function componentShape(node: Node & { kind?: string }): NodeShape {
+  const { kind } = node;
+  const text = measureLabel(node.label, node.note, MAX_LABEL);
+  const icon = kind && kind !== 'database' && hasGlyph(kind) ? GLYPH_W : 0;
+  const pad = kind === 'database' ? PAD_Y + CAP : PAD_Y;
+  return {
+    w: Math.max(MIN_W, Math.ceil(text.w + icon + 2 * PAD_X)),
+    h: Math.ceil(text.h + 2 * pad),
+    draw(b, attrs) {
+      const cx = b.x + b.w / 2 + icon / 2;
+      const cy = b.y + b.h / 2 + (kind === 'database' ? CAP / 2 : 0);
+      return {
+        type: 'group',
+        cls: 'pr-node pr-component',
+        attrs,
+        items: [
+          ...kindItems(kind, b.x, b.y, b.w, b.h),
+          ...(kind === 'database' ? [] : hatchItems(node, b, 9)),
+          ...(icon && kind ? glyphItems(kind, cx - text.first / 2 - 15, b.y + pad + 9) : []),
+          ...textItems(text, cx, cy),
+        ],
+      };
+    },
+  };
 }

@@ -23,6 +23,9 @@ const LIMITS: Record<DiagramType, Limit> = {
   timeline: nodes('events', 40),
   'decision-tree': nodes('nodes', 30),
   er: nodes('entities', 15),
+  'data-flow': nodes('nodes', 30),
+  c4: nodes('elements', 20),
+  deployment: nodes('nodes', 30),
   tradeoffs: {
     max: 40,
     unit: 'cells',

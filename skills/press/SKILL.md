@@ -26,13 +26,18 @@ The language is in `docs/SPEC.md`. This file is how to write it well.
 | States something moves between, and what moves it | `state-machine` |
 | Who sends what to whom, in order | `sequence` |
 | The parts of a system and how they connect | `architecture` |
+| Who uses a system and which containers make it up | `c4` |
+| Where software runs: regions, zones, nodes, replicas | `deployment` |
+| How data moves between processes, stores and outside parties | `data-flow` |
 | Events in time, gaps, overlapping spans | `timeline` |
 | Why something grows, stalls, or oscillates | `causal-loop` |
 | Questions that lead to an answer | `decision-tree` |
 | Tables, fields and how they reference each other | `er` |
 | Options compared on several criteria | `tradeoffs` |
 
-If two types fit, pick the one whose edges mean what you want to say. A sequence edge is a message in time. An architecture edge is a standing connection. A state-machine edge is a transition.
+If two types fit, pick the one whose edges mean what you want to say. A sequence edge is a message in time. An architecture edge is a standing connection. A state-machine edge is a transition. A data-flow edge is data that moves. A c4 edge is a relationship a person would say aloud. A deployment edge is a network path, a placement, or replication.
+
+**One concern per diagram.** Software architecture has several views, and each is its own fence: `c4` for who uses what, `data-flow` for where data goes, `deployment` for where it runs, `architecture` for how the parts connect. Do not draw a context, a data flow and a deployment in one fence. Draw three, and let the prose say how they relate.
 
 **No type fits.** Write that part as prose. Stretch a type only when its edges still mean the same thing. A commit history is a graph of commits, so `architecture` with `direction=right` draws it honestly. Stop when the picture needs something the type lacks. Press has no type yet for quantities on axes, such as supply and demand or temperature over time. It also has no type for bytes in memory, or claims and rebuttals.
 
@@ -113,6 +118,63 @@ bucket: storage "Object storage" {role=focus}
 app -> api : request URL
 app -> bucket : PUT file
 bucket --> jobs : object created
+```
+
+### c4
+
+Use it for the system in its context, then the containers inside it. Kinds are `person`, `system`, and `container`. Mark systems you do not own with `{external=yes}`. Name a container's technology with `{tech=Go}`; it prints in brackets under the name. A group is the boundary of the system you own, and the system you describe takes `role=focus`. An edge label is a short phrase a person would say: `Places orders`. Write the context and the container diagram as two fences. There is no `level` field.
+
+```c4 title="Online shop, containers"
+customer: person "Customer"
+group "Online shop" {
+  web: container "Web app" {tech="Next.js"}
+  api: container "API" {tech=Go}
+  db: container "Database" {tech=Postgres}
+}
+mail: system "Email provider" {external=yes}
+customer -> web : Uses
+web -> api : JSON/HTTPS
+api -> db : Reads and writes
+api -> mail : Sends receipts
+```
+
+### data-flow
+
+Kinds are `external`, `process`, and `store`. A store draws as an open rectangle, a process as a pill, and an external as a plain box. An edge label names the data (`Cart`, `Charge request`), not the action. A group is a trust boundary. Use it to show what crosses it. Keep deployment details, such as hosts and replicas, out of it.
+
+```data-flow title="Checkout data"
+customer: external "Customer"
+psp: external "Payment processor"
+group "Our systems" {
+  validate: process "Validate cart"
+  charge: process "Charge card"
+  orders: store "Orders"
+}
+customer -> validate : Cart
+validate -> charge : Payable order
+charge -> psp : Charge request
+psp --> charge : Result
+charge -> orders : Paid order
+```
+
+### deployment
+
+Kinds are `node`, `workload`, `lb`, `cdn`, and `volume`. Nest groups for the places: a region around its zones around its clusters. Put a count in a note: `{note="3 replicas"}`. Mark placement edges such as `runs on` with `role=muted`. Show one path or one failure domain in `steps:`. Leave what the software does to `c4` or `architecture`.
+
+```deployment title="Checkout in production"
+lb: lb "Load balancer"
+group "us-east-1" {
+  group "Zone a" {
+    api: workload "orders-api" {note="3 replicas"}
+    pg: workload "Postgres primary"
+  }
+  group "Zone b" {
+    pg_r: workload "Postgres replica"
+  }
+}
+lb -> api : HTTPS
+api -> pg : SQL
+pg --> pg_r : replicates
 ```
 
 ### timeline
@@ -212,3 +274,6 @@ cookie.revoke : "at expiry" {role=error}
 | A neutral cell marked `error` because it has a catch | No role, and `{note="the catch"}` |
 | A causal edge labelled `increases` | `: +` |
 | One diagram explaining two ideas | Two diagrams, each with its own prose |
+| A c4 context, a data flow and a deployment in one fence | Three fences: `c4`, `data-flow`, `deployment` |
+| `level=container` on a c4 header | Leave it out. Say the level in the title |
+| An external c4 system drawn with `kind` or a colour | `{external=yes}` |

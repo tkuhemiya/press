@@ -3,8 +3,11 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import type { Scene } from '../scene/scene.ts';
 import { ARCHITECTURE } from './architecture.ts';
+import { C4 } from './c4.ts';
 import { CAUSAL_LOOP } from './causal-loop.ts';
+import { DATA_FLOW } from './data-flow.ts';
 import { DECISION_TREE } from './decision-tree.ts';
+import { DEPLOYMENT } from './deployment.ts';
 import { ER } from './er.ts';
 import { SEQUENCE } from './sequence.ts';
 import { STATE_MACHINE } from './state-machine.ts';
@@ -46,6 +49,9 @@ const DIAGRAMS: { [T in DiagramType]: DiagramDef<T> } = {
   'state-machine': STATE_MACHINE,
   sequence: SEQUENCE,
   architecture: ARCHITECTURE,
+  'data-flow': DATA_FLOW,
+  c4: C4,
+  deployment: DEPLOYMENT,
   'causal-loop': CAUSAL_LOOP,
   timeline: TIMELINE,
   'decision-tree': DECISION_TREE,

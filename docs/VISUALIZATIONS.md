@@ -11,7 +11,8 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 - **v0.3:** properties in the shared grammar, `decision-tree`, `er`, `tradeoffs`, and a skill file that teaches agents to write Press
 - **v0.4:** phases in `sequence`, lanes and times since the start in `timeline`, caveats in `tradeoffs`, prose links to edges, phases and loops. Chosen from the authoring eval (`docs/eval/REPORT.md`)
 - **v0.5:** native Typst print, page-aware figure sizing, and page hints on headings
-- **v0.5 and later:** the rest, prioritized by what software explanations need most
+- **v0.6:** `data-flow`, `c4` (context and containers) and `deployment`, for software architecture. Later candidates from the same issue: class, activity, dependency graphs, gantt, threat models
+- **v0.6 and later:** the rest, prioritized by what software explanations need most
 
 ## Software
 
@@ -20,7 +21,9 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 | `state-machine` | States and transitions                  | 0.1     | done    |
 | `sequence`      | Messages between participants over time | 0.1     | done    |
 | `architecture`  | Components, boundaries, connections     | 0.2     | done    |
-| `data-flow`     | How data moves and transforms           | —       | planned |
+| `data-flow`     | How data moves and transforms           | 0.6     | done    |
+| `c4`            | People, systems and containers          | 0.6     | done    |
+| `deployment`    | Where software runs: regions, nodes     | 0.6     | done    |
 | `er`            | Entities and relationships              | 0.3     | done    |
 | `call-stack`    | Stack frames over time                  | —       | planned |
 | `memory-layout` | Bytes, pointers, structs                | —       | planned |

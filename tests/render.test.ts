@@ -251,13 +251,70 @@ waiting -> end
   });
 });
 
+describe('software architecture diagrams', () => {
+  const src = readFileSync(new URL('../docs/examples/checkout-system.md', import.meta.url), 'utf8');
+  const { html, diagnostics } = build(src, { embedFonts: false });
+  const figure = (id: string): string => {
+    const start = html.indexOf(`<figure class="pr-figure" id="press-${id}"`);
+    return html.slice(start, html.indexOf('</figure>', start));
+  };
+  const [context, containers, flow, deployment] = ['ctx', 'parts', 'flow', 'prod'].map(figure);
+
+  it('builds the example cleanly', () => {
+    expect(diagnostics).toEqual([]);
+    for (const svg of [context, containers, flow, deployment]) expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('draws c4 people, an owned system and external systems apart', () => {
+    expect(context).toMatch(/class="pr-svg pr-c4[" ]/);
+    expect(context).toMatch(/class="pr-node pr-c4-node"[^>]*data-kind="person"/);
+    expect(context).toMatch(/class="pr-node pr-c4-node"[^>]*data-role="focus"[^>]*data-kind="system"/);
+    expect(count(context, /class="pr-box pr-external pr-faint"/g)).toBe(2);
+    expect(count(context, /class="pr-glyph"/g)).toBe(1);
+  });
+
+  it('prints container technology in brackets under the name', () => {
+    expect(containers).toMatch(/class="pr-note"[^>]*>.*\[Next\.js\]/);
+    expect(containers).toMatch(/class="pr-note"[^>]*>.*\[Postgres\]/);
+    expect(count(containers, /class="pr-group pr-depth-\d"/g)).toBe(1);
+  });
+
+  it('draws processes as pills, stores as open rectangles and a boundary', () => {
+    expect(flow).toMatch(/class="pr-svg pr-data-flow[" ]/);
+    expect(count(flow, /class="pr-node pr-flow"[^>]*data-kind="process"/g)).toBe(2);
+    expect(count(flow, /class="pr-store-fill"/g)).toBe(1);
+    expect(count(flow, /class="pr-group pr-depth-\d"/g)).toBe(1);
+    expect(flow).toMatch(/data-kind="external"/);
+  });
+
+  it('draws deployment places nested, with an icon per kind', () => {
+    expect(deployment).toMatch(/class="pr-svg pr-deployment[" ]/);
+    expect(count(deployment, /class="pr-group pr-depth-\d"/g)).toBe(4);
+    expect(deployment).toMatch(/class="pr-group pr-depth-3"/);
+    for (const kind of ['cdn', 'lb', 'node', 'workload', 'volume'])
+      expect(deployment).toMatch(new RegExp(`class="pr-node pr-component"[^>]*data-kind="${kind}"`));
+    expect(count(deployment, /class="pr-glyph"/g)).toBe(4);
+    expect(deployment).toMatch(/class="pr-note"[^>]*>.*3 replicas/);
+  });
+
+  it('prints a store as a fill with two lines, and an external system dashed and tinted', () => {
+    const scenes = typstDocument(parseDocument(src))
+      .sections.flatMap((s) => s.blocks)
+      .flatMap((b) => (b.t === 'figure' ? b.variants : []))
+      .map((v) => v.scene.marks);
+    const rects = scenes.flat().filter((m) => m.k === 'rect');
+    expect(rects.some((m) => m.fill === '#ffffff' && m.stroke === undefined && m.r === 0)).toBe(true);
+    expect(rects.some((m) => m.fill === '#f5f3ed' && m.dash !== undefined)).toBe(true);
+  });
+});
+
 describe('the Press skill', () => {
   it('teaches only Press that builds cleanly', () => {
     const skill = readFileSync(new URL('../skills/press/SKILL.md', import.meta.url), 'utf8');
     const body = skill.replace(/^---[\s\S]*?---\n/, '');
     const { diagnostics, html } = build(body, { embedFonts: false });
     expect(diagnostics).toEqual([]);
-    expect(count(html, /<figure class="pr-figure"/g)).toBe(9);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(12);
   });
 });
 

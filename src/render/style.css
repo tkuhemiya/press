@@ -228,6 +228,14 @@ th {
 .pr-external {
   stroke-dasharray: 4 3;
 }
+.pr-box.pr-faint {
+  fill: var(--group-fill);
+}
+.pr-store-fill {
+  fill: var(--node-fill);
+  stroke: none;
+  transition: fill 0.35s var(--ease);
+}
 .pr-label {
   font-weight: 500;
   font-size: 14px;
@@ -659,6 +667,15 @@ th {
   fill: var(--focus-fill);
   stroke-width: 2;
 }
+.pr-node[data-role='focus'] .pr-store-fill {
+  fill: var(--focus-fill);
+}
+.pr-node[data-role='happy'] .pr-store-fill {
+  fill: var(--happy-fill);
+}
+.pr-node[data-role='error'] .pr-store-fill {
+  fill: var(--error-fill);
+}
 .pr-node[data-role='happy'] .pr-box {
   stroke: var(--happy);
   fill: var(--happy-fill);
@@ -791,7 +808,8 @@ th {
     stroke: var(--signal);
     stroke-width: 2;
   }
-  .pr-walking .pr-node.is-arrived .pr-box {
+  .pr-walking .pr-node.is-arrived .pr-box,
+  .pr-walking .pr-node.is-arrived .pr-store-fill {
     fill: color-mix(in srgb, var(--signal) 7%, white);
   }
   .pr-walking .pr-node.is-current .pr-event-dot {

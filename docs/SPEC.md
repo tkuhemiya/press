@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.5)
+# Press language spec (draft, v0.6)
 
 ## Document
 
@@ -419,8 +419,109 @@ steps:
   postgres           "Postgres revokes at once and is already running."
 ```
 
+## Diagram types in v0.6
+
+Three diagram types for software architecture. Each draws one concern. A system's context, its data flow and its deployment are three diagrams, not one fence with everything in it. All three use the shared grammar, roles, notes, groups, steps and prose references, and add only node kinds and, for `c4`, two attributes.
+
+### `data-flow`
+
+How data moves and changes: where it comes from, what transforms it, and where it rests. Edges are flows, and the label names the data that travels (`Cart`, `Charge request`), not the action. `-->` is a return or an asynchronous flow. `direction` defaults to `right`.
+
+Node kinds:
+
+| Kind | Draws as | Means |
+|---|---|---|
+| `external` | plain box | a person or system outside the diagram that sends or receives data |
+| `process` | rounded pill | something that transforms or routes data |
+| `store` | open-ended rectangle, lines on top and bottom only | data at rest: a database, a file, a queue |
+
+A node without a kind draws as a plain box. A group is a trust or context boundary: what is inside it is under one owner or one level of trust, and a flow that crosses its edge is a flow across that boundary.
+
+```data-flow id=checkout title="Checkout data"
+customer: external "Customer"
+psp: external "Payment processor"
+group "Our systems" {
+  validate: process "Validate cart"
+  charge: process "Charge card"
+  orders: store "Orders"
+}
+
+customer -> validate : Cart
+validate -> charge : Payable order
+charge -> psp : Charge request
+psp --> charge : Result
+charge -> orders : Paid order
+```
+
+### `c4`
+
+The C4 model's first two levels: the system in its context, and the containers inside it. Edges are relationships, and the label is a short phrase a person would say (`Places orders`, `Reads and writes`). `direction` defaults to `down`, so people sit above the systems they use.
+
+Node kinds: `person`, `system`, `container`. A person draws with a person icon.
+
+Attributes:
+
+- `{external=yes}` marks a system or person outside the one being described. It draws with a dashed outline and a tinted fill, so the system the reader owns stands out. `yes` is the only value; leave the attribute out for what you own.
+- `{tech=Go}` names a container's technology. It prints in brackets, muted, under the name (`[Go]`), and a `note` on the same node follows it on the same line, after a `·`. Quote a value with spaces: `{tech="Next.js"}`.
+
+A group is the boundary of the system being described. At the context level the system is one node; at the container level it is a group around its containers. Use `role=focus` on the system the diagram is about.
+
+C4 defines the levels as separate diagrams. Press does not take a `level` header field in v0.6, since the shared header holds only `id`, `title` and `direction`. The level shows in the diagram's title and its kinds: a context fence has `system` nodes and no `container` nodes.
+
+```c4 id=shop title="Online shop, containers"
+customer: person "Customer"
+group "Online shop" {
+  web: container "Web app" {tech="Next.js"}
+  api: container "API" {tech=Go}
+  db: container "Database" {tech=Postgres}
+}
+mail: system "Email provider" {external=yes}
+
+customer -> web : Uses
+web -> api : JSON/HTTPS
+api -> db : Reads and writes
+api -> mail : Sends receipts
+```
+
+### `deployment`
+
+Where software runs: regions, zones, clusters, nodes and the workloads on them. Edges are network paths, placement and replication; the label says which (`HTTPS`, `runs on`, `replicates`). `direction` defaults to `right`.
+
+Node kinds:
+
+| Kind | Draws as |
+|---|---|
+| `node` | a machine or VM, with a server icon |
+| `workload` | a plain card: a service, a pod, a database process |
+| `lb` | a load balancer icon |
+| `cdn` | a globe icon |
+| `volume` | a disk icon |
+
+**Places are groups, and groups nest.** `group "us-east-1" { group "zone a" { ... } }` draws a region around its zones around its clusters. Nest as deep as the real topology goes; the places are labelled in their top-left corners, and each level is drawn inside the one above it. A node belongs to the innermost group it is written in.
+
+**Counts are notes.** `{note="3 replicas"}` prints small under the name. There are no properties in this type. Use `role=muted` for placement edges (`runs on`) that the picture needs but the reader does not need to follow, and `role=error` or a step to show a failure domain.
+
+```deployment id=prod title="Checkout in production"
+lb: lb "Load balancer"
+group "us-east-1" {
+  group "Zone a" {
+    api: workload "orders-api" {note="3 replicas"}
+    pg: workload "Postgres primary"
+  }
+  group "Zone b" {
+    pg_r: workload "Postgres replica"
+  }
+}
+
+lb -> api : HTTPS
+api -> pg : SQL
+pg --> pg_r : replicates
+```
+
 ## Node kinds
 
 Each diagram type has a fixed list of node kinds, and each kind has a designed shape or icon. The list is closed so that every kind looks good. A kind the renderer doesn't know draws as a plain box, and the parser emits a warning naming the known kinds. To add a kind, add it to the spec.
 
 `architecture` kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. `sequence` uses the same names (in v0.2, a subset: `user`, `service`, `database`, `queue`, `external`).
+
+`data-flow` kinds: `external`, `process`, `store`. `c4` kinds: `person`, `system`, `container`. `deployment` kinds: `node`, `workload`, `lb`, `cdn`, `volume`; the icons for `node` and `volume` are the `service` and `storage` icons from `architecture`.

@@ -1,6 +1,7 @@
-import type { Direction, Edge, EdgeTarget, Group, Node, NodeId, NodeTarget, Step } from '../model.ts';
+import type { Direction, Edge, EdgeIndex, EdgeTarget, Group, Node, NodeId, NodeTarget, Part, Step } from '../model.ts';
 import type { RenderContext, Rendered } from './diagram.ts';
 import { trusted } from '../brand.ts';
+import { edgeEnds, lean, nodeParts, type GraphParts } from '../parse/graph.ts';
 import {
   edgeItem,
   groupClass,
@@ -45,6 +46,29 @@ export interface DrawableGraph<N extends Node> {
   edges: readonly Edge[];
   groups: readonly Group[];
   steps: readonly Step<NodeTarget | EdgeTarget>[];
+}
+
+interface GraphMethods<D> {
+  render(d: D, context: RenderContext): Rendered;
+  targets(d: D): Part[];
+  ends(d: D, edge: EdgeIndex): [string, string] | undefined;
+  turnable(d: D): boolean;
+  withoutMuted(d: D, pinned: (id: NodeId) => boolean): D | undefined;
+}
+
+export function graphMethods<N extends Node, D extends GraphParts<N> & { direction?: Direction }>(
+  style: GraphStyle<N>,
+): GraphMethods<D> {
+  return {
+    render: (d, context) => renderGraph(d, context, style),
+    targets: (d) => nodeParts(d.nodes),
+    ends: (d, edge) => edgeEnds(d.edges, edge),
+    turnable: (d) => d.direction === undefined,
+    withoutMuted(d, pinned) {
+      const kept = lean(d, pinned);
+      return kept && { ...d, ...kept };
+    },
+  };
 }
 
 interface Placed<N extends Node> {
