@@ -43,6 +43,10 @@ node src/cli.ts build doc.md -o doc.pdf                    # PDF, typeset by Typ
 node src/cli.ts check doc.md                               # problems only
 ```
 
+Inside the clone, `npx press …` runs the same CLI. npm never links a package's own `bin`
+into its `node_modules/.bin`, so there is no `node_modules/.bin/press`. To get a `press`
+command everywhere, run `npm link` (or `npm install -g .`) once in the clone.
+
 Problems are reported with the line and a fix, so an LLM can correct its own source:
 
 ```
