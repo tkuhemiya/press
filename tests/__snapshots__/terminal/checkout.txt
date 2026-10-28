@@ -1,0 +1,108 @@
+
+  How checkout works
+  ━━━━━━━━━━━━━━━━━━
+
+  An order moves through a small number of states, and most bugs in checkout
+  come from forgetting one of the transitions between them. This page walks
+  through the lifecycle first, then the messages that drive it.
+
+  ## The order lifecycle
+
+  Order lifecycle
+
+                           ●
+                           │
+                           │
+                           │
+                           ▼
+                      ┌─────────┐
+                      │ draft ① │
+                      └────┬────┘
+                           │
+                           │
+                       submit ②
+                           │
+                           │
+                           ▼
+                   ┌───────────────┐
+                   │ submitted [b] │
+                   └────┬──┬───────┘
+                        ┃  │ ▲
+        ┏━━━━━━━━━━━━━━━┛  │ ╰─────────────╮
+  payment ok ⑤     ✗ card declined ③    retry ④
+        ┃                  ╰──────╮ ╭──────╯
+        ▼                         ▼ │
+    ┌──────┐                ┌───────┴────┐
+    │ paid │                │ failed [a] │
+    └───┬──┘                └──────┬─────┘
+        ┃                          ┊
+        ┃                          ┊
+        ┃                          ┊
+     ship ⑥                     give up
+        ┃                          ┊
+        ▼                          ▼
+   ┌─────────┐             ┌───────────────┐
+   │ shipped │             │ cancelled [c] │
+   └─────────┘             └───────┬───────┘
+                                   │
+                                   │
+                                   │
+                         ╭─────────╯
+                         ▼
+                         ◉
+
+  ① Every order starts as a draft while the cart is open.
+  ② Pressing Pay submits the order and freezes the cart.
+  ③ The bank declines the card.
+  ④ The customer retries with another card; the same order is reused.
+  ⑤ This time the payment clears.
+  ⑥ Fulfilment picks it up and ships it.
+
+  The important detail is that a declined card does not create a new order. It
+  moves the order to the failed state[a], and a retry goes back to submitted[b]
+  with the same id. Only an explicit give-up reaches cancelled[c].
+
+  ## What happens when the customer pays
+
+  Paying for an order
+
+   ┌───────┐        ┌──────────┐ ┌────────────┐  ┌─────────────┐ ┌──────┐
+   │Browser│        │Orders API│ │   Payment  │  │Orders DB [b]│ │Events│
+   │       │        │          │ │provider [a]│  │             │ │      │
+   └───┬───┘        └─────┬────┘ └──────┬─────┘  └──────┬──────┘ └───┬──┘
+       ┊                  ┊             ┊               ┊            ┊
+       ┊      POST        ┊             ┊               ┊            ┊
+       ┊/orders/42/pay ①  ┊             ┊               ┊            ┊
+       ├─────────────────▶┊             ┊               ┊            ┊
+       ┊                  ┊             ┊               ┊            ┊
+       ┊                  ┊            mark             ┊            ┊
+       ┊                  ┊         submitted ②         ┊            ┊
+       ┊                  ├─────────────┼──────────────▶┊            ┊
+       ┊                  ┊             ┊               ┊            ┊
+       ┊                  ┊   charge    ┊               ┊            ┊
+       ┊                  ┊   card ③    ┊               ┊            ┊
+       ┊                  ├────────────▶┊               ┊            ┊
+       ┊                  ┊             ┊               ┊            ┊
+       ┊                  ┊ approved ④  ┊               ┊            ┊
+       ┊                  ┊◀╌╌╌╌╌╌╌╌╌╌╌╌┤               ┊            ┊
+       ┊                  ┊             ┊               ┊            ┊
+       ┊                  ┊         mark paid ⑤         ┊            ┊
+       ┊                  ├─────────────┼──────────────▶┊            ┊
+       ┊                  ┊             ┊               ┊            ┊
+       ┊                  ┊             ┊order.paid ⑥   ┊            ┊
+       ┊                  ├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌▶┊
+       ┊                  ┊             ┊               ┊            ┊
+       ┊     200 OK       ┊             ┊               ┊            ┊
+       ┊◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤             ┊               ┊            ┊
+       ┊                  ┊             ┊               ┊            ┊
+
+  ① The browser asks the API to pay for order 42.
+  ② The order is marked submitted before charging, so a crash cannot
+     double-charge.
+  ③ The API charges the card through the provider.
+  ④ The provider approves the charge.
+  ⑤ Only now does the order become paid.
+  ⑥ Fulfilment hears about it through an event, not a direct call.
+
+  The payment provider[a] is the only external system in the flow, which is why
+  its call sits between two writes to the orders database[b].

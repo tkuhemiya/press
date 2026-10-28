@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.6)
+# Press language spec (draft, v0.7)
 
 ## Document
 
@@ -134,6 +134,15 @@ A label word longer than 40 characters with no spaces is also a warning. Labels 
 
 Small multiples (several frames) are allowed only when the author asks for them explicitly. This is not part of v0.1.
 
+### Terminal
+
+*New in v0.6.* `press preview doc.md` writes the document to the terminal, the way glamour renders Markdown. It is for reading where there is no browser, and for agents checking their own work. A terminal is a fixed number of columns wide and scrolls without end, so figures are laid out for that rather than shrunk from the screen.
+
+- **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off.
+- **Steps and references work as on paper.** Steps become numbered markers (①) on the figure with the captions as a legend below it, and prose references become letters ([a]) in both the prose and the figure.
+- **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Colour only repeats them.
+- **Dark by default.** Terminals are usually dark, so colours are chosen for a dark background; `--theme light` is for light terminals. When the output is not a terminal, or `NO_COLOR` is set, it is plain text. `--ascii` draws with ASCII only.
+
 ## Diagram types in v0.1
 
 See `VISUALIZATIONS.md` for the full list and status.
@@ -191,7 +200,7 @@ api --> client : 201 Created
 
 Components, the boundaries around them, and the connections between them. Edges are connections; the label says what travels on them (a protocol, a payload). `-->` is an async or fire-and-forget connection. Groups are boundaries: a network, a trust zone, a deployment. `direction` defaults to `right`.
 
-Node kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Each draws with its own shape or icon. A node without a kind draws as a plain component box.
+Node kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Each draws with its own shape or icon. A node without a kind draws as a plain component box. A vendor icon can take the place of the kind; see [Vendor icons](#vendor-icons).
 
 ```architecture id=checkout title="Checkout"
 user: user "Shopper"
@@ -419,7 +428,7 @@ steps:
   postgres           "Postgres revokes at once and is already running."
 ```
 
-## Diagram types in v0.6
+## Diagram types in v0.7
 
 Three diagram types for software architecture. Each draws one concern. A system's context, its data flow and its deployment are three diagrams, not one fence with everything in it. All three use the shared grammar, roles, notes, groups, steps and prose references, and add only node kinds and, for `c4`, two attributes.
 
@@ -466,7 +475,7 @@ Attributes:
 
 A group is the boundary of the system being described. At the context level the system is one node; at the container level it is a group around its containers. Use `role=focus` on the system the diagram is about.
 
-C4 defines the levels as separate diagrams. Press does not take a `level` header field in v0.6, since the shared header holds only `id`, `title` and `direction`. The level shows in the diagram's title and its kinds: a context fence has `system` nodes and no `container` nodes.
+C4 defines the levels as separate diagrams. Press does not take a `level` header field in v0.7, since the shared header holds only `id`, `title` and `direction`. The level shows in the diagram's title and its kinds: a context fence has `system` nodes and no `container` nodes.
 
 ```c4 id=shop title="Online shop, containers"
 customer: person "Customer"
@@ -525,3 +534,22 @@ Each diagram type has a fixed list of node kinds, and each kind has a designed s
 `architecture` kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. `sequence` uses the same names (in v0.2, a subset: `user`, `service`, `database`, `queue`, `external`).
 
 `data-flow` kinds: `external`, `process`, `store`. `c4` kinds: `person`, `system`, `container`. `deployment` kinds: `node`, `workload`, `lb`, `cdn`, `volume`; the icons for `node` and `volume` are the `service` and `storage` icons from `architecture`.
+
+### Vendor icons
+
+*New in v0.6.* In `architecture` and `sequence`, and in `deployment` from v0.7, a declaration can name a vendor's own icon where a kind would go. The name is the icon set, a dot, and the product:
+
+```architecture title="Uploads on AWS"
+fn: aws.lambda "Resize"
+bucket: aws.s3 "Photos"
+jobs: aws.sqs "Thumbnail jobs"
+fn -> bucket : put
+fn -> jobs
+```
+
+- **Icon sets.** `aws` (AWS Architecture Icons), `azure` (Azure Public Service Icons), `gcp` (Google Cloud core products and categories) and `k8s` (Kubernetes resources and infrastructure). `press icons` lists the sets; `press icons aws` lists every name in one, and `press icons aws dynamo` only the names containing a word.
+- **Names** are the product's name in lower case with hyphens, without the vendor prefix: `aws.api-gateway`, `azure.cosmos-db`, `gcp.cloud-run`, `k8s.deployment`. AWS services known by their initials use them: `aws.s3`, `aws.sqs`, `aws.sns`, `aws.ses`, `aws.ecs`, `aws.eks`, `aws.ecr`, `aws.ebs`, `aws.elb`, `aws.iam`, `aws.kms`, `aws.vpc`, `aws.msk`.
+- **They are drawn as the vendor publishes them**, in colour, beside the label, on screen and on paper. This is the one place Press shows colour it did not choose: a reader who works with a cloud recognises its icons faster than any label. Roles still apply to the box around the icon.
+- **The label still matters.** Without one, the node shows its id. Name the instance (`"Photos"`), not the product; the icon already says the product.
+- **An unknown icon** draws as a plain box, and the parser warns with the nearest name and the command that lists them. Icons are not available in other diagram types; there the parser warns and ignores the icon.
+- **Licences.** The icons belong to their vendors and are not covered by Press's MIT licence. Each vendor allows them in architecture diagrams and documentation; see `assets/icons/NOTICE.md`. `scripts/import-icons.ts` rebuilds the sets from the vendors' packages.

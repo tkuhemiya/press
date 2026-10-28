@@ -3,6 +3,7 @@ import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, Phas
 import { diagramId, groupId, nodeId, phaseIndex } from '../brand.ts';
 import { closest, list, type Reporter } from '../diagnostics.ts';
 import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
+import { ICON_VENDORS, iconNames, isVendor } from '../icons.ts';
 
 export type Attrs = ReadonlyMap<string, string>;
 
@@ -14,6 +15,7 @@ export interface Grammar {
   attrs: readonly string[];
   forms: readonly LineForm[];
   directional: boolean;
+  icons: boolean;
 }
 
 export type End = { node: NodeId; key?: NodeId };
@@ -28,7 +30,7 @@ interface Meaning {
   line: number;
 }
 
-type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; label?: string };
+type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; icon?: string; label?: string };
 type Mention = Meaning & { type: 'mention'; id: NodeId };
 export type Chain = Meaning & { type: 'chain'; ends: [End, End, ...End[]]; arrows: NonEmpty<Arrow>; label?: string };
 export type Prop = Meaning & { type: 'prop'; node: NodeId; key: NodeId; value?: string };
@@ -113,6 +115,29 @@ const ROLE_SYNONYMS: Record<string, Role> = {
 
 function isRole(value: string): value is Role {
   return ROLES.some((r) => r === value);
+}
+
+function iconProblem(icon: string, grammar: Grammar, type: string): [string, string] | undefined {
+  if (!grammar.icons)
+    return [
+      `${type} has no icons; \`${icon}\` is ignored.`,
+      'Icons are for `architecture`, `sequence` and `deployment`. Drop it and keep the label.',
+    ];
+  const [vendor = '', name = ''] = icon.split('.');
+  if (!isVendor(vendor)) {
+    const near = closest(vendor, ICON_VENDORS);
+    return [
+      `Unknown icon set \`${vendor}\`; it will draw as a plain box.`,
+      `${near ? `Did you mean \`${near}.${name}\`? ` : ''}Icon sets: ${list(ICON_VENDORS)}.`,
+    ];
+  }
+  const names = iconNames(vendor);
+  if (names.includes(name)) return undefined;
+  const near = closest(name, names);
+  return [
+    `Unknown icon \`${icon}\`; it will draw as a plain box.`,
+    `${near ? `Did you mean \`${vendor}.${near}\`? ` : ''}List every ${vendor} icon with \`press icons ${vendor}\`.`,
+  ];
 }
 
 function isArrow(value: string): value is Arrow {
@@ -465,7 +490,7 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
 
     if (rest.startsWith(':')) {
       const { body, attrs } = splitAttrs(rest.slice(1).trim(), line, report);
-      const m = /^(?:([A-Za-z][\w-]*))?\s*(?:"([^"]*)")?$/.exec(body.trim());
+      const m = /^(?:([A-Za-z][\w-]*(?:\.[\w-]+)?))?\s*(?:"([^"]*)")?$/.exec(body.trim());
       if (!m || (!m[1] && m[2] === undefined)) {
         error(
           line,
@@ -484,8 +509,12 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
         continue;
       }
       const [, kind, label] = m;
+      const icon = kind?.includes('.') ? kind : undefined;
       const known = kind !== undefined && grammar.kinds.includes(kind);
-      if (kind !== undefined && !known) {
+      if (icon !== undefined) {
+        const problem = iconProblem(icon, grammar, type);
+        if (problem) warn(line, ...problem);
+      } else if (kind !== undefined && !known) {
         const near = closest(kind, grammar.kinds);
         warn(
           line,
@@ -498,6 +527,7 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
       const declare: Declare = { type: 'declare', id: nodeId(first), ...meaning(attrs) };
       if (label !== undefined) declare.label = label;
       if (known) declare.kind = kind;
+      if (icon !== undefined && !iconProblem(icon, grammar, type)) declare.icon = icon;
       fence.statements.push(declare);
       continue;
     }

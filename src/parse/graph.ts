@@ -23,6 +23,7 @@ export interface DraftNode {
   id: NodeId;
   label: string;
   kind?: string;
+  icon?: string;
   role?: Role;
   note?: string;
   attrs: Map<string, string>;
@@ -103,6 +104,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
         node.line = s.line;
         if (s.label !== undefined) node.label = s.label;
         if (s.kind !== undefined) node.kind = s.kind;
+        if (s.icon !== undefined) node.icon = s.icon;
         apply(node, s);
         break;
       }
@@ -215,15 +217,16 @@ export function buildKinded<K extends string>(
   fence: Fence,
   report: Reporter,
   kinds: readonly K[],
-): GraphParts<Node & { kind?: K }> {
+): GraphParts<Node & { kind?: K; icon?: string }> {
   const graph = buildGraph(fence, report, {
     label: (id) => id.replace(/_/g, ' '),
     empty: 'Add at least one edge, e.g. `a -> b : label`.',
   });
   const nodes = graph.nodes.map((draft) => {
-    const node: Node & { kind?: K } = toNode(draft);
+    const node: Node & { kind?: K; icon?: string } = toNode(draft);
     const kind = kinds.find((k) => k === draft.kind);
     if (kind !== undefined) node.kind = kind;
+    if (draft.icon !== undefined) node.icon = draft.icon;
     return node;
   });
   return {

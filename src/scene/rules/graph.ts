@@ -41,6 +41,8 @@ export function graph(item: Leaf, ctx: Context): Mark {
       if (within('pr-glyph')) return { ...ring, ...GLYPH_LINE };
       return { ...ring, fill: INK.ink };
     }
+    case 'image':
+      return { k: 'image', x: item.x, y: item.y, w: item.w, h: item.h, svg: item.svg };
     case 'line':
       return {
         k: 'path',

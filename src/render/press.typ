@@ -90,6 +90,8 @@
     place(dx: (m.cx - m.r) * s, dy: (m.cy - m.r) * s, circle(radius: m.r * s, fill: fill-of(m), stroke: stroke-of(m, s)))
   } else if m.k == "ellipse" {
     place(dx: (m.cx - m.rx) * s, dy: (m.cy - m.ry) * s, ellipse(width: m.rx * 2 * s, height: m.ry * 2 * s, fill: fill-of(m), stroke: stroke-of(m, s)))
+  } else if m.k == "image" {
+    place(dx: m.x * s, dy: m.y * s, image(bytes(m.svg), format: "svg", width: m.w * s, height: m.h * s))
   } else if m.k == "path" {
     place(curve(fill: fill-of(m), stroke: stroke-of(m, s), ..m.segs.map(seg => segment(seg, s))))
   } else {

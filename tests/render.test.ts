@@ -118,6 +118,15 @@ waiting -> end
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
+  it('draws vendor icons on screen and on paper', () => {
+    const src = '```architecture\nfn: aws.lambda "Resize"\nbucket: aws.s3 "Photos"\nfn -> bucket\n```\n';
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<image class="pr-icon"[^>]*href="data:image\/svg\+xml;base64,/g)).toBe(2);
+    const print = JSON.stringify(typstDocument(parseDocument(src)));
+    expect(print).toMatch(/"k":"image","x":[\d.]+,"y":[\d.]+,"w":24,"h":24,"svg":"<svg/);
+  });
+
   it('draws a timeline: events on an axis, spans, a band and a cause arc', () => {
     const src = readFileSync(new URL('../docs/examples/incident.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });

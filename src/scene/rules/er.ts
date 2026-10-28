@@ -45,6 +45,7 @@ export const er: Rule = (item, ctx) => {
       return undefined;
     }
     case 'ellipse':
+    case 'image':
     case 'line':
       return undefined;
     case 'path': {

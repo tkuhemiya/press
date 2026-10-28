@@ -2,6 +2,7 @@ import type { Node } from '../model.ts';
 import { n } from '../render/svg.ts';
 import type { Item } from '../scene/scene.ts';
 import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
+import { iconSvg } from '../icons.ts';
 
 export function kindItems(kind: string | undefined, x: number, y: number, w: number, h: number): Item[] {
   if (kind === 'database') {
@@ -101,6 +102,13 @@ export function glyphItems(kind: string, x: number, y: number): Item[] {
   return items.length ? [{ type: 'group', cls: 'pr-glyph', items }] : [];
 }
 
+const ICON = 24;
+export const ICON_W = ICON + 8;
+
+export const iconItems = (icon: string, x: number, cy: number): Item[] => [
+  { type: 'image', cls: 'pr-icon', x, y: cy - ICON / 2, w: ICON, h: ICON, svg: iconSvg(icon) },
+];
+
 const hasGlyph = (kind: string): boolean => glyphParts(kind, 0, 0).length > 0;
 
 const PAD_X = 16;
@@ -109,14 +117,14 @@ const CAP = 4;
 const MIN_W = 96;
 const MAX_LABEL = 170;
 
-export function componentShape(node: Node & { kind?: string }): NodeShape {
+export function componentShape(node: Node & { kind?: string; icon?: string }): NodeShape {
   const { kind } = node;
   const text = measureLabel(node.label, node.note, MAX_LABEL);
-  const icon = kind && kind !== 'database' && hasGlyph(kind) ? GLYPH_W : 0;
+  const icon = node.icon ? ICON_W : kind && kind !== 'database' && hasGlyph(kind) ? GLYPH_W : 0;
   const pad = kind === 'database' ? PAD_Y + CAP : PAD_Y;
   return {
     w: Math.max(MIN_W, Math.ceil(text.w + icon + 2 * PAD_X)),
-    h: Math.ceil(text.h + 2 * pad),
+    h: Math.ceil(Math.max(text.h, node.icon ? ICON : 0) + 2 * pad),
     draw(b, attrs) {
       const cx = b.x + b.w / 2 + icon / 2;
       const cy = b.y + b.h / 2 + (kind === 'database' ? CAP / 2 : 0);
@@ -127,6 +135,7 @@ export function componentShape(node: Node & { kind?: string }): NodeShape {
         items: [
           ...kindItems(kind, b.x, b.y, b.w, b.h),
           ...(kind === 'database' ? [] : hatchItems(node, b, 9)),
+          ...(node.icon ? iconItems(node.icon, cx - text.w / 2 - ICON_W, b.y + b.h / 2) : []),
           ...(icon && kind ? glyphItems(kind, cx - text.first / 2 - 15, b.y + pad + 9) : []),
           ...textItems(text, cx, cy),
         ],

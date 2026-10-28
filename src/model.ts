@@ -79,7 +79,7 @@ export type StateMachine = Graph<Node, Edge, NodeTarget | EdgeTarget> & {
 
 export const SEQUENCE_KINDS = ['user', 'client', 'service', 'database', 'queue', 'external'] as const;
 export type SequenceKind = (typeof SEQUENCE_KINDS)[number];
-export type Participant = Node & { kind?: SequenceKind };
+export type Participant = Node & { kind?: SequenceKind; icon?: string };
 
 export type PhaseIndex = number & { readonly __brand: 'PhaseIndex' };
 
@@ -107,7 +107,7 @@ export const ARCHITECTURE_KINDS = [
   'user',
 ] as const;
 export type ArchitectureKind = (typeof ARCHITECTURE_KINDS)[number];
-export type Component = Node & { kind?: ArchitectureKind };
+export type Component = Node & { kind?: ArchitectureKind; icon?: string };
 
 export type Architecture = Graph<Component, Edge, NodeTarget | EdgeTarget> & {
   type: 'architecture';
@@ -134,7 +134,7 @@ export type C4Diagram = Graph<C4Node, Edge, NodeTarget | EdgeTarget> & {
 
 export const DEPLOYMENT_KINDS = ['node', 'workload', 'lb', 'cdn', 'volume'] as const;
 export type DeploymentKind = (typeof DEPLOYMENT_KINDS)[number];
-export type Placement = Node & { kind?: DeploymentKind };
+export type Placement = Node & { kind?: DeploymentKind; icon?: string };
 
 export type Deployment = Graph<Placement, Edge, NodeTarget | EdgeTarget> & {
   type: 'deployment';

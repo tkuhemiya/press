@@ -83,6 +83,7 @@ export const timeline: Rule = (item: Leaf, ctx: Context): Mark | undefined => {
       return undefined;
     }
     case 'ellipse':
+    case 'image':
     case 'line':
     case 'lines':
       return undefined;

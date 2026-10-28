@@ -1,0 +1,81 @@
+
+  The circuit breaker pattern
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  When a downstream service starts failing, the worst thing a caller can do is
+  keep calling it. Every request waits for a timeout, threads pile up, and the
+  failure spreads upstream. A circuit breaker sits in front of the call and
+  stops trying for a while once failures cross a threshold.
+
+  ## Three states
+
+  Circuit breaker states
+
+                                ●
+                                │
+                                │
+                                │
+                                ▼
+               ┌────────────────────┐
+               │      Closed ①      │ ↺ success
+               │ calls pass through │
+               └───────────┬────────┘
+                           │      ▲
+                     ╭─────╯      ┗━━━━━━━┓
+         ✗ failures ≥ threshold ②         ┃
+                     │                    ┃
+                     ▼                    ┃
+            ┌─────────────────┐           ┃
+            │  ✗ Open ③ [b]   │           ┃
+            │ calls fail fast │   trial succeeds ⑥
+            └─────┬───────────┘           ┃
+                  │      ▲                ┃
+                  │      ╰──────╮         ┃
+           ╭──────╯             │         ┃
+  cool-down elapsed ④    ✗ trial fails ⑤  ┃
+           ╰─────────────────╮  │  ┏━━━━━━┛
+                             ▼  │  ┃
+                       ╔════════╩══╩════╗
+                       ║ Half-open [a]  ║
+                       ║ one trial call ║
+                       ╚════════════════╝
+
+  ① Normally the breaker is closed and every call goes through.
+  ② Once failures in the window cross the threshold, it trips open.
+  ③ While open, calls fail immediately: no timeouts, no piled-up threads.
+  ④ After a cool-down it lets a single trial call through.
+  ⑤ If the trial fails, the service is still down, so the breaker reopens.
+  ⑥ If it succeeds, normal traffic resumes.
+
+  The state people forget is half-open[a]. Without it, a breaker would either
+  stay open[b] forever or flood a recovering service with the whole backlog at
+  once.
+
+  ## A call while the breaker is open
+
+  Calling through an open breaker
+
+   ┌─ service ─┐      ┌─ service ─┐  ┌─ external ────────┐
+   │ Checkout  │      │  Breaker  │  │ Inventory API [a] │
+   └─────┬─────┘      └─────┬─────┘  └─────────┬─────────┘
+         ┊                  ┊                  ┊
+         ┊ reserve(item) ①  ┊                  ┊
+         ├─────────────────▶┊                  ┊
+         ┊                  ┊                  ┊
+         ┊                  ├──╮ state is open ②
+         ┊                  ┊◀─╯               ┊
+         ┊                  ┊                  ┊
+         ┊  ✗ fail fast ③   ┊                  ┊
+         ┊◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤                  ┊
+         ┊                  ┊                  ┊
+         ├━━┓ use cached stock level ④         ┊
+         ┊◀━┛               ┊                  ┊
+         ┊                  ┊                  ┊
+
+  ① Checkout asks to reserve an item.
+  ② The breaker is open, so it does not call Inventory at all.
+  ③ It fails in microseconds instead of waiting for a timeout.
+  ④ Checkout falls back to a cached stock level and carries on.
+
+  Notice that the Inventory API[a] never sees the request. That silence is the
+  point: it gives the failing service room to recover.

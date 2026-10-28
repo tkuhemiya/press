@@ -1,0 +1,56 @@
+
+  Should this be cached?
+  ━━━━━━━━━━━━━━━━━━━━━━
+
+  “Add a cache” is the most common answer to a slow page, and often the wrong
+  one. A cache trades freshness for speed, and it only pays when reads far
+  outnumber writes. Three questions, in order, settle it.
+
+  Should this be cached?
+
+                                         ┌──────────────────────────┐
+                                         │ Read far more often than │
+                                         │         written?         │
+                                         └──┬─────────────────────┬─┘
+                                            │                     │
+                                            │                     │
+                                            │                     ╰╮
+                                          yes ①                   no
+                                            │                      │
+                                            ▼                      │
+                               ┌────────────────────────┐          ▼
+                               │ Can readers see data a │   ╭─────────────╮
+                               │      minute old?       │   │ Don't cache │
+                               └─────┬─────────────┬────┘   ╰─────────────╯
+                                     │             │
+                              ╭──────╯             ╰─────╮
+                            yes ②                       no
+                              │                          │
+                              │                          │
+                              ▼                          ▼
+                    ┌───────────────────┐  ╭──────────────────────────╮
+                    │ Slow or costly to │  │ Cache, and invalidate on │
+                    │     compute?      │  │        write [b]         │
+                    └────┬────────┬─────┘  │   harder than it looks   │
+                         │        ╎        ╰──────────────────────────╯
+                         │        ╎
+               ╭─────────╯        ╰╌╌╌╌╌╌╌╌╌╌╮
+             yes ③                         no ④
+               │                             ╎
+               ▼                             ▼
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━┓    ╔═════════════════════════╗
+  ┃ Cache it, with a short ┃    ║ Fix the query first [a] ║
+  ┃          TTL           ┃    ╚═════════════════════════╝
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+  ① A cache only pays when the same answer is read many times.
+  ② Every cache serves stale data for a while; the product has to allow it.
+  ③ And it has to save real work. Then a short TTL is the simple, safe
+     choice.
+  ④ If the computation is cheap, the slowness is somewhere else. Find it
+     first.
+
+  The rarest branch is fixing the query[a]: it is dashed because it is the
+  answer people least expect, and the one that most often turns out right. If
+  readers must never see stale data, invalidating on write[b] works, but every
+  write path then has to remember the cache.
