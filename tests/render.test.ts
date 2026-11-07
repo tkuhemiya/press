@@ -318,12 +318,24 @@ describe('software architecture diagrams', () => {
 });
 
 describe('the Press skill', () => {
-  it('teaches only Press that builds cleanly', () => {
-    const skill = readFileSync(new URL('../skills/press/SKILL.md', import.meta.url), 'utf8');
-    const body = skill.replace(/^---[\s\S]*?---\n/, '');
-    const { diagnostics, html } = build(body, { embedFonts: false });
+  const skillFile = (path: string) =>
+    readFileSync(new URL(`../skills/press/${path}`, import.meta.url), 'utf8').replace(/^---[\s\S]*?---\n/, '');
+
+  it.each([
+    ['SKILL.md', 0],
+    ['references/language.md', 13],
+    ['references/explorer-prompt.md', 0],
+  ])('teaches only Press that builds cleanly in %s', (path, figures) => {
+    const { diagnostics, html } = build(skillFile(path), { embedFonts: false });
     expect(diagnostics).toEqual([]);
-    expect(count(html, /<figure class="pr-figure"/g)).toBe(13);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(figures);
+  });
+
+  it('shows a worked change in SKILL.md that builds cleanly', () => {
+    const example = skillFile('SKILL.md').match(/^````markdown\n([\s\S]*?)^````$/m)?.[1] ?? '';
+    const { diagnostics, html } = build(example, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(1);
   });
 });
 

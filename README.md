@@ -68,9 +68,12 @@ const { html, diagnostics } = build(markdown);
 
 ## For agents
 
-[`skills/press/SKILL.md`](skills/press/SKILL.md) teaches an agent to write Press well: which
-diagram type fits, how to use roles and steps, and the mistakes to avoid. Every diagram in it
-is built by the test suite, so it stays in step with the language.
+[`skills/press/SKILL.md`](skills/press/SKILL.md) teaches an agent to explain a codebase or a
+change with Press: read the code first, find the claims worth drawing, build the picture up,
+and show a PR as one diagram with `+` and `-` lines.
+[`references/language.md`](skills/press/references/language.md) is the language itself, with
+what each diagram type is for and where it hides in code. Every diagram in the skill is built
+by the test suite, so it stays in step with the language.
 
 ## Develop
 
