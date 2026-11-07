@@ -349,6 +349,35 @@ describe('the Press skill', () => {
   });
 });
 
+describe('the guide and PR skills', () => {
+  const read = (path: string) => readFileSync(new URL(`../skills/${path}`, import.meta.url), 'utf8');
+  const body = (path: string) => read(path).replace(/^---[\s\S]*?---\n/, '');
+
+  it.each([
+    ['press-guide/SKILL.md', 0],
+    ['press-guide/references/checklist.md', 0],
+    ['press-guide/references/explorer-prompt.md', 0],
+    ['press-pr/SKILL.md', 0],
+    ['press-pr/references/explorer-prompt.md', 0],
+  ])('teaches only Press that builds cleanly in %s', (path, figures) => {
+    const { diagnostics, html } = build(body(path), { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(figures);
+  });
+
+  it.each(['press-guide', 'press-pr'])('carries the same language reference in %s', (skill) => {
+    expect(read(`${skill}/references/language.md`)).toBe(read('press/references/language.md'));
+  });
+
+  it('shows a worked PR card that builds cleanly without steps', () => {
+    const example = body('press-pr/SKILL.md').match(/^````markdown\n([\s\S]*?)^````$/m)?.[1] ?? '';
+    const { diagnostics, html } = build(example, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(1);
+    expect(example).not.toContain('steps:');
+  });
+});
+
 describe('print layout', () => {
   const variantScenes = (src: string): string[] =>
     typstDocument(parseDocument(src))
