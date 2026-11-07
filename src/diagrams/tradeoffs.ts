@@ -1,4 +1,4 @@
-import type { Cell, GroupId, Node, NodeId, NodeTarget, Part, PropTarget, Step, Tradeoffs } from '../model.ts';
+import type { Cell, Group, GroupId, Node, NodeId, NodeTarget, Part, PropTarget, Step, Tradeoffs } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
@@ -7,8 +7,9 @@ import { trusted } from '../brand.ts';
 import { hatchItems, markerItems, refMarkers, type Box, nodeTargets, propTargets } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { linesItem, n } from '../render/svg.ts';
-import { attr, type Item, type Scene } from '../scene/scene.ts';
+import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
+import { joinNotes, wasText } from './sign.ts';
 
 export const TRADEOFFS: DiagramDef<'tradeoffs'> = {
   type: 'tradeoffs',
@@ -45,7 +46,7 @@ function build(fence: Fence, report: Reporter): Tradeoffs {
     },
     prop(s, owner, isNew, ensure) {
       if (isNew) delete owner.group;
-      const criterion = ensure(s.key, s.line, s.group);
+      const criterion = ensure(s.key, s.line, s.group, s.change);
       if (s.group !== undefined && criterion.group === undefined) criterion.group = s.group;
     },
   });
@@ -75,10 +76,13 @@ function build(fence: Fence, report: Reporter): Tradeoffs {
         'Group criteria into categories; list options outside any group.',
       );
   }
-  for (const o of optionIds) {
-    const missing = [...criterionIds].filter((c) => !props.some((p) => p.node === o && p.key === c));
+  const after = props.filter((p) => p.change !== 'removed');
+  const afterOptions = new Set(after.map((p) => p.node));
+  const afterCriteria = new Set(after.map((p) => p.key));
+  for (const o of afterOptions) {
+    const missing = [...afterCriteria].filter((c) => !after.some((p) => p.node === o && p.key === c));
     if (!missing.length) continue;
-    const last = Math.max(...props.filter((p) => p.node === o).map((p) => p.line));
+    const last = Math.max(...after.filter((p) => p.node === o).map((p) => p.line));
     warn(
       last,
       `\`${o}\` has no value for ${missing.map((c) => `\`${c}\``).join(', ')}; ${missing.length > 1 ? 'those cells draw' : 'that cell draws'} as a dash.`,
@@ -99,6 +103,8 @@ function build(fence: Fence, report: Reporter): Tradeoffs {
       if (p.value !== undefined) cell.value = p.value;
       if (p.note !== undefined) cell.note = p.note;
       if (p.role) cell.role = p.role;
+      if (p.change) cell.change = p.change;
+      if (p.was !== undefined) cell.was = p.was;
       return cell;
     }),
     steps,
@@ -127,21 +133,25 @@ interface Member {
   group?: GroupId;
 }
 
-const band = (label: string, b: Box): Item => ({
+const band = (group: Group, b: Box): Item => ({
   type: 'group',
   cls: 'pr-group pr-band',
+  attrs: markAttrs(group),
   items: [
     { type: 'rect', x: b.x, y: b.y, w: b.w, h: b.h, r: 6 },
-    { type: 'text', x: b.x + 10, y: b.y + 17, text: label },
+    { type: 'text', x: b.x + 10, y: b.y + 17, text: group.label },
   ],
 });
 
 const nodeGroup = (domId: string, node: Node, cls: string, items: Item[]): Item => ({
   type: 'group',
   cls,
-  attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
+  attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...markAttrs(node)],
   items,
 });
+
+const cellNote = (p: Cell | undefined): string | undefined =>
+  joinNotes(p?.note, p?.was === undefined ? undefined : wasText(p.was));
 
 function render(d: Tradeoffs, context: RenderContext): Rendered {
   const { domId } = context;
@@ -162,7 +172,10 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
   const at = (r: Member, c: Member): Cell | undefined =>
     across ? cell(c.node.id, r.node.id) : cell(r.node.id, c.node.id);
   const valueLines = (p: Cell | undefined): string[] => (p?.value ? wrap(p.value, CELL_FONT, MAX_CELL) : ['—']);
-  const noteLines = (p: Cell | undefined): string[] => (p?.note ? wrap(p.note, NOTE_FONT, MAX_CELL) : []);
+  const noteLines = (p: Cell | undefined): string[] => {
+    const note = cellNote(p);
+    return note ? wrap(note, NOTE_FONT, MAX_CELL) : [];
+  };
   const cellH = (p: Cell | undefined): number => valueLines(p).length * LINE + noteLines(p).length * NOTE_LINE;
   const lineW = (lines: string[], size: number, face: 'sans400' | 'sans500' | 'sans600' = 'sans400') =>
     Math.max(0, ...lines.map((l) => textWidth(l, size, face)));
@@ -210,9 +223,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
 
   for (const b of bandRows) {
     const last = rows.findLastIndex((r) => r.group === b.group);
-    items.push(
-      band(d.categories[b.group].label, { x: MARGIN, y: b.y, w: x - MARGIN, h: rowY[last] + rowH[last] - b.y }),
-    );
+    items.push(band(d.categories[b.group], { x: MARGIN, y: b.y, w: x - MARGIN, h: rowY[last] + rowH[last] - b.y }));
   }
   if (bandAbove) {
     for (let i = 0; i < cols.length;) {
@@ -221,7 +232,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       while (j + 1 < cols.length && cols[j + 1].group === g) j++;
       if (g !== undefined)
         items.push(
-          band(d.categories[g].label, {
+          band(d.categories[g], {
             x: colX[i],
             y: MARGIN,
             w: colX[j] + colW[j] - colX[i],
@@ -270,7 +281,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
         { type: 'rect', cls: 'pr-box pr-cell-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 5 },
         ...hatchItems({ role: p?.role }, b, 5),
       ];
-      const mark = p?.role === 'happy' ? 'pr-good' : notes.length && !p?.role ? 'pr-caveat' : undefined;
+      const mark = p?.role === 'happy' ? 'pr-good' : p?.note && !p.role ? 'pr-caveat' : undefined;
       const textX = mark ? cx + MARK / 2 + 2 : cx;
       if (mark)
         cellItems.push({
@@ -294,12 +305,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       items.push({
         type: 'group',
         cls: `pr-node pr-cell${p ? '' : ' pr-missing'}`,
-        attrs: [
-          ['data-node', id],
-          ['data-in', `${o} ${k}`],
-          ['id', `${domId}-node-${id}`],
-          ...attr('data-role', p?.role),
-        ],
+        attrs: [['data-node', id], ['data-in', `${o} ${k}`], ['id', `${domId}-node-${id}`], ...markAttrs(p ?? {})],
         items: cellItems,
       });
     });

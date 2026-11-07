@@ -323,7 +323,7 @@ describe('the Press skill', () => {
     const body = skill.replace(/^---[\s\S]*?---\n/, '');
     const { diagnostics, html } = build(body, { embedFonts: false });
     expect(diagnostics).toEqual([]);
-    expect(count(html, /<figure class="pr-figure"/g)).toBe(12);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(13);
   });
 });
 

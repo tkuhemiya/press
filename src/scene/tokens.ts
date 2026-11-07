@@ -1,4 +1,4 @@
-import type { Role } from '../model.ts';
+import type { Change, Role } from '../model.ts';
 
 export const INK = {
   paper: '#ffffff',
@@ -26,4 +26,10 @@ export const ROLE: Record<Role, RoleInk> = {
   happy: { line: '#2c7a4b', fill: '#ecf5ef' },
   error: { line: '#c03a2b', fill: '#fcefed' },
   muted: { line: INK.mutedLine, fill: INK.nodeFill },
+};
+
+export const CHANGE: Record<Change, RoleInk> = {
+  added: ROLE.happy,
+  removed: ROLE.error,
+  changed: { line: '#9a6700', fill: '#fbf4e2' },
 };

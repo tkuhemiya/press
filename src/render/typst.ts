@@ -3,6 +3,7 @@ import type { Document, Figure } from '../parse/document.ts';
 import { documentBlocks, htmlInlines, plain, type Blocks, type Inline } from './blocks.ts';
 import { view, type RenderContext, type Rendered, type View } from '../diagrams/diagram.ts';
 import { printScene, type PrintScene } from '../scene/print.ts';
+import { signed } from '../diagrams/sign.ts';
 
 type Block = Blocks<FigureBlock>;
 
@@ -102,7 +103,7 @@ function leanOf(v: View, f: Figure): Rendered | undefined {
 }
 
 function figure(f: Figure): Block {
-  const v = view(f.diagram);
+  const v = view(signed(f.diagram));
   const first = draw(v, f);
   const tried = v.turnable() ? [first, ...DIRECTIONS.map((d) => draw(v, f, d))] : [first];
   const best = tried.reduce((a, b) => (fitOf(b) > fitOf(a) * 1.1 ? b : a));

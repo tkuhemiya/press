@@ -2,6 +2,9 @@ import type { Diagram, DiagramType, Direction, EdgeIndex, Html, NodeId, Part, Ta
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import type { Scene } from '../scene/scene.ts';
+import { withKey } from './key.ts';
+import { paintSvg } from '../scene/svg.ts';
+import { trusted } from '../brand.ts';
 import { ARCHITECTURE } from './architecture.ts';
 import { C4 } from './c4.ts';
 import { CAUSAL_LOOP } from './causal-loop.ts';
@@ -59,6 +62,12 @@ const DIAGRAMS: { [T in DiagramType]: DiagramDef<T> } = {
   tradeoffs: TRADEOFFS,
 };
 
+function keyed(r: Rendered): Rendered {
+  const scene = withKey(r.scene);
+  if (scene === r.scene) return r;
+  return { svg: trusted(paintSvg(scene)), width: scene.width, height: scene.height, scene };
+}
+
 export function definition<T extends DiagramType>(type: T): DiagramDef<T> {
   return DIAGRAMS[type];
 }
@@ -82,7 +91,7 @@ function bind<T extends DiagramType>(d: Diagram<T> & { type: T }): View {
   const def = definition(d.type);
   return {
     name: def.name,
-    render: (context) => def.render(d, context),
+    render: (context) => keyed(def.render(d, context)),
     targets: () => def.targets(d),
     ends: (edge) => def.ends?.(d, edge),
     members: (id) => def.members?.(d, id),

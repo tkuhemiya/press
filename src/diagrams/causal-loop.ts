@@ -1,4 +1,4 @@
-import type { CausalLoop, Link, Loop, NodeId, Polarity, Target } from '../model.ts';
+import type { CausalLoop, Change, Link, Loop, NodeId, Polarity, Target } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
@@ -19,7 +19,7 @@ import {
 } from './draw.ts';
 import { arrowhead, HEAD, n } from '../render/svg.ts';
 import { textWidth } from '../text/measure.ts';
-import { attr, type Attrs, type Item, type Scene } from '../scene/scene.ts';
+import { markAttrs, type Attrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
 
 export const CAUSAL_LOOP: DiagramDef<'causal-loop'> = {
@@ -44,8 +44,14 @@ export const CAUSAL_LOOP: DiagramDef<'causal-loop'> = {
   },
 };
 
+function preferredSides(change: Change | undefined): (Change | undefined)[] {
+  if (change === 'removed') return ['removed', undefined, 'added'];
+  if (change === 'added') return ['added', undefined, 'removed'];
+  return [undefined, 'added', 'removed'];
+}
+
 function build(fence: Fence, report: Reporter): CausalLoop {
-  const { error } = report;
+  const { error, warn } = report;
   const delay = (attrs: ReadonlyMap<string, string>, line: number): void => {
     const value = attrs.get('delay');
     if (value !== undefined && value !== 'yes')
@@ -144,7 +150,8 @@ function build(fence: Fence, report: Reporter): CausalLoop {
         ok = false;
         break;
       }
-      const e = edges.find((x) => x.from === from && x.to === to);
+      const options = edges.filter((x) => x.from === from && x.to === to);
+      const e = preferredSides(s.change).flatMap((c) => options.filter((x) => x.change === c))[0];
       if (!e) {
         const out = edges.filter((x) => x.from === from).map((x) => `\`${x.from} -> ${x.to}\``);
         error(
@@ -161,10 +168,17 @@ function build(fence: Fence, report: Reporter): CausalLoop {
     }
     const [head, ...rest] = path;
     if (!ok || head === undefined) continue;
+    if (!s.change && path.some((i) => edges[i]?.change === 'removed'))
+      warn(
+        s.line,
+        `Loop "${s.name}" is not marked, but one of its links is removed, so the loop does not exist after the change.`,
+        'Mark the loop `-` as well, or keep the link.',
+      );
     const negatives = path.filter((i) => edges[i]?.polarity === '-').length;
     const reinforcing = negatives % 2 === 0;
     const label = `${reinforcing ? 'R' : 'B'}${loops.filter((l) => l.reinforcing === reinforcing).length + 1}`;
     const loop: Loop = { name: s.name, label, reinforcing, edges: [head, ...rest], line: s.line };
+    if (s.change) loop.change = s.change;
     if (s.id !== undefined) {
       const clash = nodes.some((node) => node.id === s.id) || loops.some((l) => l.id === s.id);
       if (clash)
@@ -305,7 +319,7 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
     marks.push({
       type: 'group',
       cls: 'pr-edge-label pr-polarity-mark',
-      attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+      attrs: [['data-edge', String(e.index)], ...markAttrs(e)],
       items: [
         { type: 'text', cls: 'pr-polarity', x: sign.x, y: sign.y, text: e.polarity === '-' ? '−' : '+', dy: '0.35em' },
       ],
@@ -355,7 +369,7 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
     return {
       type: 'group',
       cls: 'pr-loop',
-      attrs: [...named, ['data-loop', l.label], ['data-kind', l.reinforcing ? 'R' : 'B']],
+      attrs: [...named, ['data-loop', l.label], ['data-kind', l.reinforcing ? 'R' : 'B'], ...markAttrs(l)],
       items: [
         {
           type: 'path',
@@ -377,7 +391,7 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
     return {
       type: 'group',
       cls: 'pr-node',
-      attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
+      attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...markAttrs(node)],
       items: [
         { type: 'rect', cls: 'pr-box pr-variable', ...b, r },
         ...hatchItems(node, b, r),

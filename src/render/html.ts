@@ -4,6 +4,7 @@ import { renderDocument, type Document, type Figure } from '../parse/document.ts
 import { view, type RenderContext, type Rendered, type View } from '../diagrams/diagram.ts';
 import { trusted } from '../brand.ts';
 import { esc } from './svg.ts';
+import { signed } from '../diagrams/sign.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
 
@@ -100,7 +101,7 @@ interface StepJson {
 
 function figure(f: Figure): string {
   const d = f.diagram;
-  const v = view(d);
+  const v = view(signed(d));
   const figId = f.domId;
   let drawn: Rendered;
   try {

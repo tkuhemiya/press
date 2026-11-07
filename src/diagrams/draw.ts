@@ -1,9 +1,18 @@
-import { targetName, type Arrow, type Group, type EdgeIndex, type NodeId, type Role, type Target } from '../model.ts';
+import {
+  targetName,
+  type Arrow,
+  type Change,
+  type Group,
+  type EdgeIndex,
+  type NodeId,
+  type Role,
+  type Target,
+} from '../model.ts';
 import type { RenderContext } from './diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badgeItem, linesItem } from '../render/svg.ts';
-import { attr, type Attrs, type Item } from '../scene/scene.ts';
+import { markAttrs, type Attrs, type Item } from '../scene/scene.ts';
 
 const LABEL_FONT = 12.5;
 const LABEL_LINE = 16;
@@ -63,6 +72,7 @@ export interface Labelled {
   index: number;
   label?: string;
   role?: Role;
+  change?: Change;
 }
 
 export type EdgeLike = Labelled & { from: string; to: string; arrow: Arrow };
@@ -72,7 +82,7 @@ export function edgeItem(e: EdgeLike, p: EdgePath, both: boolean): Item {
   return {
     type: 'group',
     cls: `pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}`,
-    attrs: [['data-edge', String(e.index)], ['data-from', e.from], ['data-to', e.to], ...attr('data-role', e.role)],
+    attrs: [['data-edge', String(e.index)], ['data-from', e.from], ['data-to', e.to], ...markAttrs(e)],
     items: [
       { type: 'path', cls: 'pr-line', d: p.d },
       { type: 'path', cls: 'pr-head', d: arrowhead(p.ex, p.ey, p.edx, p.edy) },
@@ -103,7 +113,7 @@ export function labelItem(e: Labelled, x: number, y: number, depth: number): Ite
   return {
     type: 'group',
     cls: `pr-edge-label${depth ? ` pr-on-group pr-depth-${depth}` : ''}`,
-    attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+    attrs: [['data-edge', String(e.index)], ...markAttrs(e)],
     items: [
       { type: 'rect', cls: 'pr-elabel-plate', x: x - w / 2, y: y - h / 2, w, h, r: 3 },
       linesItem(lines, x, y, LABEL_LINE, 'pr-elabel'),

@@ -1,5 +1,17 @@
 import { ROLES } from '../model.ts';
-import type { Arrow, DiagramId, Direction, GroupId, Html, NodeId, NonEmpty, PhaseIndex, Role, Time } from '../model.ts';
+import type {
+  Arrow,
+  Change,
+  DiagramId,
+  Direction,
+  GroupId,
+  Html,
+  NodeId,
+  NonEmpty,
+  PhaseIndex,
+  Role,
+  Time,
+} from '../model.ts';
 import { diagramId, groupId, nodeId, phaseIndex } from '../brand.ts';
 import { closest, list, type Reporter } from '../diagnostics.ts';
 import { looksLikeTime, parseTime, TIME_EXAMPLES } from './time.ts';
@@ -23,6 +35,7 @@ export type End = { node: NodeId; key?: NodeId };
 interface Meaning {
   role?: Role;
   note?: string;
+  change?: Change;
   attrs: Attrs;
   group?: GroupId;
   phase?: PhaseIndex;
@@ -30,14 +43,21 @@ interface Meaning {
   line: number;
 }
 
-type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; icon?: string; label?: string };
+export type Declare = Meaning & { type: 'declare'; id: NodeId; kind?: string; icon?: string; label?: string };
 type Mention = Meaning & { type: 'mention'; id: NodeId };
 export type Chain = Meaning & { type: 'chain'; ends: [End, End, ...End[]]; arrows: NonEmpty<Arrow>; label?: string };
 export type Prop = Meaning & { type: 'prop'; node: NodeId; key: NodeId; value?: string };
-type Event = Meaning & { type: 'event'; at: Time; id: NodeId; label?: string };
-type LoopLine = { type: 'loop'; id?: NodeId; name: string; ends: [NodeId, NodeId, ...NodeId[]]; line: number };
+export type EventStatement = Meaning & { type: 'event'; at: Time; id: NodeId; label?: string };
+type LoopLine = {
+  type: 'loop';
+  id?: NodeId;
+  name: string;
+  ends: [NodeId, NodeId, ...NodeId[]];
+  change?: Change;
+  line: number;
+};
 
-type Statement = Declare | Mention | Chain | Prop | Event | LoopLine;
+type Statement = Declare | Mention | Chain | Prop | EventStatement | LoopLine;
 
 export interface RawStep {
   from: End;
@@ -172,8 +192,16 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
   const lines = input.body.split('\n');
   for (let k = 0; k < lines.length; k++) {
     const line = input.line + 1 + k;
-    const text = stripComment(lines[k]).trim();
+    const raw = stripComment(lines[k]).trim();
+    const marked = /^([+-]) +(?=\S)/.exec(raw);
+    const change: Change | undefined = marked ? (marked[1] === '+' ? 'added' : 'removed') : undefined;
+    const text = marked ? raw.slice(marked[0].length) : raw;
     if (!text) continue;
+    const unmarkable = signError(marked?.[1], text, inSteps);
+    if (unmarkable) {
+      error(line, ...unmarkable);
+      continue;
+    }
 
     if (text === 'steps:') {
       if (inSteps)
@@ -310,6 +338,7 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
     }
     const meaning = (attrs: Record<string, string>): Meaning => {
       const out: Meaning = { attrs: new Map(), line };
+      if (change !== undefined) out.change = change;
       const kept = new Map<string, string>();
       for (const [key, value] of Object.entries(attrs)) {
         if (key === 'role') {
@@ -432,6 +461,7 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
         continue;
       }
       const loop: LoopLine = { type: 'loop', name, ends: [nodeId(a), nodeId(b), ...more.map(nodeId)], line };
+      if (change !== undefined) loop.change = change;
       if (loopId !== undefined) loop.id = nodeId(loopId);
       fence.statements.push(loop);
       continue;
@@ -477,7 +507,7 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
           continue;
         }
         if (reservedSteps(id)) continue;
-        const event: Event = { type: 'event', at, id: nodeId(id), ...meaning(attrs) };
+        const event: EventStatement = { type: 'event', at, id: nodeId(id), ...meaning(attrs) };
         if (m[1] !== undefined) event.label = m[1];
         fence.statements.push(event);
         continue;
@@ -636,6 +666,23 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
     error(l.line, `Lane "${l.label}" is never closed.`, 'Add `}` on its own line after its last event.');
   }
   return fence;
+}
+
+function signError(sign: string | undefined, text: string, inSteps: boolean): [string, string] | undefined {
+  if (sign === undefined) return undefined;
+  if (inSteps || text === 'steps:')
+    return [
+      `\`${sign}\` cannot mark a step: a step shows a statement, which carries its own status.`,
+      'Delete the sign, and mark the edge or node the step points at instead.',
+    ];
+  if (text === '}')
+    return [`\`${sign}\` cannot mark a closing brace.`, 'Mark the statements inside the braces instead.'];
+  const keyword = /^(group|phase|lane)\b/.exec(text)?.[1];
+  if (keyword === undefined) return undefined;
+  return [
+    `\`${sign}\` cannot mark \`${keyword}\`: a group, phase or lane takes its status from what it holds.`,
+    'Delete the sign, and mark the edges, nodes and cells inside it.',
+  ];
 }
 
 function withParent(group: FenceGroup, parent: GroupId | undefined): FenceGroup {

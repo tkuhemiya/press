@@ -1,6 +1,6 @@
-import { ROLES, type Role } from '../model.ts';
+import { CHANGES, ROLES, type Change, type Role } from '../model.ts';
 import type { Attrs, Item } from './scene.ts';
-import { INK, ROLE } from './tokens.ts';
+import { CHANGE, INK, ROLE } from './tokens.ts';
 
 export type Seg = ['M', number, number] | ['L', number, number] | ['C', ...number[]] | ['Q', ...number[]] | ['Z'];
 
@@ -41,6 +41,7 @@ export type Leaf = Exclude<Item, { type: 'group' }>;
 export interface Context {
   classes: ReadonlySet<string>;
   role?: Role;
+  change?: Change;
 }
 
 export type Rule = (item: Leaf, ctx: Context) => Mark | undefined;
@@ -54,6 +55,84 @@ export const roleIn = (attrs: Attrs | undefined): Role | undefined => {
   const value = attrs?.find(([k]) => k === 'data-role')?.[1];
   return ROLES.find((r) => r === value);
 };
+
+export const changeIn = (attrs: Attrs | undefined): Change | undefined => {
+  const value = attrs?.find(([k]) => k === 'data-change')?.[1];
+  return CHANGES.find((c) => c === value);
+};
+
+const DIFF_DASH = [4, 3];
+
+const HEADS = ['pr-head', 'pr-loop-head'];
+const CONTAINERS = ['pr-group', 'pr-phase'];
+
+const shiftSeg = (seg: Seg, dx: number, dy: number): Seg => {
+  switch (seg[0]) {
+    case 'M':
+      return ['M', seg[1] + dx, seg[2] + dy];
+    case 'L':
+      return ['L', seg[1] + dx, seg[2] + dy];
+    case 'C':
+      return ['C', seg[1] + dx, seg[2] + dy, seg[3] + dx, seg[4] + dy, seg[5] + dx, seg[6] + dy];
+    case 'Q':
+      return ['Q', seg[1] + dx, seg[2] + dy, seg[3] + dx, seg[4] + dy];
+    case 'Z':
+      return seg;
+  }
+};
+
+export function moved(mark: Mark, dx: number, dy: number): Mark {
+  if (dx === 0 && dy === 0) return mark;
+  switch (mark.k) {
+    case 'rect':
+    case 'text':
+    case 'image':
+      return { ...mark, x: mark.x + dx, y: mark.y + dy };
+    case 'circle':
+    case 'ellipse':
+      return { ...mark, cx: mark.cx + dx, cy: mark.cy + dy };
+    case 'path':
+      return { ...mark, segs: mark.segs.map((seg) => shiftSeg(seg, dx, dy)) };
+  }
+}
+
+export function recolour(mark: Mark, change: Change | undefined, classes: readonly string[]): Mark {
+  if (!change) return mark;
+  const ink = CHANGE[change].line;
+  const tint = CHANGE[change].fill;
+  const removed = change === 'removed';
+  const dash = removed ? { dash: DIFF_DASH } : {};
+  if (classes.some((c) => CONTAINERS.includes(c)) && mark.k !== 'text') {
+    if (mark.k === 'rect') return { ...mark, stroke: ink, sw: 1.4, ...dash };
+    return 'stroke' in mark && mark.stroke !== undefined ? { ...mark, stroke: ink, sw: 1.4, ...dash } : mark;
+  }
+  switch (mark.k) {
+    case 'image':
+      return mark;
+    case 'text':
+      return { ...mark, fill: ink };
+    case 'rect':
+      if (mark.hatch !== undefined) return { ...mark, hatch: ink };
+      return {
+        ...mark,
+        fill: tint,
+        ...(classes.includes('pr-elabel-plate') ? {} : { stroke: ink, sw: 1.6, ...dash }),
+      };
+    case 'circle':
+    case 'ellipse':
+      return {
+        ...mark,
+        ...(mark.fill === undefined ? {} : { fill: mark.stroke === undefined ? ink : tint }),
+        ...(mark.stroke === undefined ? {} : { stroke: ink }),
+      };
+    case 'path':
+      return {
+        ...mark,
+        ...(mark.fill === undefined ? {} : { fill: classes.some((c) => HEADS.includes(c)) ? ink : tint }),
+        ...(mark.stroke === undefined ? {} : { stroke: ink, ...(removed && !mark.dash ? { dash: DIFF_DASH } : {}) }),
+      };
+  }
+}
 
 export function look(item: Leaf, ctx: Context): { has: (c: string) => boolean; within: (c: string) => boolean } {
   const own = new Set(classesOf(item.cls));

@@ -18,11 +18,15 @@ export interface Diagnostic {
 export const ROLES = ['focus', 'error', 'happy', 'muted'] as const;
 export type Role = (typeof ROLES)[number];
 
+export const CHANGES = ['added', 'removed', 'changed'] as const;
+export type Change = (typeof CHANGES)[number];
+
 export type Direction = 'right' | 'down';
 
 export interface Group {
   label: string;
   parent?: GroupId;
+  change?: Change;
   line: number;
 }
 
@@ -31,6 +35,8 @@ export interface Node {
   label: string;
   role?: Role;
   note?: string;
+  change?: Change;
+  was?: string;
   group?: GroupId;
   line: number;
 }
@@ -44,6 +50,7 @@ export interface Edge<A extends Arrow = Arrow> {
   arrow: A;
   label?: string;
   role?: Role;
+  change?: Change;
   line: number;
 }
 
@@ -88,6 +95,7 @@ export interface Phase {
   label: string;
   parent?: PhaseIndex;
   edges: EdgeIndex[];
+  change?: Change;
   line: number;
 }
 
@@ -150,6 +158,7 @@ export interface Loop {
   label: string;
   reinforcing: boolean;
   edges: NonEmpty<EdgeIndex>;
+  change?: Change;
   line: number;
 }
 
@@ -173,6 +182,7 @@ export type DatedEvent = Moment & { at: Time; lastsMs?: number };
 
 export interface Lane {
   label: string;
+  change?: Change;
   line: number;
 }
 
@@ -204,6 +214,8 @@ export interface Field {
   unique: boolean;
   nullable: boolean;
   role?: Role;
+  change?: Change;
+  was?: string;
   line: number;
 }
 
@@ -230,6 +242,8 @@ export interface Cell {
   value?: string;
   note?: string;
   role?: Role;
+  change?: Change;
+  was?: string;
   line: number;
 }
 
