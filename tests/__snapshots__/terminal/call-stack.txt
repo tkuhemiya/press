@@ -1,0 +1,64 @@
+
+  How recursion unwinds
+  ━━━━━━━━━━━━━━━━━━━━━
+
+  A recursive function looks like it loops, but nothing repeats in place. Each
+  call pushes a new frame that waits on the one above it, and the answer only
+  appears on the way back down.
+
+  factorial(3)
+
+  ╭──────────────────────────────────────────────────────╮
+  │ main                                                 │
+  ╰──────┬────────────────────────────────────────┬──────╯
+         ▼ ①                                      ▲ ④
+       ┌─┴────────────────────────────────────────┴┐
+       │ factorial(3)                          → 6 │
+       └──────┬──────────────────────────────┬─────┘
+              ▼                              ▲
+            ┌─┴──────────────────────────────┴┐
+            │ factorial(2)                → 2 │
+            └──────┬────────────────────┬─────┘
+                   ▼ ②                  ▲ ③
+                 ╔═╩════════════════════╩╗
+                 ║ factorial(1) [a]  → 1 ║
+                 ╚═══════════════════════╝
+
+  ① main asks for 3!, and its frame waits.
+  ② Each call pushes a frame for a smaller n. Three frames are now waiting.
+  ③ The base case returns 1 without calling again. This is the deepest the
+     stack gets.
+  ④ Each frame multiplies on the way back: 1, then 2, then 6.
+
+  The stack is deepest at the base case[a]. Without it, frames keep pushing
+  until the stack overflows.
+
+  ## When a call throws
+
+  An exception does not return to its caller. It unwinds every frame between the
+  throw and the nearest handler, and those frames end without a value.
+
+  A timeout unwinds to the handler
+
+  ╭───────────────────────────────────────────────╮
+  │ handle(request)                               │
+  ╰──────┬────────────────────────────────────┬───╯
+         ▼                                    ▲ ②
+       ╭╌┴╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮ ╎
+       ╎ saveOrder(cart) [a]                ╎ ╎
+       ╰╌╌╌╌╌╌┬╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯ ╎
+              ▼                               ╎
+            ╭╌┴╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮ ╎
+            ╎ charge(card)                  ╎ ╎
+            ╰╌╌╌╌╌╌┬╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯ ╎
+                   ▼ ①                        ╎
+                 ┌─┴────────────────────────┐ ╎
+                 │ fetch(stripe)  → Timeout ├╌╯
+                 └──────────────────────────┘
+
+  ① The charge waits on the network.
+  ② The request times out. charge and saveOrder never finish; only handle
+     catches it.
+
+  saveOrder[a] is cut off, so any work it started before the throw is left half
+  done. That is why the write belongs after the charge.

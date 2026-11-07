@@ -7,11 +7,13 @@ import { paintSvg } from '../scene/svg.ts';
 import { trusted } from '../brand.ts';
 import { ARCHITECTURE } from './architecture.ts';
 import { C4 } from './c4.ts';
+import { CALL_STACK } from './call-stack.ts';
 import { CAUSAL_LOOP } from './causal-loop.ts';
 import { DATA_FLOW } from './data-flow.ts';
 import { DECISION_TREE } from './decision-tree.ts';
 import { DEPLOYMENT } from './deployment.ts';
 import { ER } from './er.ts';
+import { MEMORY_LAYOUT } from './memory-layout.ts';
 import { SEQUENCE } from './sequence.ts';
 import { STATE_MACHINE } from './state-machine.ts';
 import { TIMELINE } from './timeline.ts';
@@ -60,6 +62,8 @@ const DIAGRAMS: { [T in DiagramType]: DiagramDef<T> } = {
   'decision-tree': DECISION_TREE,
   er: ER,
   tradeoffs: TRADEOFFS,
+  'call-stack': CALL_STACK,
+  'memory-layout': MEMORY_LAYOUT,
 };
 
 function keyed(r: Rendered): Rendered {

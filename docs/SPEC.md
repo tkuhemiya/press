@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.8)
+# Press language spec (draft, v0.9)
 
 ## Document
 
@@ -149,7 +149,7 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 
 ### Readability
 
-A diagram that is too big to read in print gets a warning, and the build still succeeds. The warning names the line and says to split the diagram into several smaller ones linked from prose. The limits are 30 states, components or decision nodes, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities and 40 tradeoffs cells.
+A diagram that is too big to read in print gets a warning, and the build still succeeds. The warning names the line and says to split the diagram into several smaller ones linked from prose. The limits are 30 states, components or decision nodes, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells, 30 call-stack frames and 128 bytes of memory layout.
 
 A label word longer than 40 characters with no spaces is also a warning. Labels wrap at a fixed width, and a word longer than that width is broken into pieces on screen and on paper, so nothing leaves its card.
 
@@ -159,7 +159,7 @@ Small multiples (several frames) are allowed only when the author asks for them 
 
 *New in v0.6.* `press preview doc.md` writes the document to the terminal, the way glamour renders Markdown. It is for reading where there is no browser, and for agents checking their own work. A terminal is a fixed number of columns wide and scrolls without end, so figures are laid out for that rather than shrunk from the screen.
 
-- **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off.
+- **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off. A call stack too wide for its frames prints as an indented trace of its calls and returns, and a memory layout lists its pointers under its blocks.
 - **Steps and references work as on paper.** Steps become numbered markers (①) on the figure with the captions as a legend below it, and prose references become letters ([a]) in both the prose and the figure.
 - **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Colour only repeats them.
 - **Dark by default.** Terminals are usually dark, so colours are chosen for a dark background; `--theme light` is for light terminals. When the output is not a terminal, or `NO_COLOR` is set, it is plain text. `--ascii` draws with ASCII only.
@@ -546,6 +546,62 @@ group "us-east-1" {
 lb -> api : HTTPS
 api -> pg : SQL
 pg --> pg_r : replicates
+
+## Diagram types in v0.9
+
+Two types for how a program runs: the calls on its stack over time, and the bytes of its data. Both use the shared grammar and add no new line forms. Changes (`+` and `-`) are an error in both types in v0.9.
+
+### `call-stack`
+
+Frames on one thread's stack, over time. A frame is a node, and its label is the call as a reader would write it (`"factorial(3)"`). Edges are the events that change the stack: **`a -> b` means `a` calls `b`**, and **`b --> a : value` means `b` returns to `a`**, with what it returns as the label. Events happen in source order.
+
+- **The first frame is the bottom of the stack**, and it is the only frame nothing calls.
+- **Only the frame on top can call or return.** A call from any other frame is an error that names the frame on top and suggests the line it may have meant. A frame is called once; calling it again is an error that suggests a new id for the second call (`log_2: "log()"`).
+- **A return to a frame below the caller unwinds the frames between.** They end at that moment without a value and draw cut off. Give the return `{role=error}` to show a thrown exception.
+- **A frame that never returns stays open** to the right edge. That is how a fence shows the stack at one moment, such as the moment of a crash; mark the failing frame `{role=error}`.
+- **Time is order, not duration.** Events are spaced only as far apart as the labels between them need. For real durations, use a `timeline`.
+- A frame's `note` prints small under its label, for the locals that matter (`{note="n = 3"}`).
+- `direction=right` (the default) runs time left to right with deeper frames lower; `direction=down` runs time down the page with deeper frames to the right.
+- Steps name an event (`f2 -> f1`, `f1 --> f2`) or a frame. An event step marks that moment across the whole figure, so the reader sees the stack as it stood; a frame step highlights the frame for as long as it lives.
+- Groups, `<->` and properties are errors. Node kinds: none. One fence draws one thread; for several threads or async work, use a `sequence`.
+
+```call-stack id=fact title="factorial(3)"
+f3: "factorial(3)"
+f2: "factorial(2)"
+f1: "factorial(1)"
+
+main -> f3
+f3 -> f2
+f2 -> f1
+f1 --> f2 : 1
+f2 --> f3 : 2
+f3 --> main : 6
+
+steps:
+  main -> f3     "main asks for 3!"
+  f2 -> f1       "Each call waits on a smaller one"
+  f1 --> f2      "The base case returns without calling again"
+  f3 --> main    "The answers multiply on the way back"
+```
+
+### `memory-layout`
+
+The bytes of a value: its fields, their offsets, the padding between them, and the pointers out of it. A node is a block of memory, such as a struct, a stack frame or a heap allocation. Its fields are properties, written in memory order: `block.field : type {attrs}`.
+
+- **Press does not lay out the struct; the author does.** Press never reads code, and layout depends on the language and its rules. Fields are placed one after another in the order written, so a gap is written as a field of type `padding` with a size: `order.pad : padding {size=3}`.
+- **Sizes come from the type.** `bool`, `u8`, `i8` are 1 byte; `u16`, `i16` 2; `u32`, `i32`, `f32` 4; `u64`, `i64`, `f64`, `usize`, `isize` and a pointer (`ptr`, or any type ending in `*`) 8. An array of a known type gives its count: `"u8[24]"`. Any other type needs `{size=N}`, and leaving it out is an error that names the field and shows the form.
+- **Misaligned fields are a warning.** A field of a known type whose offset is not a multiple of its size names the field, its offset, and the padding that would align it. `{packed=yes}` on a block (`order {packed=yes}`) turns the warning off.
+- **Rows are eight bytes**, one 64-bit word, so alignment reads as columns. Offsets print under each row, at the start of each field. A field longer than two rows draws its first and last rows with a break between them. A field whose name does not fit its cells shows a number, and the name and type are listed under the block.
+- **Pointers are edges** from a field to the block or field they point at: `node.next -> other`. A null pointer is a field with `{note=null}` and no edge.
+- **Groups are regions** of memory (`group "Stack" { … }`, `group "Heap" { … }`), drawn side by side.
+- Steps and prose references name a block, a field (`order.total`) or a pointer. `direction` has no meaning here; the parser ignores it with a warning. Node kinds: none.
+
+```memory-layout id=order title="struct Order, 16 bytes"
+order: "Order"
+order.id : u64
+order.paid : bool
+order.pad : padding {size=3}
+order.total : u32
 ```
 
 ## Node kinds

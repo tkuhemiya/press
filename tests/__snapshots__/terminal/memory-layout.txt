@@ -1,0 +1,82 @@
+
+  Where the padding goes
+  ━━━━━━━━━━━━━━━━━━━━━━
+
+  A struct is not just its fields laid end to end. Each field starts at a
+  multiple of its own size, so the compiler inserts padding, and the order of
+  the fields decides how much.
+
+  struct Order, 24 bytes
+
+  Order  24 bytes
+  ┌────┬┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈╮
+  │1   │pad ②                             ┊
+  └────┴┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈╯
+  0    1
+  ┌───────────────────────────────────────┐
+  │id  u64                                │
+  └───────────────────────────────────────┘
+  8
+  ┌───────────────────┬┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈╮
+  │total  u32         │tail ③             ┊
+  └───────────────────┴┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈╯
+  16                  20                 24
+  1  paid  bool ① [a]
+
+  ① A bool takes one byte.
+  ② But id is a u64, so it must start at byte 8: seven bytes are wasted.
+  ③ The struct rounds up to a multiple of 8, wasting four more.
+
+  Moving the bool[a] to the end packs the same fields into 16 bytes:
+
+  struct Order, reordered: 16 bytes
+
+  Order  16 bytes
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃id  u64                                ┃
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  0
+  ┌───────────────────┬────┬┈┈┈┈┈┈┈┈┈┈┈┈┈┈╮
+  │total  u32         │paid│pad           ┊
+  └───────────────────┴────┴┈┈┈┈┈┈┈┈┈┈┈┈┈┈╯
+  8                   12   13            16
+
+  ## A linked list
+
+  Pointers are fields that hold an address. Each node points at the next one on
+  the heap, and the last holds null.
+
+  A list of two nodes
+
+  head  8 bytes
+  ┌───────────────────────────────────────┐
+  │ptr  Node*                             │
+  └───────────────────────────────────────┘
+  0                                       8
+
+  Node  16 bytes
+  ┌───────────────────────────────────────┐
+  │value  i64                             │
+  └───────────────────────────────────────┘
+  0
+  ┌───────────────────────────────────────┐
+  │next  Node*                            │
+  └───────────────────────────────────────┘
+  8                                      16
+
+  Node  16 bytes
+  ┌───────────────────────────────────────┐
+  │value  i64                             │
+  └───────────────────────────────────────┘
+  0
+  ┌───────────────────────────────────────┐
+  │next  Node* ③                          │
+  └───────────────────────────────────────┘
+  8                                      16
+
+  head.ptr ──▶ a ①
+  a.next ──▶ b ②
+
+  ① The stack holds only an address.
+  ② Each node finds the next through its own pointer.
+  ③ The last pointer is null: the end of the list.

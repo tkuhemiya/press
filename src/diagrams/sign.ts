@@ -48,6 +48,9 @@ export function signed(d: Diagram): Diagram {
       return { ...signedGraph(d), phases: d.phases.map(label) };
     case 'timeline':
       return { ...signedGraph(d), lanes: d.lanes.map(label) };
+    case 'call-stack':
+    case 'memory-layout':
+      return d;
     case 'er':
     case 'state-machine':
     case 'architecture':

@@ -21,6 +21,7 @@ import { markers, stepMark, type Markers } from './style.ts';
 import { drawTable, type Cell, type Row } from './table.ts';
 import { paint, type Theme } from './theme.ts';
 import { drawTimeline } from './timeline.ts';
+import { drawCallStack, drawMemory } from './stack.ts';
 import { signed } from '../../diagrams/sign.ts';
 
 const LABELS = [24, 16, 10];
@@ -82,6 +83,10 @@ function body(f: Figure, theme: Theme, mark: Markers, width: number): string[] {
       return drawTimeline(d, theme, mark, width).render(theme);
     case 'tradeoffs':
       return drawTable(tradeoffsTable(d, theme, mark), width).render(theme);
+    case 'call-stack':
+      return drawCallStack(d, theme, mark, width);
+    case 'memory-layout':
+      return drawMemory(d, theme, mark, width);
   }
 }
 

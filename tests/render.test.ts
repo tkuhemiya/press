@@ -344,7 +344,7 @@ describe('the Press skill', () => {
 
   it.each([
     ['SKILL.md', 0],
-    ['references/language.md', 13],
+    ['references/language.md', 15],
     ['references/explorer-prompt.md', 0],
   ])('teaches only Press that builds cleanly in %s', (path, figures) => {
     const { diagnostics, html } = build(skillFile(path), { embedFonts: false });

@@ -257,6 +257,43 @@ export interface Tradeoffs extends Header {
   steps: Step<NodeTarget | PropTarget>[];
 }
 
+export type Call = Edge<'->' | '-->'> & { at: number };
+export type Frame = Node & { depth: number; start: number; end: number; open: boolean; cut: boolean };
+
+export type CallStack = Graph<Frame, Call, NodeTarget | EdgeTarget> & {
+  type: 'call-stack';
+  direction?: Direction;
+  span: number;
+};
+
+export interface Slot {
+  block: NodeId;
+  name: NodeId;
+  type: string;
+  offset: number;
+  size: number;
+  padding: boolean;
+  pointer: boolean;
+  note?: string;
+  role?: Role;
+  line: number;
+}
+
+export type Block = Node & { slots: Slot[]; size: number };
+
+export type Pointer = Omit<Edge<'->' | '-->'>, 'from' | 'to'> & {
+  from: FieldRef;
+  to: { entity: NodeId; field?: NodeId };
+};
+
+export interface MemoryLayout extends Header {
+  type: 'memory-layout';
+  nodes: Block[];
+  edges: Pointer[];
+  groups: Group[];
+  steps: Step<NodeTarget | EdgeTarget | PropTarget>[];
+}
+
 export interface DiagramMap {
   'state-machine': StateMachine;
   sequence: Sequence;
@@ -269,6 +306,8 @@ export interface DiagramMap {
   'decision-tree': DecisionTree;
   er: Er;
   tradeoffs: Tradeoffs;
+  'call-stack': CallStack;
+  'memory-layout': MemoryLayout;
 }
 
 export type DiagramType = keyof DiagramMap;

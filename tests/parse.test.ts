@@ -606,9 +606,9 @@ describe('properties', () => {
     expect(doc.refs[0].target).toEqual({ type: 'prop', node: 'redis', key: 'ops' });
   });
 
-  it('only er edges join fields', () => {
+  it('only er and memory-layout edges join fields', () => {
     const e = errors(parse('state-machine', 'a.x -> b'))[0];
-    expect(e.message).toMatch(/only er edges join fields/);
+    expect(e.message).toMatch(/only er and memory-layout edges join fields/);
   });
 });
 

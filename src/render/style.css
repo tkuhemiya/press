@@ -564,6 +564,23 @@ th {
   stroke: var(--ink-2);
   stroke-width: 1.4;
 }
+.pr-axis-line {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.pr-axis-label {
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  fill: var(--ink-3);
+}
+.pr-memory-layout .pr-ptr {
+  fill: var(--edge);
+}
+.pr-memory-layout .pr-offset {
+  font-size: 10.5px;
+}
 .pr-tradeoffs .pr-line-box {
   fill: none;
   stroke: none;
