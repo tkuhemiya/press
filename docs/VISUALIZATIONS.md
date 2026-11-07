@@ -13,7 +13,9 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 - **v0.5** (shipped): native Typst print, page-aware figure sizing, and page hints on headings
 - **v0.6:** vendor icons (AWS, Azure, Google Cloud, Kubernetes) in `architecture` and `sequence`
 - **v0.7:** `data-flow`, `c4` (context and containers) and `deployment`, for software architecture. Later candidates from the same issue: class, activity, dependency graphs, gantt, threat models
-- **v0.8 and later:** the rest, prioritized by what software explanations need most
+- **v0.8:** diffs: show a change in any diagram with `+` and `-` lines
+- **v0.9:** `call-stack` and `memory-layout`, for how a program runs
+- **Later:** the rest, prioritized by what software explanations need most
 
 ## Software
 
@@ -26,8 +28,8 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 | `c4`            | People, systems and containers          | 0.7     | done    |
 | `deployment`    | Where software runs: regions, nodes     | 0.7     | done    |
 | `er`            | Entities and relationships              | 0.3     | done    |
-| `call-stack`    | Stack frames over time                  | —       | planned |
-| `memory-layout` | Bytes, pointers, structs                | —       | planned |
+| `call-stack`    | Stack frames over time                  | 0.9     | done    |
+| `memory-layout` | Bytes, pointers, structs                | 0.9     | done    |
 
 ## Systems and economics
 

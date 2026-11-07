@@ -22,6 +22,8 @@ export const GRAMMARS: { [T in DiagramType]: Grammar } = {
   'decision-tree': { ...plain, directional: true },
   er: { ...plain, attrs: ['key', 'unique', 'null', 'card'], forms: ['prop', 'field'], directional: true },
   tradeoffs: { ...plain, forms: ['prop'], directional: true },
+  'call-stack': { ...plain, directional: true },
+  'memory-layout': { ...plain, attrs: ['size', 'packed'], forms: ['prop', 'field'], directional: false },
 };
 
 export function formsElsewhere(form: LineForm): DiagramType[] {

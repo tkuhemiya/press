@@ -26,6 +26,12 @@ const LIMITS: Record<DiagramType, Limit> = {
   'data-flow': nodes('nodes', 30),
   c4: nodes('elements', 20),
   deployment: nodes('nodes', 30),
+  'call-stack': nodes('frames', 30),
+  'memory-layout': {
+    max: 128,
+    unit: 'bytes',
+    count: (d) => (d.type === 'memory-layout' ? d.nodes.reduce((sum, b) => sum + b.size, 0) : 0),
+  },
   tradeoffs: {
     max: 40,
     unit: 'cells',

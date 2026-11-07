@@ -19,6 +19,8 @@ Pick the type whose edges mean what you want to say. The edge is the claim.
 | Questions that lead to an answer | `decision-tree` | an answer |
 | Tables, fields and how they reference each other | `er` | a reference, with cardinality |
 | Options compared on several criteria | `tradeoffs` | none; it is a table of judged cells |
+| Which calls are waiting on which, and what each returns | `call-stack` | a call (`->`) or a return (`-->`), in order |
+| The bytes of a struct: fields, offsets, padding, pointers | `memory-layout` | a pointer, from a field to what it points at |
 
 **Where each one hides in code.** Press never reads code; you do. These are the shapes to look for.
 
@@ -35,10 +37,12 @@ Pick the type whose edges mean what you want to say. The edge is the claim.
 | Retries, backoff, autoscaling, caches that warm, queues that grow; "it gets worse under load" | `causal-loop` |
 | Timeouts, TTLs, leases, an incident log, a release history, branches | `timeline` |
 | A design doc, an ADR or a PR description weighing options | `tradeoffs` |
+| Recursion, a stack trace, an exception that skips frames, middleware that wraps a handler | `call-stack` |
+| A `struct` or `#[repr(C)]` type, a wire format, a linked list or tree of nodes, a cache line | `memory-layout` |
 
 **One concern per fence.** A context, a data flow and a deployment are three fences, not one. Let the prose say how they relate.
 
-**No type fits.** Write that part as prose. Stretch a type only when its edges still mean the same thing: a commit history is a graph of commits, so `architecture` with `direction=right` draws it honestly. Press has no type for quantities on axes (latency against load), bytes in memory, a call stack, or claims and rebuttals. Do not fake them.
+**No type fits.** Write that part as prose. Stretch a type only when its edges still mean the same thing: a commit history is a graph of commits, so `architecture` with `direction=right` draws it honestly. Press has no type for quantities on axes (latency against load), or claims and rebuttals. Do not fake them.
 
 ## The shared grammar
 
@@ -48,7 +52,7 @@ a -> b -> c                  chain. One edge per segment. No label on a chain.
 id: kind "Label" {attrs}     declaration. kind and label are optional.
 id {note="short qualifier"}  a note prints small, under the label
 group "Name" { ... }         grouping: a boundary, a place, a category
-node.key : value {attrs}     property, in er and tradeoffs only
+node.key : value {attrs}     property, in er, tradeoffs and memory-layout only
 # comment
 steps:                       last section. One step per line.
   a -> b "Caption"           a step on an edge
@@ -109,7 +113,7 @@ paid -> end
 
 ### Size
 
-`press check` warns when a figure is too big to read in print: 30 states or components, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells. Those are ceilings, not targets. A label word over 40 characters with no spaces also warns.
+`press check` warns when a figure is too big to read in print: 30 states or components, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells, 30 call-stack frames, 128 bytes of memory layout. Those are ceilings, not targets. A label word over 40 characters with no spaces also warns.
 
 ### Page hints
 
@@ -308,6 +312,36 @@ cookie.cost : none {role=happy}
 cookie.revoke : "at expiry" {role=error}
 ```
 
+### call-stack
+
+Use it for what is waiting on what: recursion, a trace, an exception that unwinds. A frame is a node; label it with the call as a reader would write it, `f3: "factorial(3)"`, and put the locals that matter in a note. `a -> b` is `a` calling `b`; `b --> a : value` is `b` returning, labelled with what it returns. Lines run in time order, and only the frame on top may call or return. A return to a frame further down unwinds the frames between; mark it `{role=error}` to show a throw. A frame that never returns stays open, which is how to draw the stack at the moment of a crash. Call a function twice with two ids (`log`, `log_2`). One fence is one thread; for concurrency use a `sequence`.
+
+```call-stack title="factorial(3)"
+f3: "factorial(3)"
+f2: "factorial(2)"
+main -> f3
+f3 -> f2
+f2 --> f3 : 2
+f3 --> main : 6
+
+steps:
+  f2 --> f3 "The answer only appears on the way back."
+```
+
+### memory-layout
+
+Use it for the bytes of a value. A node is a block (a struct, a frame, an allocation); its fields are properties in memory order, `block.field : type`. Sizes come from `bool`, `u8` to `u64`, `i8` to `i64`, `f32`, `f64`, `usize`, `ptr`, `Node*` and arrays such as `"u8[24]"`; anything else needs `{size=N}`. Press does not insert padding: write it, `order.pad : padding {size=7}`, and Press warns when a field is misaligned. A pointer is an edge from a field to a block or field, `a.next -> b`; a null pointer is a field with `{note=null}`. Groups are regions, such as `Stack` and `Heap`.
+
+```memory-layout title="struct Order, 16 bytes"
+order.id : u64
+order.total : u32
+order.paid : bool
+order.pad : padding {size=3}
+
+steps:
+  order.pad "The struct rounds up to a multiple of 8."
+```
+
 ## Common mistakes
 
 | Mistake | Instead |
@@ -329,3 +363,6 @@ cookie.revoke : "at expiry" {role=error}
 | A change shown as two diagrams, before and after | One fence with `+` and `-` lines |
 | `+ group "New" {` | Mark the members; the group follows them |
 | A new node marked `+` on one line and unmarked on another | Mark every line that mentions it |
+| A second call to the same function reusing its id | A new id per call: `log_2: "log()"` |
+| A call stack drawn as a `sequence` of one participant | `call-stack`, with calls and returns |
+| A struct's fields packed with no padding | Write the padding: `order.pad : padding {size=7}` |
