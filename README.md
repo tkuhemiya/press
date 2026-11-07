@@ -3,6 +3,11 @@
 A small Markdown-like language for explanations that mix prose and diagrams. You write
 structure; Press handles layout, typography and visual design.
 
+![How Press works: Markdown is parsed into a typed model, laid out once, and drawn as HTML, PDF, or terminal output](docs/how-press-works.png)
+
+How the pieces fit together, drawn in Press.
+Source: [`docs/how-press-works.md`](docs/how-press-works.md).
+
 ````markdown
 ```state-machine id=order title="Order lifecycle"
 start -> draft
