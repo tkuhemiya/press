@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.7)
+# Press language spec (draft, v0.8)
 
 ## Document
 
@@ -75,6 +75,27 @@ node.key : value {attrs}
 - In `er` a property is a field of an entity (`orders.user_id : uuid`). In `tradeoffs` it is a cell: what one option offers on one criterion (`redis.ops : "another service"`).
 - Roles work on properties as on nodes: `{role=happy}` marks a favourable value, `{role=error}` an unfavourable one.
 - A type that has no properties reports `a.b` as an error that names the types that do.
+
+### Changes
+
+*New in v0.8.* A fence can show a change, the way a diff does. A statement line may start with `+` and a space, meaning it exists after the change, or `-` and a space, meaning it existed before. An unmarked line exists on both sides.
+
+```
+draft -> submitted : submit
+- submitted -> failed : declined
++ submitted -> review : needs review
+- paid: "Paid"
++ paid: "Paid in full"
+```
+
+- Every statement can be marked: declarations, edges and chains, properties, events and loops. `group`, `phase` and `lane` lines, a closing `}` and steps cannot, and are an error that says so.
+- An edge, property or loop has the status of its own line.
+- A node is added when only `+` lines mention it, and removed when only `-` lines do. A node that any unmarked line mentions existed before and after, so a new node's other lines need a `+` too.
+- A `-` line and a `+` line that declare the same id, or give the same property, make one changed element. It shows the `+` side, with the `-` side's label or value as a `was "…"` note.
+- A group, phase or lane takes its status from what it holds: added when everything in it is added, removed when everything in it is removed.
+- An unmarked causal loop that runs through a removed link is a warning, since that loop no longer exists after the change.
+- Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
+- The figure holds both sides, so a diff is larger than either. Steps and prose references work as usual and may point at removed elements.
 
 ## Steps
 

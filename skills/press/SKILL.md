@@ -69,6 +69,21 @@ steps:                       last section. One step per line.
 
 The fence header holds `id=`, `title="…"`, and `direction=right` or `direction=down`. Steps work in every type. If two edges join the same pair, name the one you mean by its label, as in `api -> db : insert "Caption"`. A request written `->` and its reply written `-->` are the same pair.
 
+### Showing a change
+
+To show what a change does, mark lines as in a diff: `+ ` for lines that exist after it, `- ` for lines that existed before. Leave everything else unmarked. Rename a node with a `-` and a `+` declaration of the same id, and Press shows the old label.
+
+```state-machine id=checkout-change title="Checkout, with a fraud review"
+start -> cart
+cart -> submitted : pay
+- submitted -> paid : approved
++ submitted -> review : flagged
++ review -> paid : cleared
+paid -> end
+```
+
+Mark every line that mentions a new node, not just one: an unmarked line means the node was already there.
+
 ## Each type
 
 ### state-machine
@@ -279,3 +294,5 @@ cookie.revoke : "at expiry" {role=error}
 | A c4 context, a data flow and a deployment in one fence | Three fences: `c4`, `data-flow`, `deployment` |
 | `level=container` on a c4 header | Leave it out. Say the level in the title |
 | An external c4 system drawn with `kind` or a colour | `{external=yes}` |
+| A change shown as two diagrams, before and after | One fence with `+` and `-` lines |
+| `+ group "New" {` | Mark the members; the group follows them |

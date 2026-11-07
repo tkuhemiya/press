@@ -1,4 +1,4 @@
-import type { DatedEvent, Dating, Group, Moment, Node, NodeId, Time, Timeline } from '../model.ts';
+import type { Change, DatedEvent, Dating, Group, Moment, Node, NodeId, Time, Timeline } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
@@ -14,7 +14,9 @@ import {
   resolveSteps,
   toNode,
   type DraftNode,
+  sharedChange,
 } from '../parse/graph.ts';
+import { joinNotes } from './sign.ts';
 import { parseTime } from '../parse/time.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { trusted } from '../brand.ts';
@@ -34,7 +36,7 @@ import {
 } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, HEAD, n } from '../render/svg.ts';
-import { attr, type Item, type Scene } from '../scene/scene.ts';
+import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
 export const TIMELINE: DiagramDef<'timeline'> = {
   type: 'timeline',
@@ -84,14 +86,31 @@ function lanes(fence: Fence, nodes: readonly DraftNode[], { error, warn }: Repor
 }
 const isDated = (node: DraftNode): node is Dated => node.at !== undefined;
 
+function momentOf(e: DraftNode, formerTimes: ReadonlyMap<NodeId, Time>): Node {
+  const node = toNode(e);
+  const before = formerTimes.get(e.id);
+  if (e.change !== 'changed' || before === undefined || e.at === undefined) return node;
+  if (formatTime(before) === formatTime(e.at)) return node;
+  const note = joinNotes(e.note, `was ${formatTime(before)}`);
+  return note === undefined ? node : { ...node, note };
+}
+
 function build(fence: Fence, report: Reporter): Timeline {
   const { error, warn } = report;
   const graph = buildGraph(fence, report, {
     label: (id) => id.replace(/_/g, ' '),
     empty: 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.',
   });
-  const top = { ...header(fence, 'timeline'), lanes: fence.lanes.map((l) => ({ ...l })) };
   const laneOf = lanes(fence, graph.nodes, report);
+  const top = {
+    ...header(fence, 'timeline'),
+    lanes: fence.lanes.map((l, i) => {
+      const change = sharedChange(graph.nodes.filter((node) => laneOf.get(node.id) === i));
+      return change ? { ...l, change } : { ...l };
+    }),
+  };
+  const formerTimes = new Map<NodeId, Time>();
+  for (const s of fence.statements) if (s.type === 'event' && s.change === 'removed') formerTimes.set(s.id, s.at);
   const laned = <N extends Node>(node: N): N & { lane?: number } => {
     const lane = laneOf.get(node.id);
     return lane === undefined ? node : { ...node, lane };
@@ -128,7 +147,7 @@ function build(fence: Fence, report: Reporter): Timeline {
     return {
       ...top,
       dating: 'undated',
-      nodes: graph.nodes.map((node) => laned(toNode(node))),
+      nodes: graph.nodes.map((node) => laned(momentOf(node, formerTimes))),
       edges: graph.edges,
       groups: graph.groups,
       steps,
@@ -192,7 +211,7 @@ function build(fence: Fence, report: Reporter): Timeline {
     .filter(isDated)
     .filter(fits)
     .map((e): DatedEvent => {
-      const event: DatedEvent = { ...laned(toNode(e)), at: e.at };
+      const event: DatedEvent = { ...laned(momentOf(e, formerTimes)), at: e.at };
       const lasts = lasting.get(e);
       if (lasts !== undefined) event.lastsMs = lasts;
       return event;
@@ -239,6 +258,7 @@ interface Band {
   from: number;
   to: number;
   depth: number;
+  change?: Change;
 }
 
 function card(node: Node, time: string): Card {
@@ -365,6 +385,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
       return {
         type: 'group',
         cls: 'pr-group pr-band',
+        attrs: markAttrs(b),
         items: [
           { type: 'rect', x: origin + b.from, y, w: b.to - b.from, h: axis + 10 - y, r: 8 },
           { type: 'text', x: origin + b.from + 10, y: y + 17, text: b.label },
@@ -375,6 +396,7 @@ function render(d: Timeline, context: RenderContext): Rendered {
     return {
       type: 'group',
       cls: 'pr-group pr-band',
+      attrs: markAttrs(b),
       items: [
         { type: 'rect', x, y: origin + b.from, w: width - MARGIN - x, h: b.to - b.from, r: 8 },
         { type: 'text', cls: 'pr-band-end', x: width - MARGIN - 10, y: origin + b.from + 17, text: b.label },
@@ -607,6 +629,7 @@ function renderLanes(d: Timeline, context: RenderContext): Rendered {
     return {
       type: 'group',
       cls: 'pr-lane',
+      attrs: markAttrs(r.lane),
       items: [
         { type: 'text', cls: 'pr-lane-label', x: MARGIN, y: r.line, text: r.lane.label, dy: '0.35em' },
         { type: 'path', cls: 'pr-axis-line', d: `M${n(x0)},${n(r.line)}H${n(x1)}` },
@@ -768,7 +791,7 @@ function eventItem(e: Card, domId: string, dx: number, dy: number, stem: string,
   return {
     type: 'group',
     cls: `pr-node pr-event${e.end !== undefined ? ' pr-lasting' : ''}`,
-    attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
+    attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...markAttrs(node)],
     items: [
       { type: 'path', cls: 'pr-stem', d: stem },
       ...span,
@@ -810,7 +833,9 @@ function groupBands(groups: readonly Group[], events: readonly Card[]): Band[] {
     const depth = groupDepth(groups, g);
     const from = Math.min(...members.map((e) => e.at));
     const to = Math.max(...members.map((e) => e.end ?? e.at));
-    return [{ label: g.label, from: from - GROUP_PAD + depth * 4, to: to + GROUP_PAD - depth * 4, depth }];
+    return [
+      { label: g.label, from: from - GROUP_PAD + depth * 4, to: to + GROUP_PAD - depth * 4, depth, change: g.change },
+    ];
   });
 }
 

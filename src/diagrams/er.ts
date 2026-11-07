@@ -20,8 +20,9 @@ import {
 } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { linesItem, n } from '../render/svg.ts';
-import { attr, type Item, type Scene } from '../scene/scene.ts';
+import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
+import { signedText, wasText } from './sign.ts';
 
 export const ER: DiagramDef<'er'> = {
   type: 'er',
@@ -137,6 +138,7 @@ function build(fence: Fence, report: Reporter): Er {
         : { ...base, level: 'entity', from: from.node, to: to.node };
     if (e.label !== undefined) ref.label = e.label;
     if (e.role) ref.role = e.role;
+    if (e.change) ref.change = e.change;
     return [ref];
   });
 
@@ -170,6 +172,8 @@ function build(fence: Fence, report: Reporter): Er {
         };
         if (p.value !== undefined) field.type = p.value;
         if (p.role) field.role = p.role;
+        if (p.change) field.change = p.change;
+        if (p.was !== undefined) field.was = p.was;
         return field;
       }),
   }));
@@ -235,9 +239,18 @@ function render(d: Er, context: RenderContext): Rendered {
     const fields = [...node.fields.filter((f) => f.primary), ...node.fields.filter((f) => !f.primary)];
     const fieldW = Math.max(
       0,
-      ...fields.map((f) => KEY_W + textWidth(f.name, FIELD_FONT, 'sans500') + GAP + textWidth(typeText(f), TYPE_FONT)),
+      ...fields.map(
+        (f) =>
+          KEY_W +
+          textWidth(signedText(f.name, f.change), FIELD_FONT, 'sans500') +
+          GAP +
+          textWidth(typeText(f), TYPE_FONT),
+      ),
     );
-    const w = Math.ceil(Math.max(MIN_W, textWidth(node.label, FONT, 'sans600') + 2 * PAD_X, fieldW + 2 * PAD_X));
+    const wasW = node.was === undefined ? 0 : textWidth(wasText(node.was), TYPE_FONT);
+    const w = Math.ceil(
+      Math.max(MIN_W, textWidth(node.label, FONT, 'sans600') + 2 * PAD_X, wasW + 2 * PAD_X, fieldW + 2 * PAD_X),
+    );
     const h = HEAD_H + fields.length * ROW_H + (fields.length ? 6 : 0);
     return { node, fields, w, h, box: { x: 0, y: 0, w, h } };
   });
@@ -346,6 +359,7 @@ function render(d: Er, context: RenderContext): Rendered {
     return {
       type: 'group',
       cls: groupClass(depths[i]),
+      attrs: markAttrs(g),
       items: [
         { type: 'rect', x, y, w: c.w, h: c.h, r: 12 },
         { type: 'text', x: x + 14, y: y + 19, text: g.label },
@@ -412,7 +426,7 @@ function relation(e: Reference, fromId: NodeId, toId: NodeId, p: End, q: End, c1
   return {
     type: 'group',
     cls: `pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}`,
-    attrs: [['data-edge', String(e.index)], ['data-from', fromId], ['data-to', toId], ...attr('data-role', e.role)],
+    attrs: [['data-edge', String(e.index)], ['data-from', fromId], ['data-to', toId], ...markAttrs(e)],
     items: [
       {
         type: 'path',
@@ -438,16 +452,18 @@ function entityItems(e: Table, domId: string): Item[] {
   const rule: Item[] = e.fields.length
     ? [{ type: 'path', cls: 'pr-entity-rule', d: `M${n(b.x)},${n(b.y + HEAD_H)}H${n(b.x + b.w)}` }]
     : [];
+  const name: Item[] =
+    node.was === undefined
+      ? [linesItem([node.label], b.x + b.w / 2, b.y + HEAD_H / 2, 18, 'pr-label pr-entity-name')]
+      : [
+          linesItem([node.label], b.x + b.w / 2, b.y + 12, 18, 'pr-label pr-entity-name'),
+          linesItem([wasText(node.was)], b.x + b.w / 2, b.y + 26, 14, 'pr-note'),
+        ];
   const entity: Item = {
     type: 'group',
     cls: 'pr-node pr-entity',
-    attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...attr('data-role', node.role)],
-    items: [
-      { type: 'rect', cls: 'pr-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 8 },
-      head,
-      ...rule,
-      linesItem([node.label], b.x + b.w / 2, b.y + HEAD_H / 2, 18, 'pr-label pr-entity-name'),
-    ],
+    attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...markAttrs(node)],
+    items: [{ type: 'rect', cls: 'pr-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 8 }, head, ...rule, ...name],
   };
   return [entity, ...e.fields.map((f, k) => fieldItem(e, f, k, domId))];
 }
@@ -462,11 +478,18 @@ function fieldItem(e: Table, f: Field, k: number, domId: string): Item {
   return {
     type: 'group',
     cls: `pr-node pr-field${key ? ' pr-key' : ''}`,
-    attrs: [['data-node', id], ['data-in', node.id], ['id', `${domId}-node-${id}`], ...attr('data-role', f.role)],
+    attrs: [['data-node', id], ['data-in', node.id], ['id', `${domId}-node-${id}`], ...markAttrs(f)],
     items: [
       { type: 'rect', cls: 'pr-box pr-field-box', x: row.x, y: row.y, w: row.w, h: row.h, r: 4 },
       ...(key ? [keyGlyph(b.x + PAD_X + 5, cy)] : []),
-      { type: 'text', cls: 'pr-field-name', x: b.x + PAD_X + KEY_W, y: cy, text: f.name, dy: '0.35em' },
+      {
+        type: 'text',
+        cls: 'pr-field-name',
+        x: b.x + PAD_X + KEY_W,
+        y: cy,
+        text: signedText(f.name, f.change),
+        dy: '0.35em',
+      },
       { type: 'text', cls: 'pr-field-type', x: b.x + b.w - PAD_X, y: cy, text: typeText(f), dy: '0.35em' },
     ],
   };
@@ -482,7 +505,8 @@ function ends(e: Reference): [{ entity: NodeId; field?: NodeId }, { entity: Node
 }
 
 function typeText(f: Field): string {
-  return [f.type ?? '', f.unique ? 'unique' : '', f.nullable ? 'null' : ''].filter(Boolean).join(' · ');
+  const was = f.was !== undefined && f.was !== f.type ? [wasText(f.was)] : [];
+  return [f.type ?? '', f.unique ? 'unique' : '', f.nullable ? 'null' : '', ...was].filter(Boolean).join(' · ');
 }
 
 function keyGlyph(x: number, y: number): Item {

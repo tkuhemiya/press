@@ -23,12 +23,13 @@ import {
   lean,
   nodeParts,
   resolveSteps,
+  sharedChange,
   toNode,
 } from '../parse/graph.ts';
 import { groupId, trusted } from '../brand.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, badgeItem, HEAD, linesItem, n } from '../render/svg.ts';
-import { attr, type Attrs, type Item, type Scene } from '../scene/scene.ts';
+import { attr, markAttrs, type Attrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
 import { GLYPH_W, ICON_W, glyphItems, iconItems, kindItems } from './kinds.ts';
 
@@ -96,7 +97,10 @@ function buildPhases(
   return fence.phases.map((fp, i): Phase => {
     const phase: Phase = { label: fp.label, edges: [], line: fp.line };
     if (fp.parent !== undefined) phase.parent = fp.parent;
-    phase.edges = edges.filter((e) => within(lineOf.get(e.line), i)).map((e) => e.index);
+    const messages = edges.filter((e) => within(lineOf.get(e.line), i));
+    phase.edges = messages.map((e) => e.index);
+    const change = sharedChange(messages);
+    if (change) phase.change = change;
     if (!phase.edges.length)
       report.warn(
         fp.line,
@@ -263,6 +267,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
       {
         type: 'group',
         cls: 'pr-group',
+        attrs: markAttrs(d.groups[g]),
         items: [
           { type: 'rect', x: gx, y: gy, w: gr - gx, h: bottom + GROUP_PAD - gy + depthBelow[g] * 4, r: 12 },
           { type: 'text', x: gx + 12, y: gy + 17, text: d.groups[g].label },
@@ -288,7 +293,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
       return {
         type: 'group',
         cls: 'pr-phase',
-        attrs: id === undefined ? undefined : nodeAttrs(id, domId),
+        attrs: [...(id === undefined ? [] : nodeAttrs(id, domId)), ...markAttrs(span.p)],
         items: [
           { type: 'rect', cls: 'pr-phase-box', x: x0, y: span.top, w: x1 - x0, h: span.bottom - span.top, r: 6 },
           { type: 'path', cls: 'pr-phase-tag', d: tag(x0, span.top, span.p.label) },
@@ -312,7 +317,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
     return {
       type: 'group',
       cls: 'pr-node pr-participant',
-      attrs: [...nodeAttrs(c.node.id, domId), ...attr('data-role', c.node.role), ...attr('data-kind', c.node.kind)],
+      attrs: [...nodeAttrs(c.node.id, domId), ...markAttrs(c.node), ...attr('data-kind', c.node.kind)],
       items: [
         { type: 'line', cls: 'pr-lifeline', x1: c.x, y1: headerBottom, x2: c.x, y2: bottom },
         ...kindItems(c.node.kind, left, headerTop, c.w, headH),
@@ -337,12 +342,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
     const { e, a, b } = row;
     const both = e.arrow === '<->';
     const cls = `pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}`;
-    const attrs: Attrs = [
-      ['data-edge', String(e.index)],
-      ['data-from', e.from],
-      ['data-to', e.to],
-      ...attr('data-role', e.role),
-    ];
+    const attrs: Attrs = [['data-edge', String(e.index)], ['data-from', e.from], ['data-to', e.to], ...markAttrs(e)];
     if (row.self) {
       const x0 = a.x;
       const y0 = row.y;
@@ -359,7 +359,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
         labels.push({
           type: 'group',
           cls: 'pr-edge-label',
-          attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+          attrs: [['data-edge', String(e.index)], ...markAttrs(e)],
           items: [linesItem(row.lines, x0 + SELF_W + 10, (y0 + y1) / 2, LABEL_LINE, 'pr-elabel pr-left')],
         });
       anchors.set(e.index, { x: x0 - 14, y: (y0 + y1) / 2 });
@@ -381,7 +381,7 @@ function render(d: Sequence, context: RenderContext): Rendered {
       labels.push({
         type: 'group',
         cls: 'pr-edge-label',
-        attrs: [['data-edge', String(e.index)], ...attr('data-role', e.role)],
+        attrs: [['data-edge', String(e.index)], ...markAttrs(e)],
         items: [linesItem(row.lines, cx, ly, LABEL_LINE, 'pr-elabel')],
       });
       const w = Math.max(...row.lines.map((l) => textWidth(l, LABEL_FONT)));

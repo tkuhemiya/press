@@ -21,6 +21,7 @@ import { markers, stepMark, type Markers } from './style.ts';
 import { drawTable, type Cell, type Row } from './table.ts';
 import { paint, type Theme } from './theme.ts';
 import { drawTimeline } from './timeline.ts';
+import { signed } from '../../diagrams/sign.ts';
 
 const LABELS = [24, 16, 10];
 
@@ -44,7 +45,7 @@ export function termFigure(f: Figure, theme: Theme, width: number): TermFigure {
 }
 
 function body(f: Figure, theme: Theme, mark: Markers, width: number): string[] {
-  const d = f.diagram;
+  const d = signed(f.diagram);
   const ctx = (maxLabel: number): Ctx => ({ theme, mark, maxLabel });
   const turnable = view(d).turnable();
   const graph = (build: (c: Ctx) => TermGraph, dirs: Direction[]): string[] => {

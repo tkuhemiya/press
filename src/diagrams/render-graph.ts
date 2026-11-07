@@ -20,7 +20,7 @@ import { cnode, compoundLayout, type CEdge, type CNode } from '../layout/pele/co
 import { loopPath, routePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { HEAD } from '../render/svg.ts';
-import { attr, type Attrs, type Item } from '../scene/scene.ts';
+import { attr, markAttrs, type Attrs, type Item } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
 
 const LABEL_FONT = 12.5;
@@ -165,6 +165,7 @@ export function renderGraph<N extends Node>(
     return {
       type: 'group',
       cls: groupClass(depths[i]),
+      attrs: markAttrs(g),
       items: [
         { type: 'rect', x, y, w: c.w, h: c.h, r: 12 },
         { type: 'text', x: x + 14, y: y + 19, text: g.label },
@@ -214,7 +215,7 @@ export function renderGraph<N extends Node>(
     const attrs: Attrs = [
       ['data-node', node.id],
       ['id', `${domId}-node-${node.id}`],
-      ...attr('data-role', node.role),
+      ...markAttrs(node),
       ...attr('data-kind', kind),
     ];
     out.push(shape.draw(box, attrs));

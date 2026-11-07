@@ -1,3 +1,5 @@
+import type { Change, Role } from '../model.ts';
+
 export type Attrs = readonly (readonly [string, string])[];
 
 export type Item =
@@ -22,3 +24,6 @@ export interface Scene {
 
 export const attr = (key: string, value: string | number | undefined): Attrs =>
   value === undefined ? [] : [[key, String(value)]];
+
+export const markAttrs = (x: { role?: Role; change?: Change }): Attrs =>
+  x.change ? attr('data-change', x.change) : attr('data-role', x.role);
