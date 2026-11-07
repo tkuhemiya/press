@@ -3,6 +3,11 @@
 A small Markdown-like language for explanations that mix prose and diagrams. You write
 structure; Press handles layout, typography and visual design.
 
+![How Press works: Markdown is parsed into a typed model, laid out once, and drawn as HTML, PDF, or terminal output](docs/how-press-works.png)
+
+How the pieces fit together, drawn in Press.
+Source: [`docs/how-press-works.md`](docs/how-press-works.md).
+
 ````markdown
 ```state-machine id=order title="Order lifecycle"
 start -> draft
@@ -86,6 +91,6 @@ npm run build:examples
 
 Node runs the TypeScript directly, so there is no build step. Layout for graph diagrams
 is pele's layered layout, vendored in `src/layout/pele` (MIT); see `docs/PRIOR_ART.md` for why.
-Fonts are Inter, Source Serif 4 and JetBrains Mono (SIL OFL), embedded in each page.
+Fonts are Geist Sans, Geist Serif and Geist Mono from [vercel.com/font](https://vercel.com/font) (SIL OFL), embedded in each page.
 Vendor icons in `assets/icons` (AWS, Azure, Google Cloud, Kubernetes) belong to their vendors and are
 not MIT; see [`assets/icons/NOTICE.md`](assets/icons/NOTICE.md).

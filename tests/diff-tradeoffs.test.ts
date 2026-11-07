@@ -167,8 +167,8 @@ postgres.ops : "already running"
       was: 'another service',
     });
     const html = page(body);
-    expect(element(html, 'redis.ops')).toContain('billed per GB · was</tspan>');
-    expect(element(html, 'redis.ops')).toContain('&quot;another service&quot;');
+    expect(element(html, 'redis.ops')).toContain('billed per GB · was &quot;another');
+    expect(element(html, 'redis.ops')).toContain('service&quot;');
     expect(element(html, 'redis.ops')).toContain('pr-caveat');
     expect(element(html, 'redis.latency')).not.toContain('pr-caveat');
     expect(element(html, 'postgres.latency')).toContain('pr-caveat');

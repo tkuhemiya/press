@@ -64,6 +64,16 @@ describe('html', () => {
   it('is deterministic', () => {
     expect(build(checkout, { embedFonts: false }).html).toBe(html);
   });
+
+  it('embeds Geist faces, not a fallback family', () => {
+    const page = build('# Title\n\nHello *there* and **now**.\n').html;
+    expect(page).toContain('font-family:"Geist"');
+    expect(page).toContain('font-family:"Geist Serif"');
+    expect(page).toContain('font-family:"Geist Mono"');
+    expect(page).toContain('font-weight:600');
+    expect(page).not.toContain('Inter');
+    expect(page).not.toContain('font-display:swap');
+  });
 });
 
 describe('layout', () => {
