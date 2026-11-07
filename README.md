@@ -80,6 +80,12 @@ and show a PR as one diagram with `+` and `-` lines.
 what each diagram type is for and where it hides in code. Every diagram in the skill is built
 by the test suite, so it stays in step with the language.
 
+Two skills cover one job each.
+[`skills/press-guide`](skills/press-guide/SKILL.md) writes a guide to a whole project as a PDF:
+why it exists, what it is made of, what it remembers, what happens when it runs and fails, and
+how people work on it. [`skills/press-pr`](skills/press-pr/SKILL.md) makes one image of what a
+pull request does to the system, from a fingerprint of the dimensions it changes.
+
 ## Develop
 
 ```sh
