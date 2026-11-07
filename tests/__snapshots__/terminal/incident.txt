@@ -1,0 +1,59 @@
+
+  Anatomy of an outage
+  ━━━━━━━━━━━━━━━━━━━━
+
+  Most outages are short. What makes them expensive is the gap between something
+  breaking and someone noticing, and the gap between noticing and acting. This
+  page lays out one afternoon’s incident on a clock, so those gaps are visible.
+
+  ## The afternoon of 14 March
+
+  Outage, 14 March
+
+     14:02  ●  v2.3 rolls out ① [a]
+            │
+  ╭─ Impact window
+  │  14:09  ●  ✗ Error rate hits 8% [b]
+  │         │  ↖ from “v2.3 rolls out”: caused ②
+  │         │
+  │  14:12  ●┓ Deploys frozen [d]
+  │         │┃
+  │  14:15  ●┃ Rollback starts ③ [c]
+  │         │┃
+  │  14:21  ●┃ ✓ Errors back to baseline ④
+  ╰─        │┃
+     14:40  │┛ └ end of “Deploys frozen”
+            │
+     14:40  ●  Freeze lifted
+
+  ① A routine deploy goes out. Nothing looks wrong yet.
+  ② Seven minutes later the error rate crosses the alert threshold.
+  ③ The on-call engineer rolls back instead of debugging live.
+  ④ Six minutes after that, errors are back to normal.
+
+  The seven minutes between the deploy[a] and the alert[b] are the detection
+  gap; the alert threshold sets its length. The rollback[c] started three
+  minutes after the alert, which is fast because rolling back needed no
+  diagnosis. The freeze[d] outlasted the impact on purpose: nobody deploys again
+  until the cause is understood.
+
+  ## How the fix rolled out
+
+  Undated timelines keep only the order, which is enough for a sequence of
+  stages.
+
+  The fix
+
+  ●  Reproduce the bug in staging
+  │
+  ●  Add a failing test
+  │  ↖ from “Reproduce the bug in staging”
+  │
+  ●  Patch the retry logic
+  │  one line
+  │
+  ◆  Ship to 5% of traffic [a]
+  │
+  ●  ✓ Ship to everyone
+
+  The canary[a] is the step that would have caught the original bug.

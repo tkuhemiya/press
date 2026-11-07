@@ -1,0 +1,246 @@
+
+  The checkout system, three ways
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  One diagram cannot say who uses checkout, where card data goes, and where it
+  runs. This page draws each of those separately: the context, the data flow,
+  and the deployment.
+
+  ## Who talks to whom
+
+  Checkout in context
+
+                    ┌─ person ─┐
+                    │ Customer │
+                    └─────┬────┘
+                          │
+                          │
+                   Places orders ①
+                          │
+                          ▼
+                 ╔═ system ════════╗
+                 ║ Online shop [a] ║
+                 ╚════╦══════╦═════╝
+                      │      │
+              ╭───────╯      ╰────────╮
+       Charges cards ②        Sends receipts ③
+              │                       │
+              │                       │
+              ▼                       ▼
+  ╭╌ system ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮  ╭╌ system ╌╌╌╌╌╌╌╮
+  ╎ Payment processor [b] ╎  ╎ Email provider ╎
+  ╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯  ╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯
+
+  ① A customer places an order in the shop.
+  ② The shop never touches card numbers; the processor does.
+  ③ Receipts go out through a separate provider.
+
+  The online shop[a] is the only system we run. Both the payment processor[b]
+  and the email provider are outside our control.
+
+  Inside the online shop
+
+           ┌─ person ─┐
+           │ Customer │
+           └─────┬────┘
+                 │
+                 │
+               Uses
+                 │
+                 │
+                 │
+                 │
+  ╭─ Online shop ┼────────╮
+  │              ▼        │
+  │       ┌─ container ─┐ │
+  │       │   Web app   │ │
+  │       │  [Next.js]  │ │
+  │       └──────┬──────┘ │
+  │              │        │
+  │              │        │
+  │              │        │
+  │         JSON/HTTPS    │
+  │              │        │
+  │              ▼        │
+  │       ┌─ container ─┐ │
+  │       │ Orders API  │ │
+  │       │    [Go]     │ │
+  │       └─┬─────────┬─┘ │
+  │         │         │   │
+  │         │         │   │
+  │        ╭╯         │   │
+   Reads and writes   │   │
+  │        ▼          │   │
+  │ ┌─ container ─┐   │   │
+  │ │  Orders DB  │   │   │
+  │ │ [Postgres]  │   │   │
+  │ └─────────────┘   │   │
+  │                   │   │
+  ╰───────────────────┼───╯
+                      │
+                      │
+                      │
+                      │
+                      │
+                Charges cards
+                      │
+                      ▼
+            ╭╌ system ╌╌╌╌╌╌╌╌╌╌╮
+            ╎ Payment processor ╎
+            ╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯
+
+  ## Where card data goes
+
+  The part of checkout that handles money is a small data flow. The trust
+  boundary matters: everything inside it can see an order, and only the
+  processor sees a card.
+
+  Checkout data
+
+               ┌─ external ─┐
+               │  Customer  │
+               └──────┬─────┘
+                      │
+                      │
+                   Cart ①
+                      │
+                      │
+                      │
+                      │
+                      │
+            ╭─ Our systems ────────╮
+            │         ▼            │
+            │ ┌─ process ─────┐    │
+            │ │ Validate cart │    │
+            │ └───────┬───────┘    │
+            │         │            │
+            │         │            │
+            │   Payable order      │
+            │         │            │
+            │         ▼            │
+            │  ┌─ process ───┐     │
+            │  │ Charge card │     │
+            │  └─┬─────────┬─┘     │
+            │    │ ▲       │       │
+            │    │ ╎       │       │
+            │    │ ╎       ╰╮      │
+            │    │ ╎  Paid order ③ │
+            │    │ ╎        │      │
+            │    │ ╎        ▼      │
+            │    │ ╎   ┌─ store ─┐ │
+            │    │ ╎   │ Orders  │ │
+            │    │ ╎   └─────────┘ │
+            │    │ ╰╌╌╌╌╌╮         │
+            ╰────┼───────┼─────────╯
+                 │       ╎
+                 │       ╎
+                 │       ╎
+          ╭──────╯       ╎
+  Charge request ②    Result
+          │              ╎
+          ▼              ╎
+        ┌─ external ─────┴──┐
+        │ Payment processor │
+        └───────────────────┘
+
+  ① The cart is checked for stock and price before any money moves.
+  ② Only a token and an amount leave our systems.
+  ③ A paid order is stored last, so no order exists without a charge.
+
+  ## Where it runs
+
+  Checkout in production
+
+               ┌─ cdn ─┐
+               │  CDN  │
+               └───┬───┘
+                   │
+                   │
+                HTTPS ①
+                   │
+                   ▼
+           ┌─ lb ──────────┐
+           │ Load balancer │
+           └───────┬───────┘
+                   │
+                   │
+                HTTPS ②
+                   │
+                   │
+                   │
+                   │
+                   │
+                   │
+                   │
+                   │
+                   │
+                   │
+  ╭─ us-east-1 ────┼───────────────────╮
+  │                │                   │
+  │   ╭─ Zone a ───┼─────────────────╮ │
+  │   │            │                 │ │
+  │   │ ╭─ Cluster ┼─────────╮       │ │
+  │   │ │          ▼         │       │ │
+  │   │ │ ┌─ workload ─────┐ │       │ │
+  │   │ │ │ orders-api [a] │ │       │ │
+  │   │ │ │   3 replicas   │ │       │ │
+  │   │ │ └────┬───────┬───┘ │       │ │
+  │   │ │      ┊       │     │       │ │
+  │   │ │      ┊       │     │       │ │
+  │   │ │      ┊       │     │       │ │
+  │   │ │   runs on    │     │       │ │
+  │   │ │      ┊       │     │       │ │
+  │   │ │      ▼       │     │       │ │
+  │   │ │ ┌─ node ──┐  │     │       │ │
+  │   │ │ │ Node a1 │  │     │       │ │
+  │   │ │ └─────────┘  │     │       │ │
+  │   │ │              │     │       │ │
+  │   │ ╰──────────────┼─────╯       │ │
+  │   │                │             │ │
+  │   │                │             │ │
+  │   │                │             │ │
+  │   │                │             │ │
+  │   │               SQL            │ │
+  │   │                │             │ │
+  │   │                ▼             │ │
+  │   │      ┌─ workload ───────┐    │ │
+  │   │      │ Postgres primary │    │ │
+  │   │      └────┬─────────┬───┘    │ │
+  │   │           ╎         ┊        │ │
+  │   │           ╎         ┊        │ │
+  │   │           ╎         ┊        │ │
+  │   │           ╎      writes      │ │
+  │   │           ╎         ┊        │ │
+  │   │           ╎         ▼        │ │
+  │   │           ╎  ┌─ volume ────┐ │ │
+  │   │           ╎  │ Data volume │ │ │
+  │   │           ╎  └─────────────┘ │ │
+  │   │           ╎                  │ │
+  │   ╰───────────┼──────────────────╯ │
+  │               ╎                    │
+  │               ╎                    │
+  │               ╎                    │
+  │               ╎                    │
+  │         replicates ③               │
+  │               ╎                    │
+  │               ╎                    │
+  │               ╎                    │
+  │               ╎                    │
+  │               ╎                    │
+  │ ╭─ Zone b ────┼────────────╮       │
+  │ │             ▼            │       │
+  │ │ ┌─ workload ───────────┐ │       │
+  │ │ │ Postgres replica [b] │ │       │
+  │ │ └──────────────────────┘ │       │
+  │ │                          │       │
+  │ ╰──────────────────────────╯       │
+  │                                    │
+  ╰────────────────────────────────────╯
+
+  ① Static pages come from the CDN; everything else reaches the load
+     balancer.
+  ② The load balancer spreads requests over three replicas.
+  ③ If zone a fails, the replica in zone b is promoted.
+
+  The orders API[a] runs three replicas in one cluster. The database is the one
+  thing that spans two zones[b].

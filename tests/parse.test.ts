@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDocument, type Diagram, type DiagramType, type Document } from '../src/index.ts';
+import { parseDocument, renderHtml, type Diagram, type DiagramType, type Document } from '../src/index.ts';
 
 const fence = (type: string, body: string, header = '') =>
   `# Doc\n\n\`\`\`${type}${header ? ' ' + header : ''}\n${body}\n\`\`\`\n`;
@@ -129,6 +129,131 @@ api --> db`,
     const doc = parse('architecture', 'db: databse "Postgres"');
     expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`database`') });
   });
+
+  it('reads a vendor icon in place of a kind', () => {
+    const doc = parse('architecture', 'fn: aws.lambda "Resize"\npod: k8s.pod\nfn -> pod');
+    expect(doc.diagnostics).toEqual([]);
+    expect(first(doc, 'architecture').nodes.map((n) => [n.id, n.icon, n.kind, n.label])).toEqual([
+      ['fn', 'aws.lambda', undefined, 'Resize'],
+      ['pod', 'k8s.pod', undefined, 'pod'],
+    ]);
+  });
+
+  it('suggests a known icon and a known icon set', () => {
+    const name = parse('architecture', 'fn: aws.lambada "Resize"');
+    expect(name.diagnostics[0]).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`aws.lambda`') });
+    expect(first(name, 'architecture').nodes[0].icon).toBeUndefined();
+    const vendor = parse('sequence', 'fn: awz.lambda "Resize"');
+    expect(vendor.diagnostics[0]).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`aws.lambda`') });
+  });
+
+  it('reads a vendor icon in a deployment', () => {
+    const doc = parse('deployment', 'api: k8s.deployment "orders-api"\nlb: lb "ALB"\nlb -> api');
+    expect(doc.diagnostics).toEqual([]);
+    expect(first(doc, 'deployment').nodes.map((n) => [n.id, n.icon, n.kind])).toEqual([
+      ['api', 'k8s.deployment', undefined],
+      ['lb', undefined, 'lb'],
+    ]);
+  });
+
+  it('warns that icons belong to architecture, sequence and deployment only', () => {
+    const doc = parse('state-machine', 'a: aws.lambda "A"\na -> b');
+    expect(doc.diagnostics[0]).toMatchObject({ severity: 'warning', message: expect.stringContaining('no icons') });
+  });
+});
+
+describe('software architecture types', () => {
+  it('reads data-flow kinds and a boundary', () => {
+    const doc = parse(
+      'data-flow',
+      `customer: external "Customer"
+group "Ours" {
+  validate: process "Validate cart"
+  orders: store "Orders"
+}
+customer -> validate : Cart
+validate -> orders : Paid order`,
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'data-flow');
+    expect(d.nodes.map((n) => [n.id, n.kind, n.group])).toEqual([
+      ['customer', 'external', undefined],
+      ['validate', 'process', 0],
+      ['orders', 'store', 0],
+    ]);
+    expect(d.edges[1]).toMatchObject({ from: 'validate', to: 'orders', label: 'Paid order' });
+  });
+
+  it('suggests a data-flow kind', () => {
+    const w = parse('data-flow', 'db: stor "Orders"').diagnostics[0];
+    expect(w).toMatchObject({ severity: 'warning', line: 4, hint: expect.stringContaining('`store`') });
+  });
+
+  it('reads c4 kinds, external systems and technology', () => {
+    const doc = parse(
+      'c4',
+      `customer: person "Customer"
+group "Shop" {
+  api: container "API" {tech=Go, note="stateless"}
+}
+mail: system "Email" {external=yes}
+customer -> api : Uses
+api -> mail : Sends mail`,
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'c4');
+    expect(d.nodes.map((n) => [n.id, n.kind, n.external, n.tech, n.group])).toEqual([
+      ['customer', 'person', false, undefined, undefined],
+      ['api', 'container', false, 'Go', 0],
+      ['mail', 'system', true, undefined, undefined],
+    ]);
+  });
+
+  it('names the fix for a c4 kind typo, an unclear external and a typo in tech', () => {
+    const doc = parse('c4', 'a: sytem "A" {external=true}\nb: system "B" {tecn=Go}\na -> b');
+    expect(doc.diagnostics).toMatchObject([
+      { line: 4, hint: expect.stringContaining('`system`') },
+      { line: 4, message: expect.stringContaining('external=true'), hint: expect.stringContaining('{external=yes}') },
+      { line: 5, hint: expect.stringContaining('`tech`') },
+    ]);
+  });
+
+  it('warns that c4 takes no level in the header', () => {
+    const w = parse('c4', 'a -> b', 'level=context').diagnostics[0];
+    expect(w).toMatchObject({ severity: 'warning', message: expect.stringContaining('`level`') });
+  });
+
+  it('nests deployment places and reads notes', () => {
+    const doc = parse(
+      'deployment',
+      `group "us-east-1" {
+  group "Zone a" {
+    api: workload "orders-api" {note="3 replicas"}
+  }
+}
+lb: lb "Balancer"
+lb -> api : HTTPS`,
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'deployment');
+    expect(d.groups).toMatchObject([{ label: 'us-east-1' }, { label: 'Zone a', parent: 0 }]);
+    expect(d.nodes.map((n) => [n.id, n.kind, n.group, n.note])).toEqual([
+      ['api', 'workload', 1, '3 replicas'],
+      ['lb', 'lb', undefined, undefined],
+    ]);
+  });
+
+  it('suggests a deployment kind', () => {
+    const w = parse('deployment', 'v: volum "Disk"').diagnostics[0];
+    expect(w).toMatchObject({ severity: 'warning', hint: expect.stringContaining('`volume`') });
+  });
+
+  it('resolves steps on all three', () => {
+    for (const type of ['data-flow', 'c4', 'deployment'])
+      expect(errors(parse(type, 'a -> b : go\n\nsteps:\n  a -> b "Caption"\n  c "Missing"'))).toMatchObject([
+        { line: 8, message: expect.stringContaining('`c`') },
+      ]);
+  });
 });
 
 describe('diagnostics name the line and suggest a fix', () => {
@@ -180,6 +305,26 @@ describe('diagnostics name the line and suggest a fix', () => {
     const doc = parseDocument('```state-machin\na -> b\n```\n');
     expect(doc.diagnostics[0].hint).toContain('state-machine');
     expect(doc.figures).toHaveLength(0);
+  });
+
+  it('warns when a fence of another type looks like a diagram', () => {
+    const doc = parseDocument('```flowchart\na -> b\n```\n\n```\nstart -> idle : boot\n```\n');
+    expect(doc.diagnostics).toMatchObject([
+      {
+        severity: 'warning',
+        line: 1,
+        message: expect.stringContaining('`flowchart`'),
+        hint: expect.stringContaining('state-machine'),
+      },
+      { severity: 'warning', line: 5, message: expect.stringContaining('no diagram type') },
+    ]);
+  });
+
+  it('leaves ordinary and verbatim code fences alone', () => {
+    const doc = parseDocument(
+      '```rust\nfn next(&self) -> u32 {}\n```\n\n```ts\nconst x = 1;\n```\n\n```text\na -> b\n```\n',
+    );
+    expect(doc.diagnostics).toEqual([]);
   });
 });
 
@@ -794,5 +939,123 @@ describe('tradeoffs caveats', () => {
   it('keeps a cell note as its caveat', () => {
     const d = first(parse('tradeoffs', 'a.x : yes {note="since 4.0"}\nb.x : no'), 'tradeoffs');
     expect(d.cells[0]).toMatchObject({ value: 'yes', note: 'since 4.0' });
+  });
+});
+
+describe('page hints on headings', () => {
+  const headings = (source: string) => {
+    const doc = parseDocument(source);
+    return { doc, errors: doc.diagnostics.map((d) => ({ line: d.line, message: d.message, hint: d.hint })) };
+  };
+
+  it('accepts keep and new without diagnostics, and strips them from the title and heading', () => {
+    const doc = parseDocument('# Guide {page=keep}\n\n## Where the writes go {page=keep}\n\n## Appendix {page=new}\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(doc.title).toBe('Guide');
+    expect(renderHtml(doc)).not.toMatch(/\{page/);
+    expect(renderHtml(doc)).toContain('<h2>Where the writes go</h2>');
+    expect(renderHtml(doc)).toContain('<h2>Appendix</h2>');
+  });
+
+  it('keeps braces that sit in the middle of a heading', () => {
+    const doc = parseDocument('## The {x} problem\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(renderHtml(doc)).toContain('<h2>The {x} problem</h2>');
+  });
+
+  it('strips a hint that follows inline markup', () => {
+    const doc = parseDocument('## Foo *bar* {page=new}\n');
+    expect(doc.diagnostics).toEqual([]);
+    expect(renderHtml(doc)).toContain('<h2>Foo <em>bar</em></h2>');
+  });
+
+  it('names an unknown page value, with a fix', () => {
+    const { errors } = headings('# Doc\n\n## Foo {page=together}\n');
+    expect(errors).toEqual([
+      {
+        line: 3,
+        message: 'Unknown page hint `together`.',
+        hint: 'Use `{page=keep}` to keep the section on one page, or `{page=new}` to start it on a new page.',
+      },
+    ]);
+  });
+
+  it('suggests the nearest page value for a near miss', () => {
+    const { errors } = headings('## Foo {page=newe}\n');
+    expect(errors).toEqual([{ line: 1, message: 'Unknown page hint `newe`.', hint: 'Did you mean `{page=new}`?' }]);
+  });
+
+  it('rejects any key other than page', () => {
+    const { errors } = headings('# Doc\n\n## Foo {break=new}\n');
+    expect(errors).toEqual([
+      { line: 3, message: 'Headings take only the `page` hint.', hint: 'Write `{page=new}` or `{page=keep}`.' },
+    ]);
+  });
+
+  it('rejects a heading with two page hints', () => {
+    const { errors } = headings('## Foo {page=keep, page=new}\n');
+    expect(errors).toEqual([
+      {
+        line: 1,
+        message: 'A heading takes one page hint, but this one has 2.',
+        hint: 'Keep one of `{page=keep}` or `{page=new}`.',
+      },
+    ]);
+  });
+
+  it('rejects a page hint with no value', () => {
+    const { errors } = headings('## Foo {page, page=keep}\n');
+    expect(errors.map((e) => e.message)).toEqual([
+      'The `page` hint has no value.',
+      'A heading takes one page hint, but this one has 2.',
+    ]);
+    expect(headings('## Foo {x=1, page}\n').errors.map((e) => e.message)).toEqual([
+      'Headings take only the `page` hint.',
+      'The `page` hint has no value.',
+    ]);
+  });
+
+  it('reports an unclosed brace at the end of a heading', () => {
+    const { errors } = headings('## Foo {page=keep\n');
+    expect(errors).toEqual([
+      { line: 1, message: 'Heading ends in an unclosed `{`.', hint: 'Close the brace, as in `{page=keep}`.' },
+    ]);
+  });
+});
+
+describe('readability warnings', () => {
+  const warnings = (src: string) => parseDocument(src).diagnostics.filter((d) => d.severity === 'warning');
+  const chain = (n: number) => Array.from({ length: n }, (_, i) => `n${i} -> n${i + 1}`).join('\n');
+
+  it('warns when a diagram has too many nodes, with a fix', () => {
+    const [w] = warnings('```architecture\n' + chain(31) + '\n```\n');
+    expect(w).toMatchObject({ severity: 'warning', line: 1, message: expect.stringContaining('32 components') });
+    expect(w.hint).toContain('Split it into several smaller diagrams');
+  });
+
+  it('stays quiet at the limit and builds either way', () => {
+    expect(warnings('```architecture\n' + chain(29) + '\n```\n')).toEqual([]);
+    const { diagnostics } = parseDocument('```architecture\n' + chain(31) + '\n```\n');
+    expect(diagnostics.some((d) => d.severity === 'error')).toBe(false);
+  });
+
+  it('uses a lower limit for sequences and a higher one for timelines', () => {
+    const people = Array.from({ length: 11 }, (_, i) => `p${i} -> p${(i + 1) % 11}`).join('\n');
+    expect(warnings('```sequence\n' + people + '\n```\n')[0].message).toContain('11 participants');
+    const events = Array.from({ length: 41 }, (_, i) => `e${i}: "E${i}"`).join('\n');
+    expect(warnings('```timeline\n' + events + '\n```\n')[0].message).toContain('41 events');
+    expect(warnings('```timeline\n' + events.split('\n').slice(0, 40).join('\n') + '\n```\n')).toEqual([]);
+  });
+
+  it('warns about a long unbroken word in a label, on its own line', () => {
+    const url = 'https://example.com/' + 'a'.repeat(40);
+    const [w] = warnings(`\`\`\`architecture\nweb -> api : ${url}\n\`\`\`\n`);
+    expect(w).toMatchObject({ line: 2, message: expect.stringContaining('no spaces') });
+    expect(w.hint).toMatch(/Shorten it, add spaces/);
+  });
+
+  it('does not warn about long labels made of short words', () => {
+    const label = 'a label with many short words that is rather long indeed';
+    expect(warnings(`\`\`\`architecture\nweb -> api : ${label}\n\`\`\`\n`)).toEqual([]);
   });
 });

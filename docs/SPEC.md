@@ -1,8 +1,8 @@
-# Press language spec (draft, v0.4)
+# Press language spec (draft, v0.8)
 
 ## Document
 
-A Press document is CommonMark. A fenced code block whose language tag is a known diagram type is rendered as that diagram. All other fences are ordinary code blocks.
+A Press document is CommonMark. A fenced code block whose language tag is a known diagram type is rendered as that diagram. All other fences are ordinary code blocks. Press warns when such a fence looks like a mistake: its tag is close to a diagram type, or its body has edge lines such as `a -> b` (unless the tag is `text` or `markdown`, which show source verbatim).
 
 Fence header:
 
@@ -11,6 +11,20 @@ Fence header:
 ````
 
 All header fields are optional. `id` is needed only when prose refers to the diagram. Without `direction`, a type draws in its default direction, or in the other one when that fits the page clearly better; an explicit `direction` is always kept.
+
+### Page hints
+
+*New in v0.5.* A heading may end with `{page=keep}` or `{page=new}`. A section is a heading and everything under it, up to the next heading of any level.
+
+```markdown
+## Where the writes go {page=keep}
+## Appendix: wire formats {page=new}
+```
+
+- `page=keep` keeps the section on one page. Press shrinks its figures as far as print allows to make it fit, and starts a new page if it does not fit in the space left. A section too long for any page flows normally, and `press build` warns that it could not keep it together.
+- `page=new` starts the section on a new page.
+- Hints affect print only. On screen the heading shows without its hint.
+- Any other key or value is an error that names the line and the accepted values. Without a hint, Press lays out print on its own (see Print below).
 
 ## Shared grammar
 
@@ -29,6 +43,7 @@ group "Name" { ... }           nesting
 
 - Nodes are created by first use. Declare one explicitly only to give it a kind or a label that differs from its id. The kind is optional: `id: "Label"`. An undeclared node is labelled with its id, `_` read as a space (`wage_demands` shows as "wage demands"); in `er` an entity's id is a table name and shows as written.
 - A group with no members is a warning, since it would draw nothing.
+- Groups draw as tinted regions with a soft border. A nested group is tinted a little darker than its parent, to three levels, so depth reads without heavy strokes.
 - A node belongs to the group it is declared in. A bare node line inside a group (`api` alone) moves an existing node into that group, so members can be listed after they are declared.
 - A line may hold just a node and its attributes: `draft {role=focus}`.
 - Ids are lowercase letters, digits, `_` and `-`. A `-` must sit between two other characters, so `a-->b` reads as an edge, never as an id. Labels are quoted strings.
@@ -60,6 +75,27 @@ node.key : value {attrs}
 - In `er` a property is a field of an entity (`orders.user_id : uuid`). In `tradeoffs` it is a cell: what one option offers on one criterion (`redis.ops : "another service"`).
 - Roles work on properties as on nodes: `{role=happy}` marks a favourable value, `{role=error}` an unfavourable one.
 - A type that has no properties reports `a.b` as an error that names the types that do.
+
+### Changes
+
+*New in v0.8.* A fence can show a change, the way a diff does. A statement line may start with `+` and a space, meaning it exists after the change, or `-` and a space, meaning it existed before. An unmarked line exists on both sides.
+
+```
+draft -> submitted : submit
+- submitted -> failed : declined
++ submitted -> review : needs review
+- paid: "Paid"
++ paid: "Paid in full"
+```
+
+- Every statement can be marked: declarations, edges and chains, properties, events and loops. `group`, `phase` and `lane` lines, a closing `}` and steps cannot, and are an error that says so.
+- An edge, property or loop has the status of its own line.
+- A node is added when only `+` lines mention it, and removed when only `-` lines do. A node that any unmarked line mentions existed before and after, so a new node's other lines need a `+` too.
+- A `-` line and a `+` line that declare the same id, or give the same property, make one changed element. It shows the `+` side, with the `-` side's label or value as a `was "…"` note.
+- A group, phase or lane takes its status from what it holds: added when everything in it is added, removed when everything in it is removed.
+- An unmarked causal loop that runs through a removed link is a warning, since that loop no longer exists after the change.
+- Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
+- The figure holds both sides, so a diff is larger than either. Steps and prose references work as usual and may point at removed elements.
 
 ## Steps
 
@@ -109,8 +145,24 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 - **Prose references become markers.** A reference prints as the text plus a superscript marker that matches a marker on the node. Step markers are numbers (1, 2, 3); prose reference markers are letters (a, b, c), so the two never collide.
 - **A figure that would print small may print differently.** Press tries it in the other direction (only when the author gave no `direction`) and without its `muted` elements (only when no step or prose reference points at one), and prints whichever layout keeps the text largest. The screen always shows the diagram as written.
 - **Diagrams never split across pages.**
+- **Figures fill the page they are on.** A figure that does not fit in the space left on its page prints smaller, down to 60% of its size, or in its other direction, before it moves to the next page. Figures never move out of reading order, and a heading never ends a page alone.
+
+### Readability
+
+A diagram that is too big to read in print gets a warning, and the build still succeeds. The warning names the line and says to split the diagram into several smaller ones linked from prose. The limits are 30 states, components or decision nodes, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities and 40 tradeoffs cells.
+
+A label word longer than 40 characters with no spaces is also a warning. Labels wrap at a fixed width, and a word longer than that width is broken into pieces on screen and on paper, so nothing leaves its card.
 
 Small multiples (several frames) are allowed only when the author asks for them explicitly. This is not part of v0.1.
+
+### Terminal
+
+*New in v0.6.* `press preview doc.md` writes the document to the terminal, the way glamour renders Markdown. It is for reading where there is no browser, and for agents checking their own work. A terminal is a fixed number of columns wide and scrolls without end, so figures are laid out for that rather than shrunk from the screen.
+
+- **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off.
+- **Steps and references work as on paper.** Steps become numbered markers (①) on the figure with the captions as a legend below it, and prose references become letters ([a]) in both the prose and the figure.
+- **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Colour only repeats them.
+- **Dark by default.** Terminals are usually dark, so colours are chosen for a dark background; `--theme light` is for light terminals. When the output is not a terminal, or `NO_COLOR` is set, it is plain text. `--ascii` draws with ASCII only.
 
 ## Diagram types in v0.1
 
@@ -169,7 +221,7 @@ api --> client : 201 Created
 
 Components, the boundaries around them, and the connections between them. Edges are connections; the label says what travels on them (a protocol, a payload). `-->` is an async or fire-and-forget connection. Groups are boundaries: a network, a trust zone, a deployment. `direction` defaults to `right`.
 
-Node kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Each draws with its own shape or icon. A node without a kind draws as a plain component box.
+Node kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. Each draws with its own shape or icon. A node without a kind draws as a plain component box. A vendor icon can take the place of the kind; see [Vendor icons](#vendor-icons).
 
 ```architecture id=checkout title="Checkout"
 user: user "Shopper"
@@ -397,6 +449,104 @@ steps:
   postgres           "Postgres revokes at once and is already running."
 ```
 
+## Diagram types in v0.7
+
+Three diagram types for software architecture. Each draws one concern. A system's context, its data flow and its deployment are three diagrams, not one fence with everything in it. All three use the shared grammar, roles, notes, groups, steps and prose references, and add only node kinds and, for `c4`, two attributes.
+
+### `data-flow`
+
+How data moves and changes: where it comes from, what transforms it, and where it rests. Edges are flows, and the label names the data that travels (`Cart`, `Charge request`), not the action. `-->` is a return or an asynchronous flow. `direction` defaults to `right`.
+
+Node kinds:
+
+| Kind | Draws as | Means |
+|---|---|---|
+| `external` | plain box | a person or system outside the diagram that sends or receives data |
+| `process` | rounded pill | something that transforms or routes data |
+| `store` | open-ended rectangle, lines on top and bottom only | data at rest: a database, a file, a queue |
+
+A node without a kind draws as a plain box. A group is a trust or context boundary: what is inside it is under one owner or one level of trust, and a flow that crosses its edge is a flow across that boundary.
+
+```data-flow id=checkout title="Checkout data"
+customer: external "Customer"
+psp: external "Payment processor"
+group "Our systems" {
+  validate: process "Validate cart"
+  charge: process "Charge card"
+  orders: store "Orders"
+}
+
+customer -> validate : Cart
+validate -> charge : Payable order
+charge -> psp : Charge request
+psp --> charge : Result
+charge -> orders : Paid order
+```
+
+### `c4`
+
+The C4 model's first two levels: the system in its context, and the containers inside it. Edges are relationships, and the label is a short phrase a person would say (`Places orders`, `Reads and writes`). `direction` defaults to `down`, so people sit above the systems they use.
+
+Node kinds: `person`, `system`, `container`. A person draws with a person icon.
+
+Attributes:
+
+- `{external=yes}` marks a system or person outside the one being described. It draws with a dashed outline and a tinted fill, so the system the reader owns stands out. `yes` is the only value; leave the attribute out for what you own.
+- `{tech=Go}` names a container's technology. It prints in brackets, muted, under the name (`[Go]`), and a `note` on the same node follows it on the same line, after a `·`. Quote a value with spaces: `{tech="Next.js"}`.
+
+A group is the boundary of the system being described. At the context level the system is one node; at the container level it is a group around its containers. Use `role=focus` on the system the diagram is about.
+
+C4 defines the levels as separate diagrams. Press does not take a `level` header field in v0.7, since the shared header holds only `id`, `title` and `direction`. The level shows in the diagram's title and its kinds: a context fence has `system` nodes and no `container` nodes.
+
+```c4 id=shop title="Online shop, containers"
+customer: person "Customer"
+group "Online shop" {
+  web: container "Web app" {tech="Next.js"}
+  api: container "API" {tech=Go}
+  db: container "Database" {tech=Postgres}
+}
+mail: system "Email provider" {external=yes}
+
+customer -> web : Uses
+web -> api : JSON/HTTPS
+api -> db : Reads and writes
+api -> mail : Sends receipts
+```
+
+### `deployment`
+
+Where software runs: regions, zones, clusters, nodes and the workloads on them. Edges are network paths, placement and replication; the label says which (`HTTPS`, `runs on`, `replicates`). `direction` defaults to `right`.
+
+Node kinds:
+
+| Kind | Draws as |
+|---|---|
+| `node` | a machine or VM, with a server icon |
+| `workload` | a plain card: a service, a pod, a database process |
+| `lb` | a load balancer icon |
+| `cdn` | a globe icon |
+| `volume` | a disk icon |
+
+**Places are groups, and groups nest.** `group "us-east-1" { group "zone a" { ... } }` draws a region around its zones around its clusters. Nest as deep as the real topology goes; the places are labelled in their top-left corners, and each level is drawn inside the one above it. A node belongs to the innermost group it is written in.
+
+**Counts are notes.** `{note="3 replicas"}` prints small under the name. There are no properties in this type. Use `role=muted` for placement edges (`runs on`) that the picture needs but the reader does not need to follow, and `role=error` or a step to show a failure domain.
+
+```deployment id=prod title="Checkout in production"
+lb: lb "Load balancer"
+group "us-east-1" {
+  group "Zone a" {
+    api: workload "orders-api" {note="3 replicas"}
+    pg: workload "Postgres primary"
+  }
+  group "Zone b" {
+    pg_r: workload "Postgres replica"
+  }
+}
+
+lb -> api : HTTPS
+api -> pg : SQL
+pg --> pg_r : replicates
+
 ## Diagram types in v0.9 (draft, not yet agreed)
 
 Two types for how a program runs: the calls on its stack over time, and the bytes of its data. Both use the shared grammar and add no new line forms. Changes (`+` and `-`) are an error in both types in v0.9.
@@ -459,3 +609,24 @@ order.total : u32
 Each diagram type has a fixed list of node kinds, and each kind has a designed shape or icon. The list is closed so that every kind looks good. A kind the renderer doesn't know draws as a plain box, and the parser emits a warning naming the known kinds. To add a kind, add it to the spec.
 
 `architecture` kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. `sequence` uses the same names (in v0.2, a subset: `user`, `service`, `database`, `queue`, `external`).
+
+`data-flow` kinds: `external`, `process`, `store`. `c4` kinds: `person`, `system`, `container`. `deployment` kinds: `node`, `workload`, `lb`, `cdn`, `volume`; the icons for `node` and `volume` are the `service` and `storage` icons from `architecture`.
+
+### Vendor icons
+
+*New in v0.6.* In `architecture` and `sequence`, and in `deployment` from v0.7, a declaration can name a vendor's own icon where a kind would go. The name is the icon set, a dot, and the product:
+
+```architecture title="Uploads on AWS"
+fn: aws.lambda "Resize"
+bucket: aws.s3 "Photos"
+jobs: aws.sqs "Thumbnail jobs"
+fn -> bucket : put
+fn -> jobs
+```
+
+- **Icon sets.** `aws` (AWS Architecture Icons), `azure` (Azure Public Service Icons), `gcp` (Google Cloud core products and categories) and `k8s` (Kubernetes resources and infrastructure). `press icons` lists the sets; `press icons aws` lists every name in one, and `press icons aws dynamo` only the names containing a word.
+- **Names** are the product's name in lower case with hyphens, without the vendor prefix: `aws.api-gateway`, `azure.cosmos-db`, `gcp.cloud-run`, `k8s.deployment`. AWS services known by their initials use them: `aws.s3`, `aws.sqs`, `aws.sns`, `aws.ses`, `aws.ecs`, `aws.eks`, `aws.ecr`, `aws.ebs`, `aws.elb`, `aws.iam`, `aws.kms`, `aws.vpc`, `aws.msk`.
+- **They are drawn as the vendor publishes them**, in colour, beside the label, on screen and on paper. This is the one place Press shows colour it did not choose: a reader who works with a cloud recognises its icons faster than any label. Roles still apply to the box around the icon.
+- **The label still matters.** Without one, the node shows its id. Name the instance (`"Photos"`), not the product; the icon already says the product.
+- **An unknown icon** draws as a plain box, and the parser warns with the nearest name and the command that lists them. Icons are not available in other diagram types; there the parser warns and ignores the icon.
+- **Licences.** The icons belong to their vendors and are not covered by Press's MIT licence. Each vendor allows them in architecture diagrams and documentation; see `assets/icons/NOTICE.md`. `scripts/import-icons.ts` rebuilds the sets from the vendors' packages.

@@ -28,8 +28,24 @@ export function textWidth(text: string, size: number, face: Face = 'sans400'): n
   return (units * size) / 1000;
 }
 
+function chunks(word: string, size: number, maxWidth: number, face: Face): string[] {
+  const parts: string[] = [];
+  let part = '';
+  for (const ch of word) {
+    if (part && textWidth(part + ch, size, face) > maxWidth) {
+      parts.push(part);
+      part = '';
+    }
+    part += ch;
+  }
+  return part ? [...parts, part] : parts;
+}
+
 export function wrap(text: string, size: number, maxWidth: number, face: Face = 'sans400'): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
+  const words = text
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) => (textWidth(word, size, face) > maxWidth ? chunks(word, size, maxWidth, face) : [word]));
   const lines: string[] = [];
   let line = '';
   for (const word of words) {

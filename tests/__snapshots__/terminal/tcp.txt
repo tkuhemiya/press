@@ -1,0 +1,115 @@
+
+  How a TCP connection opens and closes
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  A TCP connection is a small state machine on each side. Most of the states
+  exist to make sure neither side forgets a packet that is still in flight.
+
+  ## Opening: the three-way handshake
+
+  Three-way handshake
+
+   ┌─ service ─┐              ┌─ service ─┐
+   │  Client   │              │  Server   │
+   └─────┬─────┘              └─────┬─────┘
+         ┊                          ┊
+         ┊     SYN (seq = x) ①      ┊
+         ├─────────────────────────▶┊
+         ┊                          ┊
+         ┊ SYN-ACK (seq = y, ack =  ┊
+         ┊        x + 1) ②          ┊
+         ┊◀─────────────────────────┤
+         ┊                          ┊
+         ┊   ACK (ack = y + 1) ③    ┊
+         ├━━━━━━━━━━━━━━━━━━━━━━━━━▶┊
+         ┊                          ┊
+
+  ① The client picks a random starting sequence number and sends SYN.
+  ② The server acknowledges it and sends its own starting number.
+  ③ The client acknowledges the server’s number. Both sides now agree.
+
+  Three messages, not two, because each side has to learn that the other side
+  received its starting number.
+
+  ## The whole lifecycle
+
+  TCP connection states
+
+                                  ●
+                                  │
+                                  │
+                                  │
+                                  ▼
+                             ┌────────┐
+                             │ closed │
+                             └──┬─┬───┘
+                                ┊ │▲▲
+                                ┊ │╰┼───────────╮
+                                ┊ │ ┊           │
+                                ┊ │ ┊           │
+         ╭┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈╯ │ ┊           │
+         ┊                        │ ┊           │
+         ┊                ╭───────╯ ┊           │
+   passive open     active open ①   ┊           │
+         ┊                │         ┊           │
+         ▼                ▼         ┊           │
+    ┌────────┐      ┌──────────┐    ┊           │
+    │ listen │      │ syn sent │    ┊           │
+    └────┬───┘      └─────┬────┘    ┊           │
+         ┊                │         ┊           │
+         ┊                │         ┊           │
+         ┊                │         ┊           │
+      rcv SYN             │         ┊           │
+         ┊                │         ┊           │
+         ▼                │         ┊           │
+   ┌──────────┐           │         ┊           │
+   │ syn rcvd │     rcv SYN-ACK ②   ┊           │
+   └─────┬────┘           │         ┊           │
+         ┊                │         ┊           │
+         ┊                │         ┊           │
+      rcv ACK             │         ┊           │
+         ╰┈┈┈┈┈┈╮  ╭──────╯         ┊           │
+                ▼  ▼                ┊           │
+           ┏━━━━━━━━━━━━━┓          ┊           │
+           ┃ established ┃       rcv ACK    timeout ⑥
+           ┗━━━━┳━━┳━━━━━┛          ┊           │
+                │  ┊                ┊           │
+                │  ┊                ┊           │
+         ╭──────╯  ╰┈┈┈┈┈┈╮         ┊           │
+      close ③          rcv FIN      ┊           │
+         │                ┊         ┊           │
+         ▼                ▼         ┊           │
+  ┌────────────┐   ┌────────────┐   ┊           │
+  │ fin wait 1 │   │ close wait │   ┊           │
+  └──────┬─────┘   └──────┬─────┘   ┊           │
+         │                ┊         ┊           │
+         │                ┊         ┊           │
+     rcv ACK ④          close       ┊           │
+         │                ┊         ┊           │
+         │                ╰┈┈┈┈┈┈╮  ┊           │
+         ▼                       ▼  ┊           │
+  ┌────────────┐           ┌────────┴─┐         │
+  │ fin wait 2 │           │ last ack │         │
+  └──────┬─────┘           └──────────┘         │
+         │                       ╭──────────────╯
+         │                       │
+     rcv FIN ⑤                   │
+         ╰──────────────────╮    │
+                            ▼    │
+                      ╔══════════╩════╗
+                      ║ time_wait [a] ║
+                      ║ waits 2 × MSL ║
+                      ╚═══════════════╝
+
+  ① The client opens actively and sends SYN.
+  ② The SYN-ACK arrives; data can flow.
+  ③ The client closes first and sends FIN.
+  ④ The server acknowledges the FIN.
+  ⑤ The server sends its own FIN.
+  ⑥ Only after waiting twice the maximum segment lifetime does the client
+     forget the connection.
+
+  The muted states are the server’s side of the same story. The one that
+  surprises people is time_wait[a]: the side that closes first keeps the
+  connection around for up to a few minutes, so that a delayed packet from the
+  old connection cannot be mistaken for part of a new one on the same ports.

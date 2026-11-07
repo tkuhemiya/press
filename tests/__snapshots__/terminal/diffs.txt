@@ -1,0 +1,647 @@
+
+  Diffs
+  ━━━━━
+
+  A diagram can show a change. Mark each line that changed with + if it exists
+  after the change, or - if it existed before. Unmarked lines are the same on
+  both sides. Press draws added things green, removed things red and dashed, and
+  changed things amber with the old value in a note. Every changed label also
+  starts with +, − or ~, so a diff still reads in black and white and in the
+  terminal. Every diagram type takes the same marks.
+
+  ## Order lifecycle, with a fraud check
+
+  The fraud check adds a review step between submit and payment. The old payment
+  edge is removed, and a retry now starts again from the cart.
+
+  Order lifecycle: a fraud check before payment
+
+                                               ●
+                                               │
+                                               │
+                                               │
+                                               ▼
+                                           ┌───────┐
+                                           │ draft │
+                                           └──┬────┘
+                                              │ ▲
+                                ╭─────────────╯ ╰───────────────────────╮
+                             submit                                     │
+                                │                                       │
+                                │                                       │
+                                ▼                                       │
+                          ┌───────────┐                                 │
+                          │ submitted │                                 │
+                          └──┬─┬─┬────┘                                 │
+                             ┃ │ │ ▲                                    │
+                             ┃ │ │ ╰───────────────────────╮            │
+                             ┃ │ │                         │            │
+                             ┃ │ │                         │            │
+        ┏━━━━━━━━━━━━━━━━━━━━┛ │ │                         │            │
+        ┃                      │ │                         │            │
+        ┃               ╭──────╯ │                         │            │
+        ┃        + needs review  │                         │            │
+        ┃               │        │                         │            │
+        ┃               ▼        │                         │            │
+        ┃         ┌──────────┐   ╰──────────╮              │            │
+  − payment ok    │ + review │       ✗ card declined    − retry    + edit cart
+        ┃         └────┬─┬───┘              │        ╭─────┼────────────╯
+        ┃              ┃ │                  │        │     │
+        ┃      ┏━━━━━━━┛ ╰────╮             ╰─────╮  │     │
+        ┃ + approved    ✗ + rejected              │  │     │
+        ┃ ┏━━━━┛              ╰─────────────────╮ │ ╭┼─────╯
+        ▼ ▼                                     ▼ ▼ ││
+      ┌──────┐                                ┌─────┴┴─┐
+      │ paid │                                │ failed │
+      └───┬──┘                                └────┬───┘
+          ┃                                        ┊
+          ┃                                        ┊
+          ┃                                        ┊
+        ship                                    give up
+          ┃                                        ┊
+          ▼                                        ▼
+     ┌─────────┐                             ┌───────────┐
+     │ shipped │                             │ cancelled │
+     └─────────┘                             └─────┬─────┘
+                                                   │
+                                                   │
+                                                   │
+                                ╭──────────────────╯
+                                ▼
+                                ◉
+
+  ## Checkout, after the cache change
+
+  Sessions move from the legacy store to a cache, and the order API is renamed.
+  The write goes to a new database, and the refund path is removed with the
+  legacy store.
+
+  Checkout, after the cache change
+
+  1. Shopper ─▶ Storefront: browse
+  2. Storefront ╌▶ Shopper: catalogue
+  3. Shopper ─▶ Storefront: open checkout
+  4. Storefront ─▶ ~ Checkout API: place order
+  5. ~ Checkout API ─▶ + Cache: + check stock
+  6. ~ Checkout API ─▶ − Old orders table: − write order
+  7. ~ Checkout API ─▶ + Orders DB: + write order
+  8. ~ Checkout API ╌▶ Storefront: + order placed
+  9. Storefront ╌▶ Shopper: + confirmation
+  10. ~ Checkout API ─▶ − Old orders table: − refund
+  11. − Old orders table ╌▶ ~ Checkout API: − refunded
+  12. ~ Checkout API ╌▶ Storefront: error page
+
+  ## Checkout architecture, with a queue
+
+  Payments move onto a queue and a worker, and the old billing service goes.
+  Adyen was never wired in, so it is dropped from the diagram.
+
+  Checkout, moving payments to a queue
+
+                       ┌─ user ──┐   ┌─ external ─┐
+                       │ Shopper │   │  − Adyen   │
+                       └────┬────┘   └────────────┘
+                            │
+                            │
+                            │
+                            ▼
+                     ┌─ client ───┐
+                     │ Storefront │
+                     └──────┬─────┘
+                            │
+                            │
+                          HTTPS
+                            │
+                            │
+                            │
+                            │
+                            │
+       ╭─ VPC ──────────────┼─────────────────────────────────────╮
+       │                    ▼                                     │
+       │             ┌─ service ──┐                               │
+       │             │ Orders API │                               │
+       │             └───┬─┬─┬─┬──┘                               │
+       │                 │ │ │ │                                  │
+       │                 │ │ │ │                                  │
+       │                 │ │ │ │                                  │
+       │                 │ │ │ │                                  │
+      ╭┼─────────────────╯ │ │ ╰────────────────────────╮         │
+      ││                   │ │                          │         │
+      ││           ╭───────╯ ╰────────╮                 │         │
+      ││    + order.created          SQL             − bill       │
+      ││           │                  │                 │         │
+      ││           ▼                  ▼                 ▼         │
+      ││  ┌─ queue ────────┐   ┌─ database ─┐   ┌─ service ─────┐ │
+      ││  │ + order-events │   │  Postgres  │   │ − Old billing │ │
+      ││  └────────┬───────┘   └────────────┘   └───────────────┘ │
+      ││           │                                              │
+      ││           │                                              │
+      ││           │                                              │
+      ││       + consume                                          │
+      ││           │                                              │
+      ││           ▼                                              │
+      ││ ┌─ service ────────┐                                     │
+      ││ │ + Payment worker │                                     │
+      ││ └─────────┬────────┘                                     │
+      ││           ┃                                              │
+      │╰───────────┼──────────────────────────────────────────────╯
+      │            ┃
+      │            ┃
+      │            ┃
+      │            ┃
+  − charge     + charge
+      ╰────╮ ┏━━━━━┛
+           ▼ ▼
+     ┌─ external ─┐
+     │   Stripe   │
+     └────────────┘
+
+  ## Inside the online shop, with a cache
+
+  The orders API is rewritten and renamed, reads go through a new cache, and
+  orders now go out on a queue instead of a direct write to the warehouse
+  system.
+
+  Inside the online shop, after the rewrite
+
+                                     ┌──────────┐
+                                     │ Customer │
+                                     └─────┬────┘
+                                           │
+                                           │
+                                         Uses
+                                           │
+                                           │
+                                           │
+                                           │
+  ╭─ Online shop ──────────────────────────┼───────╮
+  │                                        ▼       │
+  │                                  ┌───────────┐ │
+  │                                  │  Web app  │ │
+  │                                  │ [Next.js] │ │
+  │                                  └─────┬─────┘ │
+  │                                        │       │
+  │                                        │       │
+  │                                        │       │
+  │                                   JSON/HTTPS   │
+  │                                        │       │
+  │                                        ▼       │
+  │                                  ┌──────────┐  │
+  │                                  │ ~ Orders │  │
+  │                                  │ service  │  │
+  │                                  │ [Rust] · │  │
+  │                                  │   was    │  │
+  │                                  │ "Orders  │  │
+  │                                  │   API"   │  │
+  │                                  └─┬─┬─┬─┬┬─┘  │
+  │                                    │ │ │ ││    │
+  │                                    │ │ │ │╰────┼────────╮
+  │                                    │ │ │ │     │        │
+  │                                    │ │ │ │     │        │
+  │        ╭───────────────────────────╯ │ │ │     │        │
+  │        │                             │ │ │     │        │
+  │        │                ╭────────────╯ │ ╰───╮ │        │
+  │        │                │              +     │ │        │
+  │    Reads and        + Reads ①      Publishes │ │        │
+  │     writes              │          orders ②  │ │        │
+  │        │                │              │     │ │        │
+  │        ▼                ▼              ▼     │ │        │
+  │ ┌────────────┐    ┌───────────┐   ┌─────────┐│ │        │
+  │ │ Orders DB  │    │  + Read   │   │ + Order ││ │        │
+  │ │ [Postgres] │    │ cache [a] │   │ events  ││ │        │
+  │ └────────────┘    │  [Redis]  │   │ [Kafka] ││ │        │
+  │                   └───────────┘   └─────────┘│ │        │
+  │                                              │ │        │
+  ╰──────────────────────────────────────────────┼─╯        │
+                                                 │          │
+                                                 │          │
+                                                 │          │
+                                                 │          │
+                                            ╭────╯          │
+                                         Charges        − Sends
+                                          cards       orders ③ [b]
+                                            ▼               │
+                                      ╭╌╌╌╌╌╌╌╌╌╌╌╮         ▼
+                                      ╎  Payment  ╎   ╭╌╌╌╌╌╌╌╌╌╌╌╮
+                                      ╎ processor ╎   ╎     −     ╎
+                                      ╰╌╌╌╌╌╌╌╌╌╌╌╯   ╎ Warehouse ╎
+                                                      ╎  system   ╎
+                                                      ╰╌╌╌╌╌╌╌╌╌╌╌╯
+
+  ① Hot reads now stop at the cache.
+  ② Orders are published once, and fulfilment subscribes.
+  ③ The direct call to the warehouse goes away.
+
+  The new cache[a] takes the read traffic, and the warehouse call[b] is gone.
+
+  ## Checkout data, with a fraud check
+
+  A fraud check now sits between validation and the charge, and the card result
+  is logged.
+
+  Checkout data, with a fraud check
+
+              ┌─ external ─┐
+              │  Customer  │
+              └──────┬─────┘
+                     │
+                     │
+                   Cart
+                     │
+                     │
+                     │
+                     │
+                     │
+           ╭─ Our systems ──────────────────────────╮
+           │         ▼                              │
+           │ ┌─ process ─────┐                      │
+           │ │ Validate cart │                      │
+           │ └───┬──────┬────┘                      │
+           │     │      │                           │
+           │     │      ╰──────────────╮            │
+           │     │              + Payable order     │
+           │     │                     │            │
+           │     │                     ▼            │
+           │     │          ┌─ process ──────────┐  │
+          − Payable order   │ + Score fraud risk │  │
+           │     │          └──────────┬─────────┘  │
+           │     │                     │            │
+           │     │                     │            │
+           │     │                     │            │
+           │     │             + Approved order     │
+           │     │     ╭───────────────╯            │
+           │     ▼     ▼                            │
+           │  ┌─ process ───┐                       │
+           │  │ Charge card │                       │
+           │  └─┬──────┬─┬──┘                       │
+           │    │▲     │ │                          │
+           │    │╰╮    │ │                          │
+           │    │ ╎    │ │                          │
+           │    │ ╎    │ │                          │
+           │    │ ╎    │ │                          │
+           │    │ ╎    │ ╰────────────────╮         │
+           │    │ ╎    ╰─╮                │         │
+           │    │ ╎ Paid order        + Result      │
+           │    │ ╎      │                │         │
+           │    │ ╎      ▼                ▼         │
+           │    │ ╎ ┌─ store ─┐   ┌─ store ───────┐ │
+           │    │ ╎ │ Orders  │   │ + Payment log │ │
+           │    │ ╎ └─────────┘   └───────────────┘ │
+           │    │ ╰╌╌╌╌╮                            │
+           ╰────┼──────┼────────────────────────────╯
+                │      ╎
+                │      ╎
+                │      ╎
+         ╭──────╯      ╎
+  Charge request    Result
+         │             ╎
+         ▼             ╎
+      ┌─ external ─────┴──┐
+      │ Payment processor │
+      └───────────────────┘
+
+  ## Production, across three zones
+
+  The replica moves to its own zone, a third zone gets a second replica, and the
+  data volume is replaced by managed storage.
+
+  Checkout in production, three zones
+
+                            ┌─ cdn ─┐
+                            │  CDN  │
+                            └───┬───┘
+                                │
+                                │
+                              HTTPS
+                                │
+                                ▼
+                        ┌─ lb ──────────┐
+                        │ Load balancer │
+                        └───────┬───────┘
+                                │
+                                │
+                              HTTPS
+                                │
+                                │
+                                │
+                                │
+                                │
+                                │
+                                │
+                                │
+                                │
+                                │
+  ╭─ us-east-1 ─────────────────┼───────────────────────────╮
+  │                             │                           │
+  │                ╭─ Zone a ───┼────────────────────╮      │
+  │                │            │                    │      │
+  │                │ ╭─ Cluster ┼───────╮            │      │
+  │                │ │          ▼       │            │      │
+  │                │ │   ┌─ workload ─┐ │            │      │
+  │                │ │   │ orders-api │ │            │      │
+  │                │ │   │ 3 replicas │ │            │      │
+  │                │ │   └──┬───────┬─┘ │            │      │
+  │                │ │      ┊       │   │            │      │
+  │                │ │      ┊       │   │            │      │
+  │                │ │      ┊       │   │            │      │
+  │                │ │   runs on    │   │            │      │
+  │                │ │      ┊       │   │            │      │
+  │                │ │      ▼       │   │            │      │
+  │                │ │ ┌─ node ──┐  │   │            │      │
+  │                │ │ │ Node a1 │  │   │            │      │
+  │                │ │ └─────────┘  │   │            │      │
+  │                │ │              │   │            │      │
+  │                │ ╰──────────────┼───╯            │      │
+  │                │                │                │      │
+  │                │                │                │      │
+  │                │                │                │      │
+  │                │                │                │      │
+  │                │               SQL               │      │
+  │                │                │                │      │
+  │                │                ▼                │      │
+  │                │      ┌─ workload ───────┐       │      │
+  │                │      │ Postgres primary │       │      │
+  │                │      └───┬─┬──────────┬─┘       │      │
+  │                │          ╎ ╎          ┊         │      │
+  │                │          ╎ ╎          ┊         │      │
+  │                │          ╎ ╎          ┊         │      │
+  │                │          ╎ ╎      − writes      │      │
+  │                │          ╎ ╎          ┊         │      │
+  │                │          ╎ ╎          ▼         │      │
+  │                │          ╎ ╎  ┌─ volume ──────┐ │      │
+  │                │          ╎ ╎  │ − Data volume │ │      │
+  │                │          ╎ ╎  └───────────────┘ │      │
+  │                │          ╎ ╎                    │      │
+  │                ╰──────────┼─┼────────────────────╯      │
+  │                           ╎ ╎                           │
+  │                           ╎ ╎                           │
+  │                           ╎ ╎                           │
+  │             ╭╌╌╌╌╌╌╌╌╌╌╌╌╌╯ ╰╌╌╌╌╌╌╌╌╌╌╌╌╮              │
+  │        replicates                  + replicates         │
+  │             ╎                            ╎              │
+  │             ╎                            ╎              │
+  │             ╎                            ╎              │
+  │             ╎                            ╎              │
+  │             ╎                            ╎              │
+  │ ╭─ Zone b ──┼──────────╮   ╭─ + Zone c ──┼────────────╮ │
+  │ │           ▼          │   │             ▼            │ │
+  │ │ ┌─ workload ───────┐ │   │ ┌─ workload ───────────┐ │ │
+  │ │ │ Postgres replica │ │   │ │ + Postgres replica 2 │ │ │
+  │ │ └──────────────────┘ │   │ └──────────────────────┘ │ │
+  │ │                      │   │                          │ │
+  │ ╰──────────────────────╯   ╰──────────────────────────╯ │
+  │                                                         │
+  ╰─────────────────────────────────────────────────────────╯
+
+  ## Word of mouth, with ads
+
+  The ads change adds a paid-acquisition loop, removes the price effect, and
+  flips the polarity of the saturation link. The saturation loop turns
+  reinforcing as a result.
+
+  Word of mouth, with ads
+
+                                 ┌───────────┐
+                                 │ Customers │
+                                 └─┬─┬──┬──┬─┘
+                                   │▲│ ▲│ ▲│
+       ╭───────────────────────────┼╯│ ╰┼─┼┼─╮
+       │                           │ │  │ ││ │
+       │                           │ │  │ ╰┼─┼─────────────╮
+       │                           │ │  │  │ │             │
+       │                           │ │  │  │ │             │
+  ╭────┼───────────────────────────╯ │  │  ╰─┼─────────────┼────╮
+  │    │                             │  │    │             │    │
+  │    │                ╭────────────╯  ╰────┼─────╮       │    │
+  │    │                +                   ‖ −    +       +    +
+  │    │                │                    │     │       │    │
+  │    │                ▼                    │ ╭───╯       │    │
+  │    │   ┌─────────────────────────┐       │ ▼           │    ▼
+  │    │   │   ~ Saturated market    │   ┌───┴─────┐   ┌───┴────────┐
+  +    +   │ was "Market saturation" │   │ − Price │   │ + Paid ads │
+  │    │   └─────┬───────┬───────────┘   └─────────┘   └────────────┘
+  │    │         │       │
+  │    │ ╭───────╯       │
+  │    │ −               +
+  │    │ │               │
+  ╰──╮ │ │ ╭─────────────╯
+     ▼ │ ▼ ▼
+  ┌────┴──────┐
+  │ Referrals │
+  └───────────┘
+
+  R1 Word of mouth (reinforcing): Customers +→ Referrals +→ Customers
+  R2 Ads reinvest (reinforcing): Customers +→ Paid ads +→ Customers
+  B1 Price (balancing): Customers +→ Price −→ Customers
+  R3 Saturation (reinforcing): Customers +→ Saturated market +→ Referrals +→
+     Customers
+
+  ## Outage, with a rollback and a recovery
+
+  The rollback moves to v2.2 and gains an explicit recovery event. The
+  escalation to the database team is removed, and two of the old events are
+  replaced.
+
+  Outage, 14 March (diff)
+
+     14:02  ●┓ v2.3 rolls out
+            │┃
+  ╭─ Impact w┃ndow
+  │  14:05  ●┃ ✗ Error rate hits 8%
+  │         │┃ ↖ from “v2.3 rolls out”: caused
+  │         │┃
+  │  14:12  ●┓ − Deploys frozen
+  │         │┃
+  │  14:16  ●┃ ~ Roll back to v2.2
+  │         │┃ was 14:10 · was "Roll back"
+  │         │┃ ↖ from “Error rate hits 8%”: + prompted
+  │         │┃
+  │  14:20  │┃ └ end of “v2.3 rolls out”
+  │         │┃
+  │  14:21  ●┃ Review the change
+  │         │┃
+  │  14:24  ●┃ ✓ + Errors back to baseline
+  ╰─        │┃
+     14:30  │┛ └ end of “− Deploys frozen”
+            │
+     14:33  ●  − Page the database team
+               ↖ from “Error rate hits 8%”: − escalates
+
+  ## Two servers, with a canary
+
+  The canary moves onto Server B, and the old queue lane is retired.
+
+  Two servers
+
+         Server A
+         │  + Server B
+         │  │  − Old queue
+         │  │  │
+  14:02  ●┓ │  │  Deploy to A
+         │┃ │  │
+  14:04  │┃ ●  │  + Canary on B
+         │┃ │  │  ↖ from “Deploy to A”: + same build
+         │┃ │  │
+  14:06  │┃ │  ●  − Drain the old queue
+         │┃ │  │
+  14:09  ●┃ │  │  Errors on A
+         │┃ │  │
+  14:12  │┃ ●┓ │  + Waiting on B
+         │┃ │┃ │
+  14:14  │┃ │┃ ●  − Retire the queue
+         │┃ │┃
+  14:18  │┃ │┛    └ end of “+ Waiting on B”
+         │┃
+  14:20  │┛       └ end of “Deploy to A”
+
+  ## Should this be cached? (revised)
+
+  A freshness question comes before the cost question. Fixing the query is no
+  longer the advice for expensive reads.
+
+  Should this be cached? (revised)
+
+                            ┌────────────────────┐
+                            │ Read far more than │
+                            │      written?      │
+                            └─────┬────────────┬─┘
+                                  │            │
+                                  │            │
+                            ╭─────╯            │
+                           yes                 │
+                            │                  │
+                            ▼                  │
+                ┌───────────────────────┐      │
+                │ Can readers see stale │      ╰╮
+                │         data?         │      no
+                └────┬─────────┬──┬─────┘       │
+                     │         │  │             │
+                     │         │  ╰─────────╮   │
+                     │       + yes          │   │
+                     │         │            │   │
+                     │         ▼            │   │
+                     │┌────────────────┐    │   │
+                ╭────╯│ + Needs strict │    │   │
+              − yes   │   freshness?   │   no   │
+                │     └─────┬───┬──────┘    │   │
+                │           │   │           │   │
+                │           │   │           │   │
+                │   ╭───────╯   │           │   │
+                │ + no       ✗ + yes        │   │
+                │   │           │           │   │
+                ▼   ▼           ╰─────────╮ │   │
+         ┌───────────────────┐            ▼ ▼   ▼
+         │ Slow or costly to │       ╭─────────────╮
+         │     compute?      │       │ Don't cache │
+         └────┬────────┬─────┘       ╰─────────────╯
+              │        ╎
+              │        ╎
+        ╭─────╯        ╰╌╌╌╌╌╌╮
+       yes                  − no
+        │                     ╎
+        ▼                     ▼
+  ┏━━━━━━━━━━┓    ╭───────────────────────╮
+  ┃ Cache it ┃    │ − Fix the query first │
+  ┗━━━━━━━━━━┛    ╰───────────────────────╯
+
+  ## Orders schema change
+
+  The change adds vouchers, retires coupons, renames a line item and changes
+  three fields. Everything else is unchanged.
+
+  Orders, after the schema change
+
+  ╭─ Core ───────────────────────────────╮
+  │                                      │
+  │        ┌─────────────────────────┐   │
+  │        │      ~ Order line       │   │
+  │        ├─────────────────────────┤   │
+  │        │ order_id  uuid          │   │
+  │        │ qty       int           │   │
+  │        │ sku       text          │   │
+  │        │ price     numeric(10,2) │   │
+  │        └────────────┬────────────┘   │
+  │                     │                │
+  │                     │                │
+  │                     │                │
+  │                belongs to            │
+  │           order_id → id  1..N:1      │
+  │                     │                │
+  │                     ▼                │
+  │     ┌──────────────────────────────┐ │
+  │     │            Order             │ │
+  │     ├──────────────────────────────┤ │
+  │     │ id          uuid         key │ │
+  │     │ user_id     uuid             │ │
+  │     │ placed_at   timestamptz      │ │
+  │     │ coupon_id   uuid?            │ │
+  │     │ legacy_ref  text             │ │
+  │     │ currency    text             │ │
+  │     │ voucher_id  uuid?            │ │
+  │     └──────┬─────────────┬─┬───────┘ │
+  │            ├─────────────╯ ╰─────────┼──╮
+  │            │                         │  │
+  │            │                         │  │
+  │        placed by                     │  │
+  │    user_id → id  N:1                 │  │
+  │            ▼                         │  │
+  │ ┌──────────┼──────────┐              │  │
+  │ │        User         │              │  │
+  │ ├──────────┼──────────┤              │  │
+  │ │ id     uuid  key    │              │  │
+  │ │ email  text  unique │              │  │
+  │ └──────────┼──────────┘              │  │
+  │            │                         │  │
+  ╰────────────┼─────────────────────────╯  │
+               │                            │
+               │                            │
+               │                            │
+               │                            │
+               │                            │
+    coupon_id → id  N:0..1               + used
+               │                 voucher_id → id  N:0..1
+               │                            │
+               │                            │
+               │                            │
+               │                            │
+  ╭─ − Legacy ─┼───────────╮   ╭─ + Promotions ─────────╮
+  │            ▼           │   │            ▼           │
+  │ ┌────────────────────┐ │   │ ┌────────────────────┐ │
+  │ │      − Coupon      │ │   │ │     + Voucher      │ │
+  │ ├────────────────────┤ │   │ ├────────────────────┤ │
+  │ │ id    uuid  key    │ │   │ │ id    uuid  key    │ │
+  │ │ code  text  unique │ │   │ │ code  text  unique │ │
+  │ └────────────────────┘ │   │ └────────────────────┘ │
+  │                        │   │                        │
+  ╰────────────────────────╯   ╰────────────────────────╯
+
+  ## Session store, revised
+
+  Lines marked + were added in this revision, lines marked - were removed, and
+  unmarked lines are unchanged.
+
+  Where to keep sessions, revised
+
+  ┌──────────────┬──────────────┬──────────────┬───────────────┬───────────────┐
+  │              │ Redis        │ ★ Postgres   │ − Signed      │ + Signed      │
+  │              │              │              │ cookie        │ token         │
+  ├──────────────┼──────────────┼──────────────┼───────────────┼───────────────┤
+  │ Read latency │ ✓ ~ <2 ms    │ ○ ~2 ms      │ ✓ − none      │ ✓ + none      │
+  │              │              │ p99 on a     │               │               │
+  │              │              │ warm cache   │               │               │
+  ├──────────────┼──────────────┼──────────────┼───────────────┼───────────────┤
+  │ Running cost │ ○ ~ managed  │ ✓ already    │ ✓ − none      │ ✓ + none      │
+  │              │ service      │ running      │               │               │
+  │              │ billed per   │              │               │               │
+  │              │ GB           │              │               │               │
+  ├──────────────┴──────────────┴──────────────┴───────────────┴───────────────┤
+  │ + Security                                                                 │
+  ├──────────────┬──────────────┬──────────────┬───────────────┬───────────────┤
+  │ + Audit      │ ✓ + yes      │ ✓ + via      │ –             │ ✗ + no        │
+  │ trail        │              │ triggers     │               │               │
+  ├──────────────┴──────────────┴──────────────┴───────────────┴───────────────┤
+  │ − Retired                                                                  │
+  ├──────────────┬──────────────┬──────────────┬───────────────┬───────────────┤
+  │ − Revoke at  │ ✓ − yes      │ ✓ − yes      │ ✗ − not       │ –             │
+  │ once         │              │              │ before expiry │               │
+  └──────────────┴──────────────┴──────────────┴───────────────┴───────────────┘

@@ -1,0 +1,84 @@
+
+  The orders schema
+  ━━━━━━━━━━━━━━━━━
+
+  Four tables hold every order the shop has taken. The interesting parts are not
+  the tables but the references between them: which ones are required, which are
+  optional, and which side is “many”.
+
+  Orders
+
+                        ┌─────────────────────┐
+                        │      Line item      │
+                        ├─────────────────────┤
+                        │ id        uuid  key │
+                        │ order_id  uuid      │
+                        │ sku       text      │
+                        │ qty       int       │
+                        └──────────┬──────────┘
+                                   │
+                                   │
+                                   │
+                              belongs to
+                        order_id → id  1..N:1 ②
+                                   │
+                                   ▼
+                     ┌───────────────────────────┐
+                     │           Order           │
+                     ├───────────────────────────┤
+                     │ id         uuid       key │
+                     │ user_id    uuid           │
+                     │ coupon_id  uuid?     [a]  │
+                     │ placed_at  timestamp      │
+                     └────┬────────────────┬─────┘
+                          │                ┃
+                          │                ┃
+                  ╭───────╯                ┗━━━━━━━━┓
+              placed by                           uses
+         user_id → id  N:1 ①            coupon_id → id  N:0..1 ③
+                  │                                 ┃
+                  ▼                                 ▼
+  ┌───────────────────────────────┐   ┌───────────────────────────┐
+  │             User              │   │        Coupon [b]         │
+  ├───────────────────────────────┤   ├───────────────────────────┤
+  │ id          uuid       key    │   │ id           uuid  key    │
+  │ email       text       unique │   │ code         text  unique │
+  │ created_at  timestamp         │   │ percent_off  int          │
+  └───────────────────────────────┘   └───────────────────────────┘
+
+  ① Every order is placed by exactly one user; a user can have any number of
+     orders.
+  ② An order always has at least one line item.
+  ③ The coupon is optional, which is why its column allows null.
+
+  The one reference worth a second look is the coupon[a]: an order may have
+  none, so the column is nullable and the crow’s foot at coupons[b] starts with
+  a ring for “zero”.
+
+  Before there are any columns, the same model can be sketched with entity-level
+  edges:
+
+  Teams, sketched
+
+   ┌──────┐
+   │ User │
+   └───┬──┘
+       │
+       │
+   member of
+      N:N
+       │
+       ▼
+   ┌──────┐
+   │ Team │
+   └───┬──┘
+       │
+       │
+       │
+     owns
+    1:1..N
+       │
+       ▼
+  ┌─────────┐
+  │ Project │
+  └─────────┘

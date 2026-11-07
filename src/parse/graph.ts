@@ -1,4 +1,5 @@
 import type {
+  Change,
   DiagramId,
   Direction,
   Edge,
@@ -15,7 +16,7 @@ import type {
   Step,
   Time,
 } from '../model.ts';
-import type { Attrs, Chain, End, Fence, Prop, RawStep } from './grammar.ts';
+import type { Attrs, Chain, Declare, End, EventStatement, Fence, Prop, RawStep } from './grammar.ts';
 import { edgeIndex, groupId } from '../brand.ts';
 import { closest, list, type Reporter } from '../diagnostics.ts';
 
@@ -23,11 +24,14 @@ export interface DraftNode {
   id: NodeId;
   label: string;
   kind?: string;
+  icon?: string;
   role?: Role;
   note?: string;
   attrs: Map<string, string>;
   at?: Time;
   group?: GroupId;
+  change?: Change;
+  was?: string;
   line: number;
 }
 
@@ -44,6 +48,8 @@ interface DraftProp {
   value?: string;
   note?: string;
   role?: Role;
+  change?: Change;
+  was?: string;
   attrs: Attrs;
   line: number;
 }
@@ -56,7 +62,7 @@ export interface DraftGraph {
   groups: Group[];
 }
 
-type Ensure = (id: NodeId, line: number, group: GroupId | undefined) => DraftNode;
+type Ensure = (id: NodeId, line: number, group: GroupId | undefined, change?: Change) => DraftNode;
 
 export interface GraphRules {
   label(id: NodeId): string;
@@ -65,15 +71,57 @@ export interface GraphRules {
   empty: string;
 }
 
+interface Side {
+  before: boolean;
+  after: boolean;
+}
+
+const sideOf = (change: Change | undefined): Side => ({ before: change !== 'added', after: change !== 'removed' });
+
+const changeOf = (side: Side | undefined, paired: boolean): Change | undefined => {
+  if (paired) return 'changed';
+  if (!side || (side.before && side.after)) return undefined;
+  return side.after ? 'added' : 'removed';
+};
+
+interface Pair<S> {
+  before: S;
+  after: S;
+}
+
+function pairsOf<S extends { change?: Change }>(items: readonly S[], keyOf: (s: S) => string): Map<string, Pair<S>> {
+  const byKey = new Map<string, S[]>();
+  for (const s of items) byKey.set(keyOf(s), [...(byKey.get(keyOf(s)) ?? []), s]);
+  const pairs = new Map<string, Pair<S>>();
+  for (const [key, group] of byKey) {
+    const before = group.find((s) => s.change === 'removed');
+    const after = group.find((s) => s.change === 'added');
+    if (group.length === 2 && before && after) pairs.set(key, { before, after });
+  }
+  return pairs;
+}
+
 export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): DraftGraph {
   const nodes: DraftNode[] = [];
   const byId = new Map<NodeId, DraftNode>();
+  const sides = new Map<NodeId, Side>();
   const edges: Edge[] = [];
   const links: DraftEdge[] = [];
   const props: DraftProp[] = [];
   const groups: Group[] = fence.groups.map((g) => ({ ...g }));
   const declared = new Set<NodeId>();
-  const ensure: Ensure = (id, line, group) => {
+  const declarations = pairsOf(
+    fence.statements.filter((s): s is Declare | EventStatement => s.type === 'declare' || s.type === 'event'),
+    (s) => s.id,
+  );
+  const propPairs = pairsOf(
+    fence.statements.filter((s): s is Prop => s.type === 'prop'),
+    (s) => `${s.node}.${s.key}`,
+  );
+  const ensure: Ensure = (id, line, group, change) => {
+    const side = sides.get(id) ?? { before: false, after: false };
+    const mention = sideOf(change);
+    sides.set(id, { before: side.before || mention.before, after: side.after || mention.after });
     const found = byId.get(id);
     if (found) return found;
     const node: DraftNode = { id, label: rules.label(id), attrs: new Map(), line };
@@ -95,31 +143,49 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
   for (const s of fence.statements) {
     switch (s.type) {
       case 'declare': {
+        const pair = declarations.get(s.id);
+        if (pair) {
+          const node = ensure(s.id, s.line, s.group, s.change);
+          if (s === pair.after) {
+            place(node, s.group);
+            node.line = s.line;
+            node.was = pair.before.label ?? node.label;
+            if (s.label !== undefined) node.label = s.label;
+            if (s.kind !== undefined) node.kind = s.kind;
+            apply(node, s);
+          }
+          declared.add(s.id);
+          break;
+        }
         if (declared.has(s.id))
           warn(s.line, `\`${s.id}\` is declared twice; the later declaration wins.`, 'Keep one declaration.');
         declared.add(s.id);
-        const node = ensure(s.id, s.line, s.group);
+        const node = ensure(s.id, s.line, s.group, s.change);
         place(node, s.group);
         node.line = s.line;
         if (s.label !== undefined) node.label = s.label;
         if (s.kind !== undefined) node.kind = s.kind;
+        if (s.icon !== undefined) node.icon = s.icon;
         apply(node, s);
         break;
       }
       case 'event': {
-        const node = ensure(s.id, s.line, s.group);
-        if (node.at)
+        const pair = declarations.get(s.id);
+        const node = ensure(s.id, s.line, s.group, s.change);
+        if (pair && s !== pair.after) break;
+        if (node.at && !pair)
           warn(s.line, `\`${s.id}\` is given a time twice; the later one wins.`, 'Keep one event line for it.');
         declared.add(s.id);
         place(node, s.group);
         node.line = s.line;
         node.at = s.at;
+        if (pair) node.was = pair.before.label ?? node.label;
         if (s.label !== undefined) node.label = s.label;
         apply(node, s);
         break;
       }
       case 'mention': {
-        const node = ensure(s.id, s.line, s.group);
+        const node = ensure(s.id, s.line, s.group, s.change);
         if (s.group !== undefined) {
           if (node.group !== undefined && node.group !== s.group)
             warn(
@@ -137,8 +203,8 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
         for (let i = 0; i + 1 < s.ends.length; i++) {
           const from = s.ends[i];
           const to = s.ends[i + 1];
-          ensure(from.node, s.line, s.group);
-          ensure(to.node, s.line, s.group);
+          ensure(from.node, s.line, s.group, s.change);
+          ensure(to.node, s.line, s.group, s.change);
           const edge: Edge = {
             index: edgeIndex(edges.length),
             from: from.node,
@@ -148,6 +214,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
           };
           if (s.label !== undefined) edge.label = s.label;
           if (s.role) edge.role = s.role;
+          if (s.change) edge.change = s.change;
           edges.push(edge);
           links.push({ edge, from, to, attrs: s.attrs });
         }
@@ -155,8 +222,19 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
       }
       case 'prop': {
         const isNew = !byId.has(s.node);
-        const owner = ensure(s.node, s.line, s.group);
+        const owner = ensure(s.node, s.line, s.group, s.change);
         rules.prop?.(s, owner, isNew, ensure);
+        const pair = propPairs.get(`${s.node}.${s.key}`);
+        if (pair) {
+          if (s !== pair.after) break;
+          const prop: DraftProp = { node: s.node, key: s.key, attrs: s.attrs, line: s.line, change: 'changed' };
+          if (pair.before.value !== undefined) prop.was = pair.before.value;
+          if (s.value !== undefined) prop.value = s.value;
+          if (s.note !== undefined) prop.note = s.note;
+          if (s.role) prop.role = s.role;
+          props.push(prop);
+          break;
+        }
         const at = props.findIndex((p) => p.node === s.node && p.key === s.key);
         const earlier = props[at];
         if (earlier) {
@@ -171,6 +249,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
         if (s.value !== undefined) prop.value = s.value;
         if (s.note !== undefined) prop.note = s.note;
         if (s.role) prop.role = s.role;
+        if (s.change) prop.change = s.change;
         props.push(prop);
         break;
       }
@@ -181,6 +260,15 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
     }
   }
 
+  for (const node of nodes) {
+    const paired = declarations.has(node.id);
+    const change = changeOf(sides.get(node.id), paired);
+    if (change) node.change = change;
+  }
+  groups.forEach((g, i) => {
+    const change = sharedChange(nodes.filter((node) => inGroup(groups, node.group, i)));
+    if (change) g.change = change;
+  });
   groups.forEach((g, i) => {
     if (!nodes.some((node) => inGroup(groups, node.group, i)))
       warn(
@@ -197,6 +285,12 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
   }
 }
 
+export function sharedChange(members: readonly { change?: Change }[]): Change | undefined {
+  const [first, ...rest] = members;
+  if (first?.change !== 'added' && first?.change !== 'removed') return undefined;
+  return rest.every((m) => m.change === first.change) ? first.change : undefined;
+}
+
 export function header<T extends string>(
   fence: Fence,
   type: T,
@@ -209,6 +303,30 @@ export function header<T extends string>(
   if (fence.title !== undefined) out.title = fence.title;
   if (fence.direction !== undefined) out.direction = fence.direction;
   return out;
+}
+
+export function buildKinded<K extends string>(
+  fence: Fence,
+  report: Reporter,
+  kinds: readonly K[],
+): GraphParts<Node & { kind?: K; icon?: string }> {
+  const graph = buildGraph(fence, report, {
+    label: (id) => id.replace(/_/g, ' '),
+    empty: 'Add at least one edge, e.g. `a -> b : label`.',
+  });
+  const nodes = graph.nodes.map((draft) => {
+    const node: Node & { kind?: K; icon?: string } = toNode(draft);
+    const kind = kinds.find((k) => k === draft.kind);
+    if (kind !== undefined) node.kind = kind;
+    if (draft.icon !== undefined) node.icon = draft.icon;
+    return node;
+  });
+  return {
+    nodes,
+    edges: graph.edges,
+    groups: graph.groups,
+    steps: resolveSteps(fence.steps, nodes, graph.edges, report),
+  };
 }
 
 export function inGroup(groups: readonly Group[], start: GroupId | undefined, g: number): boolean {
@@ -227,6 +345,8 @@ export function toNode(d: DraftNode): Node {
   if (d.role) node.role = d.role;
   if (d.note !== undefined) node.note = d.note;
   if (d.group !== undefined) node.group = d.group;
+  if (d.change) node.change = d.change;
+  if (d.was !== undefined) node.was = d.was;
   return node;
 }
 

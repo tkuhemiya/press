@@ -15,6 +15,8 @@ import {
 import { definition, view } from '../diagrams/diagram.ts';
 import { formsElsewhere, GRAMMARS, isDiagramType } from './grammars.ts';
 import { parseFence } from './grammar.ts';
+import { checkReadability } from './readability.ts';
+import { headingHint, type PageHint } from './heading.ts';
 import { closest, into, list, type Reporter } from '../diagnostics.ts';
 import { diagramId, edgeIndex, trusted } from '../brand.ts';
 
@@ -41,11 +43,14 @@ interface Parsed {
   tokens: Token[];
   figures: WeakMap<Token, Figure>;
   refs: WeakMap<Token, Ref>;
+  pages: WeakMap<Token, PageHint>;
 }
 
 const parsed = new WeakMap<Document, Parsed>();
 
 const REF = /^#([a-z0-9_]+(?:-[a-z0-9_]+)*)\.(.+)$/;
+const EDGE_LINE = /^\s*[\w.]+\s*(?:->|-->|<->)\s*[\w.]+(?:\s*(?:->|-->|<->)\s*[\w.]+)*\s*(?::.*|\{.*\})?$/m;
+const VERBATIM = new Set(['markdown', 'md', 'text', 'txt', 'plaintext']);
 const TYPES: DiagramType[] = Object.keys(GRAMMARS).filter(isDiagramType);
 
 export function parseDocument(source: string): Document {
@@ -54,6 +59,7 @@ export function parseDocument(source: string): Document {
   const report = into(diagnostics);
   const inline = (text: string): Html => trusted(md.renderInline(text));
   const tokens = md.parse(source, {});
+  const pages = takeHeadingHints(tokens, report);
   const figures: Figure[] = [];
   const figureAt = new WeakMap<Token, Figure>();
   const byId = new Map<DiagramId, Figure>();
@@ -67,13 +73,7 @@ export function parseDocument(source: string): Document {
     const lang = info.split(/\s+/)[0] ?? '';
     const line = (t.map?.[0] ?? 0) + 1;
     if (!isDiagramType(lang)) {
-      const near = closest(lang, TYPES);
-      if (near && lang && near !== lang)
-        report.warn(
-          line,
-          `\`${lang}\` is not a Press diagram type, so this fence renders as code.`,
-          `Did you mean \`${near}\`? Diagram types: ${list(TYPES)}.`,
-        );
+      warnStrayFence(lang, t.content, line, report);
       continue;
     }
     const fence = parseFence(
@@ -81,6 +81,7 @@ export function parseDocument(source: string): Document {
       report,
     );
     const diagram: Diagram = definition(lang).build(fence, report);
+    checkReadability(diagram, report);
     const figure: Figure = {
       domId: diagram.id ? `press-${diagram.id}` : `press-figure-${figures.length + 1}`,
       diagram,
@@ -165,8 +166,26 @@ export function parseDocument(source: string): Document {
   diagnostics.sort((a, b) => a.line - b.line);
   const doc: Document = { figures, refs, diagnostics };
   if (title !== undefined) doc.title = title;
-  parsed.set(doc, { md, tokens, figures: figureAt, refs: refAt });
+  parsed.set(doc, { md, tokens, figures: figureAt, refs: refAt, pages });
   return doc;
+}
+
+export interface Walk {
+  tokens: readonly Token[];
+  figure(token: Token): Figure | undefined;
+  ref(token: Token): Ref | undefined;
+  page(token: Token): PageHint | undefined;
+}
+
+export function walkDocument(doc: Document): Walk {
+  const p = parsed.get(doc);
+  if (!p) throw new Error('walkDocument needs a document from parseDocument.');
+  return {
+    tokens: p.tokens,
+    figure: (t) => p.figures.get(t),
+    ref: (t) => p.refs.get(t),
+    page: (t) => p.pages.get(t),
+  };
 }
 
 export function renderDocument(doc: Document, weave: Weave): Html {
@@ -194,6 +213,23 @@ export function renderDocument(doc: Document, weave: Weave): Html {
     rules.fence = defaultFence;
     rules.link_open = defaultLink;
   }
+}
+
+function takeHeadingHints(tokens: Token[], report: Reporter): WeakMap<Token, PageHint> {
+  const pages = new WeakMap<Token, PageHint>();
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const open = tokens[i];
+    const inline = tokens[i + 1];
+    if (open.type !== 'heading_open' || inline.type !== 'inline') continue;
+    const hint = headingHint(inline.content, (open.map?.[0] ?? 0) + 1, report);
+    if (!hint) continue;
+    inline.content = hint.text;
+    const last = inline.children?.at(-1);
+    if (last?.type === 'text' && last.content.endsWith(hint.suffix))
+      last.content = last.content.slice(0, last.content.length - hint.suffix.length);
+    if (hint.page) pages.set(open, hint.page);
+  }
+  return pages;
 }
 
 function safeDecode(s: string): string {
@@ -258,4 +294,23 @@ function letter(n: number): string {
     n = Math.floor(n / 26);
   }
   return s;
+}
+
+function warnStrayFence(lang: string, body: string, line: number, report: Reporter): void {
+  const near = closest(lang, TYPES);
+  const types = `Diagram types: ${list(TYPES)}.`;
+  if (lang && near)
+    report.warn(
+      line,
+      `\`${lang}\` is not a Press diagram type, so this fence renders as code.`,
+      `Did you mean \`${near}\`? ${types}`,
+    );
+  else if (!VERBATIM.has(lang.toLowerCase()) && EDGE_LINE.test(body))
+    report.warn(
+      line,
+      lang
+        ? `\`${lang}\` is not a Press diagram type, so this fence renders as code although it looks like a diagram.`
+        : 'This fence has no diagram type, so it renders as code although it looks like a diagram.',
+      `Name a diagram type after the opening backticks, e.g. \`state-machine\`. ${types}`,
+    );
 }

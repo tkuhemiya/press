@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { build } from '../src/index.ts';
-import { textWidth } from '../src/text/measure.ts';
+import { build, parseDocument } from '../src/index.ts';
+import { typstDocument } from '../src/render/typst.ts';
+import { textWidth, wrap } from '../src/text/measure.ts';
 
 const checkout = readFileSync(new URL('../docs/examples/checkout.md', import.meta.url), 'utf8');
 const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
@@ -63,6 +64,27 @@ describe('html', () => {
   it('is deterministic', () => {
     expect(build(checkout, { embedFonts: false }).html).toBe(html);
   });
+
+  it('embeds Geist faces, not a fallback family', () => {
+    const page = build('# Title\n\nHello *there* and **now**.\n').html;
+    expect(page).toContain('font-family:"Geist"');
+    expect(page).toContain('font-family:"Geist Serif"');
+    expect(page).toContain('font-family:"Geist Mono"');
+    expect(page).toContain('font-weight:600');
+    expect(page).not.toContain('Inter');
+    expect(page).not.toContain('font-display:swap');
+  });
+
+  it('keeps inline emphasis in the serif and pills code', () => {
+    const page = build('# Title\n\nHello *there* and **now** with `code`.\n', { embedFonts: false }).html;
+    expect(page).toContain('--body:');
+    expect(page).toContain('--code:');
+    expect(page).toMatch(/strong \{\n  font-weight: 600;/);
+    expect(page).not.toMatch(/strong \{\n  font-family: var\(--sans\);/);
+    expect(page).not.toMatch(/em \{\n  font-family: var\(--sans\);/);
+    expect(page).toMatch(/code \{\n  font-family: var\(--mono\);/);
+    expect(page).toContain('background: var(--code);');
+  });
 });
 
 describe('layout', () => {
@@ -79,7 +101,7 @@ waiting -> end
 \`\`\``;
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
-    expect(count(html, /class="pr-group"/g)).toBe(1);
+    expect(count(html, /class="pr-group pr-depth-1"/g)).toBe(1);
     expect(count(html, /class="pr-head"/g)).toBe(7);
     expect(html.slice(html.indexOf('<svg'), html.indexOf('</svg>'))).not.toMatch(/NaN|Infinity|undefined/);
   });
@@ -111,10 +133,19 @@ waiting -> end
     for (const kind of ['user', 'client', 'service', 'database', 'cache', 'queue', 'storage', 'external'])
       expect(svg).toMatch(new RegExp(`class="pr-node pr-component"[^>]*data-kind="${kind}"`));
     expect(count(svg, /class="pr-glyph"/g)).toBe(8);
-    expect(count(svg, /class="pr-group"/g)).toBe(1);
+    expect(count(svg, /class="pr-group pr-depth-1"/g)).toBe(1);
     expect(count(svg, /class="pr-step-marker"/g)).toBe(6);
-    expect(svg).toMatch(/class="pr-edge-label pr-on-group"[^>]*>.*?resize/);
+    expect(svg).toMatch(/class="pr-edge-label pr-on-group pr-depth-1"[^>]*>.*?resize/);
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('draws vendor icons on screen and on paper', () => {
+    const src = '```architecture\nfn: aws.lambda "Resize"\nbucket: aws.s3 "Photos"\nfn -> bucket\n```\n';
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<image class="pr-icon"[^>]*href="data:image\/svg\+xml;base64,/g)).toBe(2);
+    const print = JSON.stringify(typstDocument(parseDocument(src)));
+    expect(print).toMatch(/"k":"image","x":[\d.]+,"y":[\d.]+,"w":24,"h":24,"svg":"<svg/);
   });
 
   it('draws a timeline: events on an axis, spans, a band and a cause arc', () => {
@@ -250,52 +281,122 @@ waiting -> end
   });
 });
 
-describe('the Press skill', () => {
-  it('teaches only Press that builds cleanly', () => {
-    const skill = readFileSync(new URL('../skills/press/SKILL.md', import.meta.url), 'utf8');
-    const body = skill.replace(/^---[\s\S]*?---\n/, '');
-    const { diagnostics, html } = build(body, { embedFonts: false });
+describe('software architecture diagrams', () => {
+  const src = readFileSync(new URL('../docs/examples/checkout-system.md', import.meta.url), 'utf8');
+  const { html, diagnostics } = build(src, { embedFonts: false });
+  const figure = (id: string): string => {
+    const start = html.indexOf(`<figure class="pr-figure" id="press-${id}"`);
+    return html.slice(start, html.indexOf('</figure>', start));
+  };
+  const [context, containers, flow, deployment] = ['ctx', 'parts', 'flow', 'prod'].map(figure);
+
+  it('builds the example cleanly', () => {
     expect(diagnostics).toEqual([]);
-    expect(count(html, /<figure class="pr-figure"/g)).toBe(9);
+    for (const svg of [context, containers, flow, deployment]) expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('draws c4 people, an owned system and external systems apart', () => {
+    expect(context).toMatch(/class="pr-svg pr-c4[" ]/);
+    expect(context).toMatch(/class="pr-node pr-c4-node"[^>]*data-kind="person"/);
+    expect(context).toMatch(/class="pr-node pr-c4-node"[^>]*data-role="focus"[^>]*data-kind="system"/);
+    expect(count(context, /class="pr-box pr-external pr-faint"/g)).toBe(2);
+    expect(count(context, /class="pr-glyph"/g)).toBe(1);
+  });
+
+  it('prints container technology in brackets under the name', () => {
+    expect(containers).toMatch(/class="pr-note"[^>]*>.*\[Next\.js\]/);
+    expect(containers).toMatch(/class="pr-note"[^>]*>.*\[Postgres\]/);
+    expect(count(containers, /class="pr-group pr-depth-\d"/g)).toBe(1);
+  });
+
+  it('draws processes as pills, stores as open rectangles and a boundary', () => {
+    expect(flow).toMatch(/class="pr-svg pr-data-flow[" ]/);
+    expect(count(flow, /class="pr-node pr-flow"[^>]*data-kind="process"/g)).toBe(2);
+    expect(count(flow, /class="pr-store-fill"/g)).toBe(1);
+    expect(count(flow, /class="pr-group pr-depth-\d"/g)).toBe(1);
+    expect(flow).toMatch(/data-kind="external"/);
+  });
+
+  it('draws deployment places nested, with an icon per kind', () => {
+    expect(deployment).toMatch(/class="pr-svg pr-deployment[" ]/);
+    expect(count(deployment, /class="pr-group pr-depth-\d"/g)).toBe(4);
+    expect(deployment).toMatch(/class="pr-group pr-depth-3"/);
+    for (const kind of ['cdn', 'lb', 'node', 'workload', 'volume'])
+      expect(deployment).toMatch(new RegExp(`class="pr-node pr-component"[^>]*data-kind="${kind}"`));
+    expect(count(deployment, /class="pr-glyph"/g)).toBe(4);
+    expect(deployment).toMatch(/class="pr-note"[^>]*>.*3 replicas/);
+  });
+
+  it('prints a store as a fill with two lines, and an external system dashed and tinted', () => {
+    const scenes = typstDocument(parseDocument(src))
+      .sections.flatMap((s) => s.blocks)
+      .flatMap((b) => (b.t === 'figure' ? b.variants : []))
+      .map((v) => v.scene.marks);
+    const rects = scenes.flat().filter((m) => m.k === 'rect');
+    expect(rects.some((m) => m.fill === '#ffffff' && m.stroke === undefined && m.r === 0)).toBe(true);
+    expect(rects.some((m) => m.fill === '#f5f3ed' && m.dash !== undefined)).toBe(true);
+  });
+});
+
+describe('the Press skill', () => {
+  const skillFile = (path: string) =>
+    readFileSync(new URL(`../skills/press/${path}`, import.meta.url), 'utf8').replace(/^---[\s\S]*?---\n/, '');
+
+  it.each([
+    ['SKILL.md', 0],
+    ['references/language.md', 13],
+    ['references/explorer-prompt.md', 0],
+  ])('teaches only Press that builds cleanly in %s', (path, figures) => {
+    const { diagnostics, html } = build(skillFile(path), { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(figures);
+  });
+
+  it('shows a worked change in SKILL.md that builds cleanly', () => {
+    const example = skillFile('SKILL.md').match(/^````markdown\n([\s\S]*?)^````$/m)?.[1] ?? '';
+    const { diagnostics, html } = build(example, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(1);
+  });
+});
+
+describe('the guide and PR skills', () => {
+  const read = (path: string) => readFileSync(new URL(`../skills/${path}`, import.meta.url), 'utf8');
+  const body = (path: string) => read(path).replace(/^---[\s\S]*?---\n/, '');
+
+  it.each([
+    ['press-guide/SKILL.md', 0],
+    ['press-guide/references/checklist.md', 0],
+    ['press-guide/references/explorer-prompt.md', 0],
+    ['press-pr/SKILL.md', 0],
+    ['press-pr/references/explorer-prompt.md', 0],
+  ])('teaches only Press that builds cleanly in %s', (path, figures) => {
+    const { diagnostics, html } = build(body(path), { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(figures);
+  });
+
+  it.each(['press-guide', 'press-pr'])('carries the same language reference in %s', (skill) => {
+    expect(read(`${skill}/references/language.md`)).toBe(read('press/references/language.md'));
+  });
+
+  it('shows a worked PR card that builds cleanly without steps', () => {
+    const example = body('press-pr/SKILL.md').match(/^````markdown\n([\s\S]*?)^````$/m)?.[1] ?? '';
+    const { diagnostics, html } = build(example, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    expect(count(html, /<figure class="pr-figure"/g)).toBe(1);
+    expect(example).not.toContain('steps:');
   });
 });
 
 describe('print layout', () => {
-  const row =
-    '```architecture id=row\n' +
-    Array.from({ length: 5 }, (_, i) => `c${i}: service "Component ${i}"\nc${i} -> c${i + 1}`).join('\n') +
-    '\n```';
+  const variantScenes = (src: string): string[] =>
+    typstDocument(parseDocument(src))
+      .sections.flatMap((s) => s.blocks)
+      .flatMap((b) => (b.t === 'figure' ? b.variants : []))
+      .map((v) => JSON.stringify(v.scene));
 
-  it('gives a figure too wide for paper a second layout, and leaves a narrow one alone', () => {
-    const wide = build(row, { embedFonts: false }).html;
-    expect(wide).toMatch(/<svg class="pr-svg pr-architecture pr-screen-only"/);
-    expect(wide).toMatch(/<svg class="pr-svg pr-architecture pr-print-only"[^>]*>.*id="press-row-paper-node-c0"/);
-    const narrow = build('```state-machine\na -> b\n```', { embedFonts: false }).html;
-    expect(narrow).not.toContain('pr-print-only"');
-  });
-
-  it('turns a figure on screen too when it fits better, unless the author chose a direction', () => {
-    const chain = (header: string) =>
-      '```architecture' +
-      header +
-      '\n' +
-      Array.from(
-        { length: 9 },
-        (_, i) => `n${i}: service "A component with a long name ${i}"\nn${i} -> n${i + 1}`,
-      ).join('\n') +
-      '\n```';
-    const width = (html: string) => Number(/<svg class="pr-svg[^"]*"[^>]*width="(\d+)"/.exec(html)?.[1]);
-    expect(width(build(chain(''), { embedFonts: false }).html)).toBeLessThan(900);
-    expect(width(build(chain(' direction=right'), { embedFonts: false }).html)).toBeGreaterThan(1500);
-  });
-
-  it("keeps the author's direction on paper", () => {
-    expect(build(row.replace('id=row', 'id=row direction=right'), { embedFonts: false }).html).not.toContain(
-      'pr-print-only"',
-    );
-  });
-
-  it('drops muted elements on paper only when nothing points at them', () => {
+  it('drops muted elements from paper only when nothing points at them', () => {
     const chain = (prefix: string, role = '') =>
       Array.from({ length: 6 }, (_, i) => `${prefix}${i} -> ${prefix}${i + 1}${role}`).join('\n');
     const src = (extra = '') =>
@@ -308,10 +409,10 @@ describe('print layout', () => {
       '\n' +
       extra +
       '```';
-    const paper = (html: string) => html.split('pr-print-only"')[1]?.split('</svg>')[0];
-    expect(paper(build(src(), { embedFonts: false }).html)).toBeDefined();
-    expect(paper(build(src(), { embedFonts: false }).html)).not.toContain('data-node="m3"');
-    expect(paper(build(src('\nsteps:\n  m3 "Context matters here"\n'), { embedFonts: false }).html)).toBeUndefined();
+    expect(variantScenes(src()).some((scene) => !scene.includes('"m3"'))).toBe(true);
+    expect(variantScenes(src('\nsteps:\n  m3 "Context matters here"\n')).every((scene) => scene.includes('"m3"'))).toBe(
+      true,
+    );
   });
 });
 
@@ -359,5 +460,71 @@ describe('v0.4 drawing', () => {
     const html = draw('```tradeoffs\na.x : yes {note="since 4.0"}\nb.x : no\n```');
     expect(html).toMatch(/class="pr-caveat"/);
     expect(html).toMatch(/pr-cell-note[^>]*>.*since 4\.0/);
+  });
+});
+
+describe('print sections from page hints', () => {
+  const sections = (source: string) =>
+    typstDocument(parseDocument(source)).sections.map((s) => ({
+      title: s.heading?.t === 'heading' ? s.heading.c.map((i) => (i.t === 'text' ? i.s : '')).join('') : '',
+      keep: s.keep,
+      fresh: s.fresh,
+    }));
+
+  it('sets keep and fresh on the section each hint starts, and nowhere else', () => {
+    expect(
+      sections(
+        '# Guide\n\nIntro.\n\n## Kept {page=keep}\n\nBody.\n\n### Under kept\n\nDetail.\n\n## Fresh {page=new}\n\nOne.\n\n## Plain\n\nTwo.\n',
+      ),
+    ).toEqual([
+      { title: 'Guide', keep: false, fresh: false },
+      { title: 'Kept', keep: true, fresh: false },
+      { title: 'Under kept', keep: false, fresh: false },
+      { title: 'Fresh', keep: false, fresh: true },
+      { title: 'Plain', keep: false, fresh: false },
+    ]);
+  });
+
+  it('gives the heading block its page hint', () => {
+    const doc = typstDocument(parseDocument('## Appendix {page=new}\n\nText.\n'));
+    expect(doc.sections[0]?.heading).toMatchObject({ t: 'heading', level: 2, page: 'new' });
+  });
+});
+
+describe('long labels', () => {
+  const longest = (lines: string[], size: number) => Math.max(...lines.map((l) => textWidth(l, size)));
+
+  it('breaks a word wider than the line into pieces that fit', () => {
+    const lines = wrap('x'.repeat(300), 12.5, 150);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.join('')).toBe('x'.repeat(300));
+    expect(longest(lines, 12.5)).toBeLessThanOrEqual(150);
+  });
+
+  it('keeps ordinary words whole', () => {
+    expect(wrap('a short label', 14, 200)).toEqual(['a short label']);
+  });
+
+  it('keeps a long edge label inside a drawing of reasonable width', () => {
+    const src = '```architecture\nweb -> api : ' + 'y'.repeat(300) + '\n```\n';
+    const { html } = build(src, { embedFonts: false });
+    const width = Number(/viewBox="0 0 (\d+)/.exec(html)?.[1]);
+    expect(width).toBeLessThan(700);
+  });
+});
+
+describe('nested groups', () => {
+  const nested = '```architecture\ngroup "A" {\n  group "B" {\n    group "C" {\n      x\n    }\n  }\n}\nx -> y\n```\n';
+
+  it('tints each level deeper on screen', () => {
+    const { html } = build(nested, { embedFonts: false });
+    expect(html).toContain('class="pr-group pr-depth-1"');
+    expect(html).toContain('class="pr-group pr-depth-2"');
+    expect(html).toContain('class="pr-group pr-depth-3"');
+  });
+
+  it('tints each level deeper on paper', () => {
+    const fills = JSON.stringify(typstDocument(parseDocument(nested)));
+    for (const fill of ['#f5f3ed', '#edeae1', '#e4e1d6']) expect(fills).toContain(fill);
   });
 });

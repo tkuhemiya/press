@@ -18,11 +18,15 @@ export interface Diagnostic {
 export const ROLES = ['focus', 'error', 'happy', 'muted'] as const;
 export type Role = (typeof ROLES)[number];
 
+export const CHANGES = ['added', 'removed', 'changed'] as const;
+export type Change = (typeof CHANGES)[number];
+
 export type Direction = 'right' | 'down';
 
 export interface Group {
   label: string;
   parent?: GroupId;
+  change?: Change;
   line: number;
 }
 
@@ -31,6 +35,8 @@ export interface Node {
   label: string;
   role?: Role;
   note?: string;
+  change?: Change;
+  was?: string;
   group?: GroupId;
   line: number;
 }
@@ -44,6 +50,7 @@ export interface Edge<A extends Arrow = Arrow> {
   arrow: A;
   label?: string;
   role?: Role;
+  change?: Change;
   line: number;
 }
 
@@ -79,7 +86,7 @@ export type StateMachine = Graph<Node, Edge, NodeTarget | EdgeTarget> & {
 
 export const SEQUENCE_KINDS = ['user', 'client', 'service', 'database', 'queue', 'external'] as const;
 export type SequenceKind = (typeof SEQUENCE_KINDS)[number];
-export type Participant = Node & { kind?: SequenceKind };
+export type Participant = Node & { kind?: SequenceKind; icon?: string };
 
 export type PhaseIndex = number & { readonly __brand: 'PhaseIndex' };
 
@@ -88,6 +95,7 @@ export interface Phase {
   label: string;
   parent?: PhaseIndex;
   edges: EdgeIndex[];
+  change?: Change;
   line: number;
 }
 
@@ -107,10 +115,37 @@ export const ARCHITECTURE_KINDS = [
   'user',
 ] as const;
 export type ArchitectureKind = (typeof ARCHITECTURE_KINDS)[number];
-export type Component = Node & { kind?: ArchitectureKind };
+export type Component = Node & { kind?: ArchitectureKind; icon?: string };
 
 export type Architecture = Graph<Component, Edge, NodeTarget | EdgeTarget> & {
   type: 'architecture';
+  direction?: Direction;
+};
+
+export const DATA_FLOW_KINDS = ['external', 'process', 'store'] as const;
+export type DataFlowKind = (typeof DATA_FLOW_KINDS)[number];
+export type FlowNode = Node & { kind?: DataFlowKind };
+
+export type DataFlow = Graph<FlowNode, Edge, NodeTarget | EdgeTarget> & {
+  type: 'data-flow';
+  direction?: Direction;
+};
+
+export const C4_KINDS = ['person', 'system', 'container'] as const;
+export type C4Kind = (typeof C4_KINDS)[number];
+export type C4Node = Node & { kind?: C4Kind; external: boolean; tech?: string };
+
+export type C4Diagram = Graph<C4Node, Edge, NodeTarget | EdgeTarget> & {
+  type: 'c4';
+  direction?: Direction;
+};
+
+export const DEPLOYMENT_KINDS = ['node', 'workload', 'lb', 'cdn', 'volume'] as const;
+export type DeploymentKind = (typeof DEPLOYMENT_KINDS)[number];
+export type Placement = Node & { kind?: DeploymentKind; icon?: string };
+
+export type Deployment = Graph<Placement, Edge, NodeTarget | EdgeTarget> & {
+  type: 'deployment';
   direction?: Direction;
 };
 
@@ -123,6 +158,7 @@ export interface Loop {
   label: string;
   reinforcing: boolean;
   edges: NonEmpty<EdgeIndex>;
+  change?: Change;
   line: number;
 }
 
@@ -146,6 +182,7 @@ export type DatedEvent = Moment & { at: Time; lastsMs?: number };
 
 export interface Lane {
   label: string;
+  change?: Change;
   line: number;
 }
 
@@ -177,6 +214,8 @@ export interface Field {
   unique: boolean;
   nullable: boolean;
   role?: Role;
+  change?: Change;
+  was?: string;
   line: number;
 }
 
@@ -203,6 +242,8 @@ export interface Cell {
   value?: string;
   note?: string;
   role?: Role;
+  change?: Change;
+  was?: string;
   line: number;
 }
 
@@ -220,6 +261,9 @@ export interface DiagramMap {
   'state-machine': StateMachine;
   sequence: Sequence;
   architecture: Architecture;
+  'data-flow': DataFlow;
+  c4: C4Diagram;
+  deployment: Deployment;
   'causal-loop': CausalLoop;
   timeline: Timeline;
   'decision-tree': DecisionTree;

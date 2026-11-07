@@ -1,6 +1,6 @@
 {
   "name": "press",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "A Markdown-like language for explanations that mix prose and diagrams.",
   "license": "MIT",
   "bin": {
