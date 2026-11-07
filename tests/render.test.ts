@@ -74,6 +74,17 @@ describe('html', () => {
     expect(page).not.toContain('Inter');
     expect(page).not.toContain('font-display:swap');
   });
+
+  it('keeps inline emphasis in the serif and pills code', () => {
+    const page = build('# Title\n\nHello *there* and **now** with `code`.\n', { embedFonts: false }).html;
+    expect(page).toContain('--body:');
+    expect(page).toContain('--code:');
+    expect(page).toMatch(/strong \{\n  font-weight: 600;/);
+    expect(page).not.toMatch(/strong \{\n  font-family: var\(--sans\);/);
+    expect(page).not.toMatch(/em \{\n  font-family: var\(--sans\);/);
+    expect(page).toMatch(/code \{\n  font-family: var\(--mono\);/);
+    expect(page).toContain('background: var(--code);');
+  });
 });
 
 describe('layout', () => {

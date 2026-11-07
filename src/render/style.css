@@ -2,9 +2,11 @@
   --paper: #fbfaf7;
   --card: #ffffff;
   --ink: #22211e;
+  --body: #2e2c28;
   --ink-2: #54514a;
   --ink-3: #8a867c;
   --rule: #e6e2d8;
+  --code: #ece8dc;
 
   --node-fill: #ffffff;
   --node-line: #c4beb1;
@@ -44,8 +46,8 @@ html {
 body {
   margin: 0;
   background: var(--paper);
-  color: var(--ink);
-  font: 400 18px/1.65 var(--serif);
+  color: var(--body);
+  font: 400 18px/1.7 var(--serif);
   font-feature-settings: 'kern', 'liga';
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -53,7 +55,7 @@ body {
 }
 
 .press {
-  max-width: 680px;
+  max-width: 640px;
   margin: 0 auto;
   padding: 72px 24px 120px;
 }
@@ -91,15 +93,16 @@ h4 {
   margin: 1.6em 0 0.4em;
 }
 p {
-  margin: 0 0 1.1em;
+  margin: 0 0 1.25em;
 }
 strong {
-  font-family: var(--sans);
   font-weight: 600;
+  color: var(--ink);
+  font-synthesis: weight;
 }
 em {
-  font-family: var(--sans);
   font-style: italic;
+  font-synthesis: style;
 }
 a {
   color: inherit;
@@ -113,10 +116,10 @@ a:hover {
 ul,
 ol {
   padding-left: 1.3em;
-  margin: 0 0 1.1em;
+  margin: 0 0 1.25em;
 }
 li {
-  margin: 0.3em 0;
+  margin: 0.4em 0;
 }
 li::marker {
   color: var(--ink-3);
@@ -134,8 +137,9 @@ hr {
 }
 code {
   font-family: var(--mono);
-  font-size: 0.84em;
-  background: #f2efe7;
+  font-size: 0.88em;
+  color: var(--ink);
+  background: var(--code);
   border-radius: 4px;
   padding: 0.12em 0.36em;
 }

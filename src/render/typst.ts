@@ -37,8 +37,8 @@ export interface TypstDocument {
 }
 
 const PT_PER_PX = 0.62;
-const PAGE_W = ((210 - 34) / 25.4) * 72;
-const PAGE_H = ((297 - 38) / 25.4) * 72 * 0.6;
+const PAGE_W = ((210 - 48) / 25.4) * 72;
+const PAGE_H = ((297 - 42) / 25.4) * 72 * 0.6;
 const DIRECTIONS: Direction[] = ['right', 'down'];
 
 export function typstDocument(doc: Document): TypstDocument {

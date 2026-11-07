@@ -7,20 +7,36 @@
 #let chosen(key) = choices.at(key, default: 0)
 
 #let ink = rgb("#22211e")
+#let body = rgb("#2e2c28")
 #let ink2 = rgb("#54514a")
 #let ink3 = rgb("#8a867c")
 #let rule = rgb("#e6e2d8")
+#let code-fill = rgb("#ece8dc")
 #let sans = "Geist"
 #let serif = "Geist Serif"
 #let mono = "Geist Mono"
+#let margin-x = 24mm
 
 #set document(title: doc.at("title", default: "Press"))
-#set page(paper: "a4", margin: (top: 18mm, x: 17mm, bottom: 20mm), numbering: "1")
-#set text(font: serif, size: 10.5pt, fill: ink, lang: "en", hyphenate: true)
-#set par(leading: 0.7em, spacing: 0.95em, justify: true)
-#show strong: set text(font: sans, weight: 600)
-#show emph: set text(font: sans, style: "italic")
-#show raw: set text(font: mono, size: 8.5pt)
+#set page(paper: "a4", margin: (top: 20mm, x: margin-x, bottom: 22mm), numbering: "1")
+#set text(font: serif, size: 10.5pt, fill: body, lang: "en", hyphenate: false)
+#set par(leading: 0.95em, spacing: 1.25em, justify: false)
+#set list(spacing: 0.7em)
+#set enum(spacing: 0.7em)
+#show strong: it => {
+  set text(fill: ink, stroke: 0.14pt + ink)
+  it
+}
+#show emph: set text(style: "italic", font: (serif, sans))
+#show raw: set text(font: mono, size: 9.2pt, fill: ink)
+#show raw.where(block: false): it => highlight(
+  fill: code-fill,
+  radius: 2.5pt,
+  extent: 0.2em,
+  top-edge: 0.72em,
+  bottom-edge: -0.18em,
+  it,
+)
 #show heading: set text(font: sans, fill: ink)
 #show heading: set block(sticky: true)
 #show heading.where(level: 1): it => block(below: 0.9em, text(size: 20pt, weight: 600, tracking: -0.02em, it.body))
@@ -119,8 +135,8 @@
 }).join()
 
 #let legend(steps, from: 0) = {
-  set text(font: sans, size: 8.5pt, fill: ink2)
-  set par(justify: false, leading: 0.45em, spacing: 0.55em)
+  set text(font: sans, size: 9pt, fill: ink2)
+  set par(justify: false, leading: 0.62em, spacing: 0.75em)
   for (i, c) in steps.enumerate() {
     grid(
       columns: (12pt, 1fr),
@@ -141,7 +157,7 @@
 #let anchor(key, gap) = [#block(height: 0pt, above: gap, below: 0pt, width: 100%)[]#label(key)]
 #let room-at(key) = page.height - page.margin.bottom - locate(label(key)).position().y
 #let full-h() = page.height - page.margin.top - page.margin.bottom
-#let content-w = 210mm - 2 * 17mm
+#let content-w = 210mm - 2 * margin-x
 #let key-of(f) = "pm-" + f.key
 
 // What a decision saw: its room and each candidate's height, in pt. Press settles the choices
@@ -192,11 +208,11 @@
     let items = b.items.map(item => blocks(item, fig))
     if b.ordered { enum(..items) } else { list(..items) }
   }
-  else if b.t == "code" { block(width: 100%, inset: 8pt, radius: 4pt, fill: rgb("#f5f3ed"), raw(b.s, lang: b.lang, block: true)) }
+  else if b.t == "code" { block(width: 100%, inset: 10pt, radius: 4pt, fill: code-fill, raw(b.s, lang: b.lang, block: true)) }
   else if b.t == "quote" { quote(block: true, blocks(b.b, fig)) }
   else if b.t == "rule" { line(length: 100%, stroke: 0.6pt + rule) }
   else if b.t == "table" {
-    set text(font: sans, size: 8.5pt)
+    set text(font: sans, size: 9pt)
     set par(justify: false)
     table(
       columns: b.head.len(),
