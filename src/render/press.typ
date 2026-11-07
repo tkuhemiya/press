@@ -10,15 +10,16 @@
 #let ink2 = rgb("#54514a")
 #let ink3 = rgb("#8a867c")
 #let rule = rgb("#e6e2d8")
-#let sans = "Inter"
-#let serif = "Source Serif 4"
-#let mono = "JetBrains Mono"
+#let sans = "Geist"
+#let serif = "Geist Serif"
+#let mono = "Geist Mono"
 
 #set document(title: doc.at("title", default: "Press"))
 #set page(paper: "a4", margin: (top: 18mm, x: 17mm, bottom: 20mm), numbering: "1")
 #set text(font: serif, size: 10.5pt, fill: ink, lang: "en", hyphenate: true)
 #set par(leading: 0.7em, spacing: 0.95em, justify: true)
-#set strong(delta: 200)
+#show strong: set text(font: sans, weight: 600)
+#show emph: set text(font: sans, style: "italic")
 #show raw: set text(font: mono, size: 8.5pt)
 #show heading: set text(font: sans, fill: ink)
 #show heading: set block(sticky: true)

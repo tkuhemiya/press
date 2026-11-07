@@ -76,7 +76,7 @@ a -> sat : +`;
     expect(sat?.change).toBe('changed');
     expect(sat?.was).toBe('Market saturation');
     expect(sat?.note).toBeUndefined();
-    expect(html(body)).toContain('>was &quot;Market</tspan>');
+    expect(html(body)).toContain('was &quot;Market saturation&quot;');
     expect(openTag(html(body), 'data-node="sat"')).toContain('data-change="changed"');
   });
 

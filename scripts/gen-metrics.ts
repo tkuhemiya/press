@@ -5,10 +5,10 @@ const root = new URL('../', import.meta.url);
 const font = (file: string) => readFileSync(new URL(`assets/fonts/${file}`, root)).toString('base64');
 
 const faces = {
-  sans400: ['Inter', 400, 'inter-latin-400-normal.woff2'],
-  sans500: ['Inter', 500, 'inter-latin-500-normal.woff2'],
-  sans600: ['Inter', 600, 'inter-latin-600-normal.woff2'],
-  mono400: ['JetBrains Mono', 400, 'jetbrains-mono-latin-400-normal.woff2'],
+  sans400: ['Geist', 400, 'geist-sans-400-normal.woff2'],
+  sans500: ['Geist', 500, 'geist-sans-500-normal.woff2'],
+  sans600: ['Geist', 600, 'geist-sans-600-normal.woff2'],
+  mono400: ['Geist Mono', 400, 'geist-mono-400-normal.woff2'],
 } as const;
 
 const extra = '–—…‘’“”•·→←↔×÷±≤≥≠°';

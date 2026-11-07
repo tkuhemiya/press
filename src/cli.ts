@@ -158,15 +158,7 @@ function settleChoices(entry: string, common: string[]): { choices: Choices; rep
 function fitReports(entry: string, common: string[], choices: Choices): Report[] {
   const out = execFileSync(
     'typst',
-    [
-      'eval',
-      '--in',
-      entry,
-      ...common,
-      '--input',
-      `choices=${JSON.stringify(choices)}`,
-      'query(<press-fit>).map(m => m.value)',
-    ],
+    ['query', ...common, '--input', `choices=${JSON.stringify(choices)}`, '--field', 'value', entry, '<press-fit>'],
     { encoding: 'utf8' },
   );
   return parseReports(out);

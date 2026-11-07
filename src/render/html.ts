@@ -9,20 +9,19 @@ import { signed } from '../diagrams/sign.ts';
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
 
 const FONTS: [string, number, string, string][] = [
-  ['Inter', 400, 'normal', 'inter-latin-400-normal.woff2'],
-  ['Inter', 500, 'normal', 'inter-latin-500-normal.woff2'],
-  ['Inter', 600, 'normal', 'inter-latin-600-normal.woff2'],
-  ['Source Serif 4', 400, 'normal', 'source-serif-4-latin-400-normal.woff2'],
-  ['Source Serif 4', 400, 'italic', 'source-serif-4-latin-400-italic.woff2'],
-  ['Source Serif 4', 600, 'normal', 'source-serif-4-latin-600-normal.woff2'],
-  ['JetBrains Mono', 400, 'normal', 'jetbrains-mono-latin-400-normal.woff2'],
+  ['Geist', 400, 'normal', 'geist-sans-400-normal.woff2'],
+  ['Geist', 500, 'normal', 'geist-sans-500-normal.woff2'],
+  ['Geist', 600, 'normal', 'geist-sans-600-normal.woff2'],
+  ['Geist', 400, 'italic', 'geist-sans-400-italic.woff2'],
+  ['Geist Serif', 400, 'normal', 'geist-serif-400-normal.woff2'],
+  ['Geist Mono', 400, 'normal', 'geist-mono-400-normal.woff2'],
 ];
 
 let fontCss: string | undefined;
 function fonts(): string {
   fontCss ??= FONTS.map(
     ([family, weight, style, file]) =>
-      `@font-face{font-family:"${family}";font-weight:${weight};font-style:${style};font-display:swap;src:url(data:font/woff2;base64,${asset(`../../assets/fonts/${file}`).toString('base64')}) format("woff2")}`,
+      `@font-face{font-family:"${family}";font-weight:${weight};font-style:${style};font-display:block;src:url(data:font/woff2;base64,${asset(`../../assets/fonts/${file}`).toString('base64')}) format("woff2")}`,
   ).join('\n');
   return fontCss;
 }
