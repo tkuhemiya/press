@@ -1,4 +1,4 @@
-import type { Change, Diagram, DiagramType, Role } from '../model.ts';
+import type { Change, Diagram, DiagramType, Paint, Role } from '../model.ts';
 import { trusted } from '../brand.ts';
 import { attr, type Attrs, type Item, type Scene } from '../scene/scene.ts';
 import { changeIn } from '../scene/marks.ts';
@@ -32,7 +32,53 @@ interface Lookup {
   loops: Map<string, readonly number[]>;
 }
 
-export const splitsOnScreen = (d: Diagram): boolean => SPLIT.has(d.type) && hasChanges(d);
+export const splits = (d: Diagram): boolean => SPLIT.has(d.type) && hasChanges(d);
+
+export const PANES: readonly { side: DiffSide; change: Paint; title: string }[] = [
+  { side: 'before', change: 'removed', title: '− Before' },
+  { side: 'after', change: 'added', title: '+ After' },
+];
+
+const PANE_GAP = 48;
+const PANE_HEAD = 30;
+
+export function sideBySide(union: Rendered, d: Diagram, id: string): Rendered {
+  const panes = PANES.map((p) => ({ ...p, pane: paneOf(union, p.side, d, `${id}-${p.side}`) }));
+  const w = union.width;
+  const items: Item[] = panes.flatMap(({ change, title, pane }, i): Item[] => [
+    {
+      type: 'group',
+      attrs: [['data-change', change]],
+      items: [
+        {
+          type: 'lines',
+          cls: 'pr-key pr-start',
+          x: i * (w + PANE_GAP) + 16,
+          cy: PANE_HEAD / 2,
+          lines: [title],
+          lineHeight: 16,
+        },
+      ],
+    },
+    { type: 'group', attrs: [['transform', `translate(${i * (w + PANE_GAP)},${PANE_HEAD})`]], items: pane.scene.items },
+  ]);
+  const divider: Item = {
+    type: 'line',
+    cls: 'pr-pane-rule',
+    x1: w + PANE_GAP / 2,
+    y1: 4,
+    x2: w + PANE_GAP / 2,
+    y2: union.height + PANE_HEAD,
+  };
+  const scene: Scene = {
+    ...union.scene,
+    id,
+    width: 2 * w + PANE_GAP,
+    height: union.height + PANE_HEAD,
+    items: [...items, divider],
+  };
+  return { ...union, scene, width: scene.width, height: scene.height, svg: trusted(paintSvg(scene)) };
+}
 
 function hasChanges(d: Diagram): boolean {
   const { nodes, edges } = lookup(d);
@@ -88,6 +134,14 @@ function lookup(d: Diagram): Lookup {
   return { nodes, edges, loops };
 }
 
+function ownerChange(attrs: Attrs | undefined, names: Lookup): Change | undefined {
+  const get = (key: string): string | undefined => attrs?.find(([k]) => k === key)?.[1];
+  const edge = get('data-edge') ?? get('data-for-edge');
+  if (edge !== undefined) return names.edges.get(edge)?.change;
+  const node = get('data-node') ?? get('data-for-node');
+  return node === undefined ? undefined : names.nodes.get(node)?.change;
+}
+
 function onSide(change: Change | undefined, side: DiffSide): boolean {
   if (change === 'added') return side === 'after';
   if (change === 'removed') return side === 'before';
@@ -110,7 +164,7 @@ function filterItems(items: readonly Item[], side: DiffSide, names: Lookup): Ite
       continue;
     }
     const change = changeIn(item.attrs);
-    if (!onSide(change, side)) continue;
+    if (!onSide(change ?? ownerChange(item.attrs, names), side)) continue;
     const loop = item.attrs?.find(([k]) => k === 'data-loop')?.[1];
     const members = loop === undefined ? undefined : names.loops.get(loop);
     if (members !== undefined && members.some((i) => !onSide(names.edges.get(String(i))?.change, side))) continue;
@@ -124,22 +178,25 @@ function retouch(
   item: Extract<Item, { type: 'group' }>,
   side: DiffSide,
   names: Lookup,
-  change: Change | undefined,
+  change: Paint | undefined,
 ): Item {
-  const next = { ...item, attrs: restyle(item.attrs, side, names, change) };
-  if (side !== 'before' || change !== 'changed') return next;
-  const id = next.attrs.find(([k]) => k === 'data-node')?.[1];
-  const was = id === undefined ? undefined : names.nodes.get(id)?.was;
-  const after = id === undefined ? undefined : names.nodes.get(id)?.label;
-  if (was === undefined || was === after) return next;
-  return relabel(next, was);
+  const id = item.attrs?.find(([k]) => k === 'data-node')?.[1];
+  const meta = id === undefined ? undefined : names.nodes.get(id);
+  const edited = meta?.change === 'changed';
+  const paint: Paint | undefined = edited ? (side === 'before' ? 'removed' : 'added') : change;
+  const next = { ...item, attrs: restyle(item.attrs, side, names, paint, keepId(change, side)) };
+  if (side !== 'before' || !edited || meta?.was === undefined || meta.was === meta.label) return next;
+  return relabel(next, meta.was);
 }
 
-function restyle(attrs: Attrs | undefined, side: DiffSide, names: Lookup, change: Change | undefined): Attrs {
-  const kept = (attrs ?? []).filter(
-    ([k]) => k !== 'data-change' && k !== 'data-role' && (k !== 'id' || keepId(change, side)),
-  );
-  const paint: Change | undefined = change === 'changed' ? (side === 'before' ? 'removed' : 'added') : change;
+function restyle(
+  attrs: Attrs | undefined,
+  side: DiffSide,
+  names: Lookup,
+  paint: Paint | undefined,
+  ownsId: boolean,
+): Attrs {
+  const kept = (attrs ?? []).filter(([k]) => k !== 'data-change' && k !== 'data-role' && (k !== 'id' || ownsId));
   const node = kept.find(([k]) => k === 'data-node')?.[1];
   const edge = kept.find(([k]) => k === 'data-edge')?.[1];
   const role =

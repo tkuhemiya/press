@@ -16,6 +16,7 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 - **v0.8:** diffs: show a change in any diagram with `+` and `-` lines
 - **v0.9:** `call-stack` and `memory-layout`, for how a program runs
 - **v0.10:** `dependency` (who imports whom, as a matrix) and `class` (the types a module publishes as its surface)
+- **v0.11:** diffs read like git everywhere: `+` and `−` only, Before and After panels in images, print and the terminal, and table types as unified rows
 - **Later:** the rest, prioritized by what software explanations need most
 
 ## Software

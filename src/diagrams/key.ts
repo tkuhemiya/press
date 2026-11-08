@@ -1,4 +1,4 @@
-import { CHANGES, type Change } from '../model.ts';
+import { PAINTS, type Paint } from '../model.ts';
 import { textWidth } from '../text/measure.ts';
 import type { Item, Scene } from '../scene/scene.ts';
 import { signedText } from './sign.ts';
@@ -8,7 +8,7 @@ const MARGIN = 16;
 const FONT = 12.5;
 const GAP = 28;
 
-const shows = (items: readonly Item[], change: Change): boolean =>
+const shows = (items: readonly Item[], change: Paint): boolean =>
   items.some(
     (item) =>
       item.type === 'group' &&
@@ -16,7 +16,7 @@ const shows = (items: readonly Item[], change: Change): boolean =>
   );
 
 export function withKey(scene: Scene): Scene {
-  const labels = CHANGES.filter((change) => shows(scene.items, change)).map((change) => ({
+  const labels = PAINTS.filter((change) => shows(scene.items, change)).map((change) => ({
     change,
     text: signedText(change, change),
   }));

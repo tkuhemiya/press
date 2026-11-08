@@ -51,7 +51,8 @@ describe('timeline diff marks', () => {
     expect(statuses(d.nodes)).toEqual({
       deploy: 'kept',
       alerts: 'kept',
-      rollback: 'changed',
+      'rollback@before': 'removed',
+      rollback: 'added',
       freeze: 'removed',
       recovered: 'added',
       page: 'removed',
@@ -62,7 +63,8 @@ describe('timeline diff marks', () => {
     expect(before).not.toContain('v2.2');
     expect(after).toContain('Roll back to v2.2');
     expect(opening(after, 'data-node="rollback"')).toMatch(/ id="[^"]*-node-rollback"/);
-    expect(opening(before, 'data-node="rollback"')).toContain('data-change="removed"');
+    expect(opening(before, 'data-node="rollback@before"')).toContain('data-change="removed"');
+    expect(before).not.toContain('data-node="rollback"');
     expect(opening(after, 'data-node="rollback"')).toContain('data-change="added"');
     expect(opening(after, 'data-node="rollback"')).toContain('data-role="error"');
     expect(before).toContain('data-node="page"');
@@ -75,23 +77,31 @@ describe('timeline diff marks', () => {
     expect(opening(before, 'data-node="alerts"')).toContain('data-role="error"');
   });
 
-  it('shows the old time of a moved event in its note, and the old label only when the time held', () => {
-    const d = first(
-      parseDocument(
-        fence(`14:00 start: "Start"
+  it('draws a moved event as removed at its old time and added at its new one, with no was note', () => {
+    const body = `14:00 start: "Start"
 - 14:10 rollback: "Roll back"
 + 14:16 rollback: "Roll back to v2.2" {note="by hand"}
 - 14:20 a: "Old label"
 + 14:20 a: "New label"
 - 14:30 b: "Same"
-+ 14:30 b: "Same" {role=error}`),
-      ),
-      'timeline',
-    );
-    const note = (id: string) => shownNotes(d).get(id);
-    expect(note('rollback')).toBe('by hand · was 14:10 · was "Roll back"');
-    expect(note('a')).toBe('was "Old label"');
-    expect(note('b')).toBeUndefined();
++ 14:30 b: "Same" {role=error}
+start -> rollback`;
+    const d = first(parseDocument(fence(body)), 'timeline');
+    const moved = d.nodes.filter((n) => n.label.startsWith('Roll back'));
+    expect(moved.map((n) => [n.label, n.change, n.note])).toEqual([
+      ['Roll back', 'removed', undefined],
+      ['Roll back to v2.2', 'added', 'by hand'],
+    ]);
+    expect(shownNotes(d).get('a')).toBeUndefined();
+    expect(shownNotes(d).get('b')).toBeUndefined();
+    const before = paneOf(body, 'before');
+    const after = paneOf(body, 'after');
+    expect(before).toContain('Roll back<');
+    expect(before).not.toContain('Roll back to v2.2');
+    expect(after).toContain('Roll back to v2.2');
+    expect(before).toContain('Old label');
+    expect(after).toContain('New label');
+    expect(pageOf(body)).not.toContain('was ');
   });
 
   it('marks changed, added and removed events in an undated timeline, with no times', () => {
@@ -113,7 +123,7 @@ browse -> submit
       confirm: 'removed',
       pay: 'kept',
     });
-    expect(shownNotes(d).get('submit')).toBe('was "Submit the form"');
+    expect(shownNotes(d).get('submit')).toBeUndefined();
     const before = paneOf(body, 'before');
     const after = paneOf(body, 'after');
     expect(before).toContain('Submit the form');

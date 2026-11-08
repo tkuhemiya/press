@@ -19,13 +19,15 @@ These were settled deliberately. Don't reopen them without a good reason.
 - **No raw SVG/HTML escape hatch.** The constraint forces the vocabulary to grow.
 - **Steps live inside the fence.**
 - **Paper is a budget.** Print should compress (annotate a single frame), not expand (one frame per step). See `docs/SPEC.md`.
+- **Diffs read like git.** A change is `+` (added, green) or `−` (removed, red), nothing else: no third "changed" state, colour or `~` mark. An edited element is its old version removed and its new version added. Graph types show Before and After side by side in every target.
 - **Pre-1.0 versioning:** 0.1, 0.2, 0.3…
 - **Vendor icons are the one exception to Press-chosen colour.** `aws.lambda`, `k8s.pod` and the like draw the vendor's own artwork in colour, because readers recognise them. Everything else stays meaning, not styling.
 - **Light themes only.** No dark mode. A light page reads well on screen and is already what print needs, so there is one visual language to get right. The exception is `press preview`: terminals are usually dark, so the terminal output is dark by default, with a light theme for light terminals and plain text when piped.
 
 ## How to work here
 
-- `docs/SPEC.md` is the source of truth for the language. Agree on spec changes before writing code.
+- `docs/SPEC.md` is the source of truth for the language.
+- `skills/` teaches agents to write Press. When the language, a diagram type, the CLI or how something renders changes, update the skills in the same change: `references/language.md` (one copy per skill, kept identical) and any `SKILL.md` that mentions it.
 - `docs/VISUALIZATIONS.md` tracks every planned diagram type and its status. Update it when you add or change one.
 - Source should stay readable without rendering. If a fence makes no sense as plain text, the syntax is wrong.
 - Parser errors should name the line and suggest a fix, so an LLM can correct itself.

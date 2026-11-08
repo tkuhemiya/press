@@ -5,7 +5,7 @@ import { view, type RenderContext, type Rendered, type View } from '../diagrams/
 import { trusted } from '../brand.ts';
 import { esc } from './svg.ts';
 import { signed } from '../diagrams/sign.ts';
-import { paneOf, splitsOnScreen } from '../diagrams/diff-view.ts';
+import { PANES, paneOf, splits } from '../diagrams/diff-view.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
 
@@ -102,7 +102,7 @@ interface StepJson {
 
 function figure(f: Figure): string {
   const d = f.diagram;
-  const split = splitsOnScreen(d);
+  const split = splits(d);
   const v = view(split ? d : signed(d));
   const figId = f.domId;
   let drawn: Rendered;
@@ -173,9 +173,7 @@ function captionSvg(svg: string, label: string): string {
 }
 
 function splitCanvases(union: Rendered, d: Figure['diagram'], figId: string, label: string): string {
-  const before = paneOf(union, 'before', d, `${figId}-before`);
-  const after = paneOf(union, 'after', d, `${figId}-after`);
-  const pane = (side: string, title: string, drawn: Rendered) =>
-    `<div class="pr-pane" data-side="${side}"><div class="pr-pane-label">${title}</div><div class="pr-canvas">${captionSvg(drawn.svg, `${label} (${title.toLowerCase()})`)}</div></div>`;
-  return `<div class="pr-diff">${pane('before', 'Before', before)}${pane('after', 'After', after)}</div>`;
+  const pane = ({ side, change, title }: (typeof PANES)[number]) =>
+    `<div class="pr-pane" data-side="${side}"><div class="pr-pane-label" data-change="${change}">${esc(title)}</div><div class="pr-canvas">${captionSvg(paneOf(union, side, d, `${figId}-${side}`).svg, `${label} (${side})`)}</div></div>`;
+  return `<div class="pr-diff">${PANES.map(pane).join('')}</div>`;
 }

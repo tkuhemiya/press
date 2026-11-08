@@ -1,6 +1,6 @@
 import type { Change, DatedEvent, Dating, Group, Moment, Node, NodeId, Time, Timeline } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
-import type { Fence } from '../parse/grammar.ts';
+import type { EventStatement, Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import {
   buildGraph,
@@ -16,10 +16,9 @@ import {
   type DraftNode,
   sharedChange,
 } from '../parse/graph.ts';
-import { joinNotes } from './sign.ts';
 import { parseTime } from '../parse/time.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
-import { trusted } from '../brand.ts';
+import { nodeId, trusted } from '../brand.ts';
 import {
   edgeItem,
   labelItem,
@@ -85,22 +84,51 @@ function lanes(fence: Fence, nodes: readonly DraftNode[], { error, warn }: Repor
 }
 const isDated = (node: DraftNode): node is Dated => node.at !== undefined;
 
-function momentOf(e: DraftNode, formerTimes: ReadonlyMap<NodeId, Time>): Node {
-  const node = toNode(e);
-  const before = formerTimes.get(e.id);
-  if (e.change !== 'changed' || before === undefined || e.at === undefined) return node;
-  if (formatTime(before) === formatTime(e.at)) return node;
-  const note = joinNotes(e.note, `was ${formatTime(before)}`);
-  return note === undefined ? node : { ...node, note };
+function moved(
+  graph: ReturnType<typeof buildGraph>,
+  fence: Fence,
+  laneOf: Map<NodeId, number>,
+): ReturnType<typeof buildGraph> {
+  const former = new Map<NodeId, EventStatement>();
+  for (const s of fence.statements) if (s.type === 'event' && s.change === 'removed') former.set(s.id, s);
+  const shifted = new Map<NodeId, NodeId>();
+  const nodes = graph.nodes.flatMap((node): DraftNode[] => {
+    const before = former.get(node.id);
+    if (node.change !== 'changed' || !before || !node.at || formatTime(before.at) === formatTime(node.at))
+      return [node];
+    const id = nodeId(`${node.id}@before`);
+    shifted.set(node.id, id);
+    const lane = laneOf.get(node.id);
+    if (lane !== undefined) laneOf.set(id, lane);
+    const old: DraftNode = {
+      ...node,
+      id,
+      label: node.was ?? node.label,
+      at: before.at,
+      change: 'removed',
+      line: before.line,
+    };
+    delete old.was;
+    delete old.note;
+    const now: DraftNode = { ...node, change: 'added' };
+    delete now.was;
+    return [old, now];
+  });
+  const moveEnd = (id: NodeId): NodeId => shifted.get(id) ?? id;
+  const edges = graph.edges.map((e) =>
+    e.change === 'removed' ? { ...e, from: moveEnd(e.from), to: moveEnd(e.to) } : e,
+  );
+  return { ...graph, nodes, edges };
 }
 
 function build(fence: Fence, report: Reporter): Timeline {
   const { error, warn } = report;
-  const graph = buildGraph(fence, report, {
+  const built = buildGraph(fence, report, {
     label: (id) => id.replace(/_/g, ' '),
     empty: 'Add an event, e.g. `14:02 deploy: "v2.3 rolls out"`.',
   });
-  const laneOf = lanes(fence, graph.nodes, report);
+  const laneOf = lanes(fence, built.nodes, report);
+  const graph = moved(built, fence, laneOf);
   const top = {
     ...header(fence, 'timeline'),
     lanes: fence.lanes.map((l, i) => {
@@ -108,8 +136,6 @@ function build(fence: Fence, report: Reporter): Timeline {
       return change ? { ...l, change } : { ...l };
     }),
   };
-  const formerTimes = new Map<NodeId, Time>();
-  for (const s of fence.statements) if (s.type === 'event' && s.change === 'removed') formerTimes.set(s.id, s.at);
   const laned = <N extends Node>(node: N): N & { lane?: number } => {
     const lane = laneOf.get(node.id);
     return lane === undefined ? node : { ...node, lane };
@@ -146,7 +172,7 @@ function build(fence: Fence, report: Reporter): Timeline {
     return {
       ...top,
       dating: 'undated',
-      nodes: graph.nodes.map((node) => laned(momentOf(node, formerTimes))),
+      nodes: graph.nodes.map((node) => laned(toNode(node))),
       edges: graph.edges,
       groups: graph.groups,
       steps,
@@ -210,7 +236,7 @@ function build(fence: Fence, report: Reporter): Timeline {
     .filter(isDated)
     .filter(fits)
     .map((e): DatedEvent => {
-      const event: DatedEvent = { ...laned(momentOf(e, formerTimes)), at: e.at };
+      const event: DatedEvent = { ...laned(toNode(e)), at: e.at };
       const lasts = lasting.get(e);
       if (lasts !== undefined) event.lastsMs = lasts;
       return event;

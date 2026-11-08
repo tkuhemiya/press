@@ -1,4 +1,4 @@
-import type { Direction, Group, GroupId, NodeId } from '../../model.ts';
+import type { Change, Direction, Group, GroupId, NodeId } from '../../model.ts';
 import { cnode, compoundLayout, type CEdge, type CNode } from '../../layout/pele/compound.ts';
 import { ARROWS, DOWN, LEFT, RIGHT, UP, canvas, type Canvas, type LineKind, type Point } from './canvas.ts';
 import { cellWidth } from './cells.ts';
@@ -23,6 +23,8 @@ export interface TermNode {
   group?: GroupId;
   first?: boolean;
   divider?: number;
+  change?: Change;
+  was?: Line[];
 }
 
 export interface TermEdge {
@@ -32,7 +34,10 @@ export interface TermEdge {
   label: Line[];
   kind: LineKind;
   token: Token;
+  change?: Change;
 }
+
+export type Side = 'before' | 'after';
 
 export interface TermGraph {
   nodes: readonly TermNode[];
@@ -58,8 +63,9 @@ const ARM: Record<Dir, number> = { 0: UP, 1: RIGHT, 2: DOWN, 3: LEFT };
 
 function boxSize(n: TermNode): { w: number; h: number } {
   if (n.glyph) return { w: 1, h: 1 };
-  const inner = Math.max(linesWidth(n.lines), n.tag ? cellWidth(n.tag) + 2 : 0);
-  return { w: inner + 4, h: n.lines.length + 2 + (n.divider === undefined ? 0 : 1) };
+  const was = n.was ?? [];
+  const inner = Math.max(linesWidth(n.lines), linesWidth(was), n.tag ? cellWidth(n.tag) + 2 : 0);
+  return { w: inner + 4, h: Math.max(n.lines.length, was.length) + 2 + (n.divider === undefined ? 0 : 1) };
 }
 
 const writeLine = (c: Canvas, x: number, y: number, line: Line): void => {
@@ -145,6 +151,66 @@ function straight(a: Point, b: Point): Point[] {
 }
 
 export function drawGraph(g: TermGraph, direction: Direction, ascii: boolean): Canvas {
+  return trimmed([paintGraph(layoutGraph(g, direction), ascii)])[0];
+}
+
+export function drawPanes(g: TermGraph, direction: Direction, ascii: boolean): [Canvas, Canvas] {
+  const laid = layoutGraph(g, direction);
+  const [before, after] = trimmed([paintGraph(laid, ascii, 'before'), paintGraph(laid, ascii, 'after')]);
+  return [before, after];
+}
+
+interface Laid {
+  g: TermGraph;
+  placed: Placed[];
+  frames: Rect[];
+  paths: { r: Routed; points: Point[]; out: Dir; into: Dir }[];
+}
+
+export const onSide = (change: Change | undefined, side: Side | undefined): boolean =>
+  side === undefined || (change === 'added' ? side === 'after' : change === 'removed' ? side === 'before' : true);
+
+function sided(node: TermNode, side: Side | undefined): TermNode {
+  if (side === undefined) return node;
+  const token: Token | undefined =
+    node.change === 'changed'
+      ? side === 'before'
+        ? 'removed'
+        : 'added'
+      : node.change === 'added' || node.change === 'removed'
+        ? node.change
+        : undefined;
+  if (token === undefined) return node;
+  const lines = side === 'before' && node.was ? node.was : node.lines;
+  return {
+    ...node,
+    token,
+    border: token === 'removed' && !node.glyph ? 'dashed' : node.border,
+    lines: lines.map((l) => l.map((seg) => ({ ...seg, token }))),
+  };
+}
+
+function sidedEdge(edge: TermEdge, side: Side | undefined): TermEdge {
+  if (side === undefined || (edge.change !== 'added' && edge.change !== 'removed')) return edge;
+  const token: Token = edge.change;
+  return {
+    ...edge,
+    token,
+    kind: token === 'removed' ? 'dashed' : edge.kind,
+    label: edge.label.map((l) => l.map((seg) => ({ ...seg, token }))),
+  };
+}
+
+export const toneOf = (change: Change | undefined, side: Side | undefined): Token | undefined =>
+  change === 'added' || change === 'removed'
+    ? change
+    : change === 'changed' && side !== undefined
+      ? side === 'before'
+        ? 'removed'
+        : 'added'
+      : undefined;
+
+function layoutGraph(g: TermGraph, direction: Direction): Laid {
   const across = direction === 'down';
   const cnodes: CNode[] = g.groups.map((grp) => {
     const c = cnode(0, 0);
@@ -261,7 +327,7 @@ export function drawGraph(g: TermGraph, direction: Direction, ascii: boolean): C
     const b = byId.get(r.edge.to)?.box;
     return a && b ? Math.abs(centre(a).x - centre(b).x) + Math.abs(centre(a).y - centre(b).y) : 0;
   }
-  const paths: { r: Routed; points: Point[]; out: Dir; into: Dir; ok: boolean }[] = [];
+  const paths: Laid['paths'] = [];
   for (const r of order) {
     const from = byId.get(r.edge.from);
     const to = byId.get(r.edge.to);
@@ -288,14 +354,26 @@ export function drawGraph(g: TermGraph, direction: Direction, ascii: boolean): C
       const leg = net.route(first, outSide, end, into);
       points = leg && [start, ...leg];
     }
-    const ok = points !== undefined;
     const drawn = points ?? fallback(start, end, across);
     net.claim(drawn);
-    paths.push({ r, points: drawn, out: outSide, into, ok });
+    paths.push({ r, points: drawn, out: outSide, into });
   }
+  return { g, placed, frames, paths };
+}
 
+function paintGraph(laid: Laid, ascii: boolean, side?: Side): Canvas {
+  const { g, frames } = laid;
+  const placed = laid.placed
+    .filter((p) => onSide(p.node.change, side))
+    .map((p) => ({ ...p, node: sided(p.node, side) }));
+  const shown = new Set(placed.map((p) => p.node.id));
+  const byId = new Map(placed.map((p) => [p.node.id, p]));
+  const paths = laid.paths
+    .filter(({ r }) => onSide(r.edge.change, side) && shown.has(r.edge.from) && shown.has(r.edge.to))
+    .map((p) => ({ ...p, r: { ...p.r, edge: sidedEdge(p.r.edge, side) } }));
   const c = canvas();
   frames.forEach((f, i) => {
+    if (!placed.some((p) => inGroup(g.groups, p.node.group, i))) return;
     c.box(f.x, f.y, f.w, f.h, 'round', 'group');
     c.text(f.x + 2, f.y, ` ${g.groups[i].label} `, 'group');
   });
@@ -329,7 +407,7 @@ export function drawGraph(g: TermGraph, direction: Direction, ascii: boolean): C
   }
   for (const p of placed)
     p.loops.forEach((l, i) => writeLine(c, p.box.x + p.box.w + 1, p.box.y + Math.min(i + 1, p.box.h - 1), l));
-  return trimmed(c);
+  return c;
 }
 
 function inGroup(groups: readonly Group[], g: GroupId | undefined, target: number): boolean {
@@ -399,7 +477,7 @@ function drawNode(c: Canvas, p: Placed): void {
   let y = box.y + 1;
   node.lines.forEach((line, i) => {
     const w = lineWidth(line);
-    const centred = node.divider === undefined || i === 0;
+    const centred = node.divider === undefined || i <= node.divider;
     writeLine(c, centred ? box.x + Math.floor((box.w - w) / 2) : box.x + 2, y, line);
     y++;
     if (node.divider === i) {
@@ -416,20 +494,22 @@ function drawNode(c: Canvas, p: Placed): void {
   });
 }
 
-function trimmed(c: Canvas): Canvas {
-  const rows = c.cells();
+function trimmed(cs: readonly Canvas[]): Canvas[] {
   let minX = Infinity;
   let minY = Infinity;
-  rows.forEach((row, y) =>
-    row.forEach((cell, x) => {
-      if (cell && (cell.arms || (cell.ch !== undefined && cell.ch.trim()))) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-      }
-    }),
-  );
-  if (!Number.isFinite(minX)) return c;
-  const out = canvas();
-  out.blit(c, -minX, -minY);
-  return out;
+  for (const c of cs)
+    c.cells().forEach((row, y) =>
+      row.forEach((cell, x) => {
+        if (cell && (cell.arms || (cell.ch !== undefined && cell.ch.trim()))) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+        }
+      }),
+    );
+  if (!Number.isFinite(minX)) return [...cs];
+  return cs.map((c) => {
+    const out = canvas();
+    out.blit(c, -minX, -minY);
+    return out;
+  });
 }

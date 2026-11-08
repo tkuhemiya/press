@@ -106,7 +106,7 @@ start -> paid`,
     ]);
   });
 
-  it('pairs cells in tradeoffs and records the old value', () => {
+  it('keeps an edited tradeoffs cell as a removal and an addition', () => {
     const doc = parse(
       'tradeoffs',
       `redis: "Redis"
@@ -116,12 +116,11 @@ redis.ops : "another service" {role=error}
     );
     expect(messages(doc)).toEqual([]);
     const d = first(doc, 'tradeoffs');
-    expect(d.cells).toHaveLength(2);
-    expect(d.cells.find((c) => c.criterion === 'latency')).toMatchObject({
-      value: '<2 ms',
-      change: 'changed',
-      was: '<1 ms',
-    });
+    expect(d.cells).toHaveLength(3);
+    expect(d.cells.filter((c) => c.criterion === 'latency').map((c) => [c.value, c.change])).toEqual([
+      ['<1 ms', 'removed'],
+      ['<2 ms', 'added'],
+    ]);
   });
 
   it('marks a removed criterion when only removed cells use it', () => {

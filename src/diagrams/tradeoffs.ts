@@ -9,7 +9,7 @@ import { textWidth, wrap } from '../text/measure.ts';
 import { linesItem, n } from '../render/svg.ts';
 import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
-import { joinNotes, wasText } from './sign.ts';
+import { renameOf, renamedItems, signedText, struck } from './sign.ts';
 
 export const TRADEOFFS: DiagramDef<'tradeoffs'> = {
   type: 'tradeoffs',
@@ -104,7 +104,6 @@ function build(fence: Fence, report: Reporter): Tradeoffs {
       if (p.note !== undefined) cell.note = p.note;
       if (p.role) cell.role = p.role;
       if (p.change) cell.change = p.change;
-      if (p.was !== undefined) cell.was = p.was;
       return cell;
     }),
     steps,
@@ -150,18 +149,33 @@ const nodeGroup = (domId: string, node: Node, cls: string, items: Item[]): Item 
   items,
 });
 
-const cellNote = (p: Cell | undefined): string | undefined =>
-  joinNotes(p?.note, p?.was === undefined ? undefined : wasText(p.was));
+function headItems(node: Node, lines: string[], x: number, cy: number, cls: string): Item[] {
+  const was = renameOf(node);
+  return was === undefined ? [linesItem(lines, x, cy, LINE, cls)] : renamedItems(was, node.label, x, cy, LINE, cls);
+}
 
 function render(d: Tradeoffs, context: RenderContext): Rendered {
   const { domId } = context;
   const member = (node: Node, max: number, bold: boolean, option: boolean): Member => {
-    const it: Member = { node, lines: wrap(node.label, FONT, max, bold ? 'sans600' : 'sans500'), option };
+    const was = renameOf(node);
+    const lines =
+      was === undefined
+        ? wrap(node.label, FONT, max, bold ? 'sans600' : 'sans500')
+        : [signedText(was, 'removed'), signedText(node.label, 'added')];
+    const it: Member = { node, lines, option };
     if (!option && node.group !== undefined) it.group = node.group;
     return it;
   };
   const across = (context.direction ?? d.direction ?? 'right') === 'right';
-  const cell = (o: NodeId, c: NodeId): Cell | undefined => d.cells.find((p) => p.option === o && p.criterion === c);
+  const cellsOf = (o: NodeId, c: NodeId): Cell[] => d.cells.filter((p) => p.option === o && p.criterion === c);
+  const cell = (o: NodeId, c: NodeId): Cell | undefined => {
+    const all = cellsOf(o, c);
+    return all.find((p) => p.change !== 'removed') ?? all[0];
+  };
+  const replaced = (o: NodeId, c: NodeId): Cell | undefined => {
+    const all = cellsOf(o, c);
+    return all.length > 1 ? all.find((p) => p.change === 'removed') : undefined;
+  };
 
   const cols = across
     ? d.options.map((node) => member(node, MAX_HEAD, true, true))
@@ -171,9 +185,15 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
     : d.options.map((node) => member(node, MAX_ROW_HEAD, false, true));
   const at = (r: Member, c: Member): Cell | undefined =>
     across ? cell(c.node.id, r.node.id) : cell(r.node.id, c.node.id);
+  const wasAt = (r: Member, c: Member): Cell | undefined =>
+    across ? replaced(c.node.id, r.node.id) : replaced(r.node.id, c.node.id);
+  const oldLines = (r: Member, c: Member): string[] => {
+    const old = wasAt(r, c);
+    return old ? valueLines(old) : [];
+  };
   const valueLines = (p: Cell | undefined): string[] => (p?.value ? wrap(p.value, CELL_FONT, MAX_CELL) : ['—']);
   const noteLines = (p: Cell | undefined): string[] => {
-    const note = cellNote(p);
+    const note = p?.note;
     return note ? wrap(note, NOTE_FONT, MAX_CELL) : [];
   };
   const cellH = (p: Cell | undefined): number => valueLines(p).length * LINE + noteLines(p).length * NOTE_LINE;
@@ -186,14 +206,17 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       Math.max(
         MIN_COL,
         lineW(c.lines, FONT, 'sans600'),
-        ...rows.map((r) => lineW(valueLines(at(r, c)), CELL_FONT) + MARK + 6),
+        ...rows.map((r) => lineW([...oldLines(r, c), ...valueLines(at(r, c))], CELL_FONT) + MARK + 6),
         ...rows.map((r) => lineW(noteLines(at(r, c)), NOTE_FONT)),
       ) +
         2 * PAD_X,
     ),
   );
   const headH = Math.max(0, ...cols.map((c) => c.lines.length)) * LINE + 2 * PAD_Y + 2;
-  const rowH = rows.map((r) => Math.max(r.lines.length * LINE, ...cols.map((c) => cellH(at(r, c)))) + 2 * PAD_Y);
+  const rowH = rows.map(
+    (r) =>
+      Math.max(r.lines.length * LINE, ...cols.map((c) => cellH(at(r, c)) + oldLines(r, c).length * LINE)) + 2 * PAD_Y,
+  );
 
   const bandAbove = !across && cols.some((c) => c.group !== undefined) ? BAND : 0;
   const top = MARGIN + bandAbove;
@@ -252,7 +275,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
     items.push(
       nodeGroup(domId, c.node, `pr-node pr-col ${c.option ? 'pr-option' : 'pr-criterion'}`, [
         { type: 'rect', cls: 'pr-box pr-line-box', x: box.x, y: box.y, w: box.w, h: box.h, r: 8 },
-        linesItem(c.lines, colX[i] + colW[i] / 2, top + headH / 2, LINE, 'pr-label pr-head'),
+        ...headItems(c.node, c.lines, colX[i] + colW[i] / 2, top + headH / 2, 'pr-label pr-head'),
       ]),
     );
   });
@@ -261,7 +284,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
     items.push(
       nodeGroup(domId, r.node, `pr-node pr-row ${r.option ? 'pr-option' : 'pr-criterion'}`, [
         { type: 'rect', cls: 'pr-box pr-line-box', x: MARGIN, y: rowY[i], w: x - MARGIN, h: rowH[i], r: 6 },
-        linesItem(r.lines, MARGIN + PAD_X, rowY[i] + rowH[i] / 2, LINE, 'pr-label pr-start pr-row-head'),
+        ...headItems(r.node, r.lines, MARGIN + PAD_X, rowY[i] + rowH[i] / 2, 'pr-label pr-start pr-row-head'),
       ]),
     );
   });
@@ -275,8 +298,9 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       boxes.set(id, b);
       const lines = valueLines(p);
       const notes = noteLines(p);
+      const old = oldLines(r, c);
       const cx = colX[ci] + colW[ci] / 2;
-      const cy = rowY[ri] + rowH[ri] / 2 - (notes.length * NOTE_LINE) / 2;
+      const cy = rowY[ri] + rowH[ri] / 2 - (notes.length * NOTE_LINE) / 2 + (old.length * LINE) / 2;
       const cellItems: Item[] = [{ type: 'rect', cls: 'pr-box pr-cell-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 5 }];
       const mark = p?.note && !p.role ? 'pr-caveat' : undefined;
       const textX = mark ? cx + MARK / 2 + 2 : cx;
@@ -288,7 +312,14 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
           cy: cy - ((lines.length - 1) * LINE) / 2,
           r: 3.6,
         });
-      cellItems.push(linesItem(lines, textX, cy, LINE, 'pr-value'));
+      if (old.length)
+        cellItems.push({
+          type: 'group',
+          attrs: [['data-change', 'removed']],
+          items: [linesItem(old, cx, cy - ((lines.length + old.length) * LINE) / 2, LINE, struck('pr-value'))],
+        });
+      const value = linesItem(lines, textX, cy, LINE, 'pr-value');
+      cellItems.push(old.length ? { type: 'group', attrs: [['data-change', 'added']], items: [value] } : value);
       if (notes.length)
         cellItems.push(
           linesItem(
@@ -302,7 +333,12 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       items.push({
         type: 'group',
         cls: `pr-node pr-cell${p ? '' : ' pr-missing'}`,
-        attrs: [['data-node', id], ['data-in', `${o} ${k}`], ['id', `${domId}-node-${id}`], ...markAttrs(p ?? {})],
+        attrs: [
+          ['data-node', id],
+          ['data-in', `${o} ${k}`],
+          ['id', `${domId}-node-${id}`],
+          ...markAttrs(old.length ? { role: p?.role } : (p ?? {})),
+        ],
         items: cellItems,
       });
     });

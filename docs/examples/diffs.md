@@ -1,6 +1,6 @@
 # Diffs
 
-A diagram can show a change. Mark each line that changed with `+` if it exists after the change, or `-` if it existed before. Unmarked lines are the same on both sides. On screen, a structural diff is two aligned panels from one layout: Before and After, painted like a git diff (removed red on the left, added green on the right). Types that edit in place, and print, keep one overlay: added things green, removed things red and dashed, changed things amber with the old value in a note. Overlay labels also start with `+`, `−` or `~`, so a diff still reads in black and white and in the terminal. `{role=happy}` and `{role=error}` look like ordinary nodes. Every diagram type takes the same marks.
+A diagram can show a change. Mark each line that changed with `+` if it exists after the change, or `-` if it existed before. Unmarked lines are the same on both sides. A diff reads like git: there are only additions and removals. A graph is drawn as two aligned panels from one layout, Before and After, on screen, in images, on paper and in the terminal: removed things red on the left, added things green on the right. A table (`er`, `class`, `tradeoffs`, `dependency`) stays one figure, and an edited row is its old version, red and struck through, above its new version in green. Labels also start with `+` or `−`, so a diff still reads in black and white. `{role=happy}` and `{role=error}` look like ordinary nodes. Every diagram type takes the same marks.
 
 ## Order lifecycle, with a fraud check
 

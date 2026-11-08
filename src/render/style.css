@@ -30,8 +30,6 @@
   --fail-fill: #fcefed;
   --muted-line: #dcd8ce;
   --muted-ink: #aaa59a;
-  --changed: #9a6700;
-  --changed-fill: #fbf4e2;
 
   --signal: #2f5bd3;
 
@@ -218,6 +216,9 @@ th {
 .pr-figure[data-diff] {
   width: min(1180px, calc(100vw - 32px));
 }
+.pr-pane-rule {
+  stroke: var(--rule);
+}
 .pr-diff {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -228,7 +229,7 @@ th {
   font: 600 11px/1.2 var(--sans);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--change, var(--ink-3));
   margin: 0 0 8px;
 }
 @media (max-width: 720px) {
@@ -750,6 +751,13 @@ th {
   stroke: var(--ink-2);
   stroke-width: 1.5;
 }
+.pr-svg.pr-dependency [data-change]:not(.pr-node) rect.pr-mark:not([fill^='url']) {
+  fill: var(--change);
+  stroke: var(--change);
+}
+.pr-svg.pr-dependency [data-change]:not(.pr-node) rect.pr-mark.pr-weak:not([fill^='url']) {
+  fill: var(--fig-bg);
+}
 .pr-dependency .pr-cell[data-role='focus'] .pr-cell-box {
   fill: var(--focus-fill);
 }
@@ -803,6 +811,11 @@ th {
   fill: var(--muted-ink);
 }
 
+text.pr-struck,
+.pr-struck text {
+  text-decoration: line-through;
+}
+
 [data-change='added'] {
   --change: var(--added);
   --change-fill: var(--added-fill);
@@ -810,10 +823,6 @@ th {
 [data-change='removed'] {
   --change: var(--removed);
   --change-fill: var(--removed-fill);
-}
-[data-change='changed'] {
-  --change: var(--changed);
-  --change-fill: var(--changed-fill);
 }
 .pr-svg [data-change]:not(.pr-group):not(.pr-phase) rect:not([fill^='url']) {
   fill: var(--change-fill);

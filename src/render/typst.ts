@@ -5,6 +5,7 @@ import { documentBlocks, htmlInlines, plain, type Blocks, type Inline } from './
 import { view, type RenderContext, type Rendered, type View } from '../diagrams/diagram.ts';
 import { printScene, type PrintScene } from '../scene/print.ts';
 import { signed } from '../diagrams/sign.ts';
+import { sideBySide, splits } from '../diagrams/diff-view.ts';
 
 type Block = Blocks<FigureBlock>;
 
@@ -78,9 +79,12 @@ function sectionsOf(blocks: Block[]): Section[] {
 
 function draw(v: View, f: Figure, direction?: Direction): Rendered {
   const markers = new Map(f.refs.map((r) => [targetName(r.target), r.marker]));
+  const split = splits(f.diagram);
   const context: RenderContext = { domId: `${f.domId}-print`, marker: (t) => markers.get(targetName(t)) };
   if (direction !== undefined) context.direction = direction;
-  return v.render(context);
+  if (split) context.plain = true;
+  const drawn = v.render(context);
+  return split ? sideBySide(drawn, f.diagram, `${f.domId}-print`) : drawn;
 }
 
 const fitOf = (r: Rendered): number => Math.min(1, PAGE_W / (r.width * PT_PER_PX), PAGE_H / (r.height * PT_PER_PX));
@@ -121,7 +125,7 @@ function leanOf(v: View, f: Figure): Rendered | undefined {
 }
 
 function figure(f: Figure): Block {
-  const v = view(signed(f.diagram));
+  const v = view(splits(f.diagram) ? f.diagram : signed(f.diagram));
   const first = draw(v, f);
   const tried = v.turnable() ? [first, ...DIRECTIONS.map((d) => draw(v, f, d))] : [first];
   const best = tried.reduce((a, b) => (fitOf(b) > fitOf(a) * 1.1 ? b : a));

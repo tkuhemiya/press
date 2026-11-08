@@ -49,9 +49,17 @@ interface DraftProp {
   note?: string;
   role?: Role;
   change?: Change;
-  was?: string;
   attrs: Attrs;
   line: number;
+}
+
+function propOf(s: Prop): DraftProp {
+  const prop: DraftProp = { node: s.node, key: s.key, attrs: s.attrs, line: s.line };
+  if (s.value !== undefined) prop.value = s.value;
+  if (s.note !== undefined) prop.note = s.note;
+  if (s.role) prop.role = s.role;
+  if (s.change) prop.change = s.change;
+  return prop;
 }
 
 export interface DraftGraph {
@@ -226,13 +234,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
         rules.prop?.(s, owner, isNew, ensure);
         const pair = propPairs.get(`${s.node}.${s.key}`);
         if (pair) {
-          if (s !== pair.after) break;
-          const prop: DraftProp = { node: s.node, key: s.key, attrs: s.attrs, line: s.line, change: 'changed' };
-          if (pair.before.value !== undefined) prop.was = pair.before.value;
-          if (s.value !== undefined) prop.value = s.value;
-          if (s.note !== undefined) prop.note = s.note;
-          if (s.role) prop.role = s.role;
-          props.push(prop);
+          props.push(propOf(s));
           break;
         }
         const at = props.findIndex((p) => p.node === s.node && p.key === s.key);
@@ -245,12 +247,7 @@ export function buildGraph(fence: Fence, report: Reporter, rules: GraphRules): D
           );
           props.splice(at, 1);
         }
-        const prop: DraftProp = { node: s.node, key: s.key, attrs: s.attrs, line: s.line };
-        if (s.value !== undefined) prop.value = s.value;
-        if (s.note !== undefined) prop.note = s.note;
-        if (s.role) prop.role = s.role;
-        if (s.change) prop.change = s.change;
-        props.push(prop);
+        props.push(propOf(s));
         break;
       }
       case 'loop':

@@ -64,7 +64,7 @@ The image has one figure, two at most. Pick the dimension whose change matters m
 
 **If the repo has a Press guide** (for example `docs/press/guide.md`), start from the figure there that shows this part of the system. Copy its fence, keep its ids and labels, cut it down to the part the change touches, and mark the change. The reader then sees a picture they already know, with the change in it. Say in your hand-back which guide figures the change makes out of date.
 
-**Draw one fence with `+` and `-` lines.** Show the change in its context, like a diff's context lines: keep the unchanged parts the change touches, one hop out, and leave the rest of the system out. Write one fence; Press projects Before and After. Never author two fences.
+**Draw one fence with `+` and `-` lines.** Show the change in its context, like a diff's context lines: keep the unchanged parts the change touches, one hop out, and leave the rest of the system out. Write one fence; Press draws it as `− Before` and `+ After` side by side, in the image and on paper too, so a graph diff is twice as wide as either side. Keep it to the part that changed. An edited label, field or value shows as its old version removed and its new one added; there is no "changed" mark. Never author two fences.
 
 - Five to twelve nodes. One `focus`, on the heart of the change.
 - Labels are what the reader sees or cares about, not code: "Waiting for review", not `PENDING_REVIEW`.

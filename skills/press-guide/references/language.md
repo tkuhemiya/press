@@ -109,9 +109,9 @@ paid -> end
 ```
 
 - **Mark every line that mentions a new node.** An unmarked line means the node was already there.
-- **Rename** with a `-` and a `+` declaration of the same id. Press shows the new label with the old one as a note. The same works for a property's value.
+- **Rename or edit** with a `-` and a `+` line for the same id or property. Press draws the old version removed and the new one added, as git does for an edited line. There is no "changed" mark.
 - **Groups, phases and lanes** cannot be marked. Mark their members; the container follows them.
-- On screen, structural diffs draw as aligned Before and After panels from one layout: removed red on the left, added green on the right. Print and in-place types (`er`, `tradeoffs`) stay one overlay: added green, removed red and dashed, changed amber. Overlay labels also start with `+`, `−` or `~`. Green and red are for diffs; `{role=happy}` and `{role=error}` look like ordinary nodes.
+- Graph diffs draw as two aligned panels from one layout, `− Before` and `+ After`, on screen, in images, on paper and in the terminal: removed red on the left, added green on the right. Table types (`er`, `class`, `tradeoffs`, `dependency`) stay one figure; an edited field, member or cell is its old version red and struck through, above its new version green. Labels start with `+` or `−`. A timeline event whose time changes is removed at its old time and added at its new one. Green and red are for diffs; `{role=happy}` and `{role=error}` look like ordinary nodes.
 - Steps and prose links may point at removed elements. When a removed edge and an added edge join the same pair, a prose link to that edge is ambiguous; point at a node instead.
 - Write one fence. Press projects the two sides. Never author a before figure and an after figure.
 

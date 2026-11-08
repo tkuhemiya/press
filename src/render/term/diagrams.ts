@@ -1,5 +1,6 @@
 import type {
   C4Diagram,
+  Change,
   CausalLoop,
   ClassDiagram,
   DecisionTree,
@@ -8,11 +9,13 @@ import type {
   Er,
   Group,
   Node,
+  Role,
   StateMachine,
 } from '../../model.ts';
+import { renameOf, signedText } from '../../diagrams/sign.ts';
 import type { Line, Seg, TermEdge, TermGraph, TermNode } from './graph.ts';
 import { edgeLook, errorMark, labelLines, nodeLook, type Markers } from './style.ts';
-import type { Theme } from './theme.ts';
+import type { Theme, Token } from './theme.ts';
 
 export interface Ctx {
   theme: Theme;
@@ -23,12 +26,15 @@ export interface Ctx {
 function plainNode(node: Node, ctx: Ctx, extra: Partial<TermNode> = {}, outcome = false): TermNode {
   const look = nodeLook(node.role, outcome);
   const head: Seg[] = node.role === 'error' ? [{ text: errorMark(ctx.theme), token: 'error' }] : [];
-  const lines: Line[] = [
-    ...labelLines(node.label, ctx.maxLabel, look.label, ctx.mark({ type: 'node', id: node.id }), head),
-    ...(node.note ? labelLines(node.note, ctx.maxLabel, 'note') : []),
-  ];
+  const was = renameOf(node);
+  const name = (text: string, marks: Seg[]): Line[] => labelLines(text, ctx.maxLabel, look.label, marks, head);
+  const note: Line[] = node.note ? labelLines(node.note, ctx.maxLabel, 'note') : [];
+  const marks = ctx.mark({ type: 'node', id: node.id });
+  const lines: Line[] = [...name(was === undefined ? node.label : signedText(node.label, 'added'), marks), ...note];
   const out: TermNode = { id: node.id, lines, border: look.border, token: look.token, ...extra };
   if (node.group !== undefined) out.group = node.group;
+  if (node.change) out.change = node.change;
+  if (was !== undefined) out.was = [...name(signedText(was, 'removed'), marks), ...note];
   return out;
 }
 
@@ -42,7 +48,16 @@ function plainEdge(e: Edge, ctx: Ctx, label = e.label ?? '', tail: Seg[] = []): 
     : marks.length || head.length
       ? [[...head, ...marks.flatMap((m, i) => (i ? [{ text: ' ', token: 'text' as const }, m] : [m]))]]
       : [];
-  return { from: e.from, to: e.to, both: e.arrow === '<->', label: lines, kind: look.kind, token: look.token };
+  const out: TermEdge = {
+    from: e.from,
+    to: e.to,
+    both: e.arrow === '<->',
+    label: lines,
+    kind: look.kind,
+    token: look.token,
+  };
+  if (e.change) out.change = e.change;
+  return out;
 }
 
 export function stateMachineGraph(d: StateMachine, ctx: Ctx): TermGraph {
@@ -128,23 +143,35 @@ export function loopLegend(d: CausalLoop): string[] {
   });
 }
 
+export const changeToken = (change: Change | undefined): Token | undefined =>
+  change === 'added' ? 'added' : change === 'removed' ? 'removed' : undefined;
+
+const roleToken = (role: Role | undefined): Token =>
+  role === 'muted' ? 'muted' : role === 'error' ? 'error' : role === 'focus' ? 'focus-label' : 'label';
+
+function titleLines(node: Node, token: Token, ctx: Ctx): Line[] {
+  const marks = ctx.mark({ type: 'node', id: node.id }).flatMap((m) => [{ text: ' ', token: 'text' as const }, m]);
+  const was = renameOf(node);
+  if (was === undefined) return [[{ text: node.label, token }, ...marks]];
+  return [
+    [{ text: signedText(was, 'removed'), token: 'removed' }],
+    [{ text: signedText(node.label, 'added'), token: 'added' }, ...marks],
+  ];
+}
+
 export function erGraph(d: Er, ctx: Ctx): TermGraph {
   const nodes = d.nodes.map((entity): TermNode => {
     const look = nodeLook(entity.role);
-    const nameW = Math.max(0, ...entity.fields.map((f) => f.name.length));
+    const nameW = Math.max(0, ...entity.fields.map((f) => signedText(f.name, f.change).length));
     const typeW = Math.max(0, ...entity.fields.map((f) => (f.type ?? '').length + (f.nullable ? 1 : 0)));
-    const title: Line = [
-      { text: entity.label, token: look.label === 'label' ? 'title' : look.label },
-      ...ctx.mark({ type: 'node', id: entity.id }).flatMap((m) => [{ text: ' ', token: 'text' as const }, m]),
-    ];
+    const titles = titleLines(entity, look.label === 'label' ? 'title' : look.label, ctx);
     const fields: Line[] = entity.fields.map((f) => {
       const flag = f.primary ? 'key' : f.unique ? 'unique' : '';
       const type = `${f.type ?? ''}${f.nullable ? '?' : ''}`;
-      const token =
-        f.role === 'muted' ? 'muted' : f.role === 'error' ? 'error' : f.role === 'focus' ? 'focus-label' : 'label';
+      const token = changeToken(f.change) ?? roleToken(f.role);
       return [
-        { text: f.name.padEnd(nameW + 2), token },
-        { text: type.padEnd(typeW), token: 'note' },
+        { text: signedText(f.name, f.change).padEnd(nameW + 2), token },
+        { text: type.padEnd(typeW), token: changeToken(f.change) ?? 'note' },
         ...(flag ? [{ text: `  ${flag}`, token: 'tag' as const }] : []),
         ...ctx
           .mark({ type: 'prop', node: entity.id, key: f.name })
@@ -153,10 +180,10 @@ export function erGraph(d: Er, ctx: Ctx): TermGraph {
     });
     const out: TermNode = {
       id: entity.id,
-      lines: [title, ...fields],
+      lines: [...titles, ...fields],
       border: look.border,
       token: look.token,
-      ...(fields.length ? { divider: 0 } : {}),
+      ...(fields.length ? { divider: titles.length - 1 } : {}),
     };
     if (entity.group !== undefined) out.group = entity.group;
     return out;
@@ -184,18 +211,14 @@ export function classGraph(d: ClassDiagram, ctx: Ctx): TermGraph {
   const nodes = d.nodes.map((cls): TermNode => {
     const look = nodeLook(cls.role);
     const tag = cls.kind === 'interface' ? 'interface' : cls.kind === 'abstract' ? 'abstract' : undefined;
-    const title: Line = [
-      { text: cls.label, token: look.label === 'label' ? 'title' : look.label },
-      ...ctx.mark({ type: 'node', id: cls.id }).flatMap((m) => [{ text: ' ', token: 'text' as const }, m]),
-    ];
+    const titles = titleLines(cls, look.label === 'label' ? 'title' : look.label, ctx);
     const fields = cls.members.filter((m) => !m.op);
     const methods = cls.members.filter((m) => m.op);
     const row = (m: (typeof cls.members)[number]): Line => {
-      const token =
-        m.role === 'muted' ? 'muted' : m.role === 'error' ? 'error' : m.role === 'focus' ? 'focus-label' : 'label';
+      const token = changeToken(m.change) ?? roleToken(m.role);
       return [
-        { text: `${m.name}${m.op ? '()' : ''}`, token },
-        { text: m.type ? `  ${m.type}` : '', token: 'note' },
+        { text: signedText(`${m.name}${m.op ? '()' : ''}`, m.change), token },
+        { text: m.type ? `  ${m.type}` : '', token: changeToken(m.change) ?? 'note' },
         ...ctx
           .mark({ type: 'prop', node: cls.id, key: m.name })
           .flatMap((x) => [{ text: ' ', token: 'text' as const }, x]),
@@ -203,10 +226,10 @@ export function classGraph(d: ClassDiagram, ctx: Ctx): TermGraph {
     };
     const out: TermNode = {
       id: cls.id,
-      lines: [title, ...fields.map(row), ...methods.map(row)],
+      lines: [...titles, ...fields.map(row), ...methods.map(row)],
       border: look.border,
       token: look.token,
-      ...(fields.length || methods.length ? { divider: 0 } : {}),
+      ...(fields.length || methods.length ? { divider: titles.length - 1 } : {}),
     };
     if (tag) out.tag = tag;
     if (cls.group !== undefined) out.group = cls.group;

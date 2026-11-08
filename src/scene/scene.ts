@@ -26,4 +26,4 @@ export const attr = (key: string, value: string | number | undefined): Attrs =>
   value === undefined ? [] : [[key, String(value)]];
 
 export const markAttrs = (x: { role?: Role; change?: Change }): Attrs =>
-  x.change ? attr('data-change', x.change) : attr('data-role', x.role);
+  x.change && x.change !== 'changed' ? attr('data-change', x.change) : attr('data-role', x.role);

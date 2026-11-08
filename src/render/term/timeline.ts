@@ -6,6 +6,7 @@ import { wrapLine } from './flow.ts';
 import type { Line, Seg } from './graph.ts';
 import { errorMark, nodeLook, type Markers } from './style.ts';
 import type { Theme, Token } from './theme.ts';
+import { onSide, toneOf, type Side } from './graph.ts';
 
 type Entry =
   | { type: 'event'; node: Moment; time?: string; lane: number }
@@ -32,7 +33,7 @@ const writeLine = (c: Canvas, x: number, y: number, line: Line): void => {
   }
 };
 
-export function drawTimeline(d: Timeline, theme: Theme, mark: Markers, width: number): Canvas {
+export function drawTimeline(d: Timeline, theme: Theme, mark: Markers, width: number, side?: Side): Canvas {
   const ascii = theme.ascii;
   const entries: Entry[] = [];
   const laneOf = (n: Moment): number => n.lane ?? 0;
@@ -86,24 +87,31 @@ export function drawTimeline(d: Timeline, theme: Theme, mark: Markers, width: nu
   const trackX = (l: number): number => timeX + (timeW ? timeW + 2 : 0) + 3 * l;
   const labelX = trackX(lanes - 1) + 3;
   const labelW = Math.max(16, width - labelX);
-  const label = (e: Extract<Entry, { type: 'event' }>): Line[] => {
+  const label = (e: Extract<Entry, { type: 'event' }>, s: Side | undefined): Line[] => {
     const look = nodeLook(e.node.role);
+    const tone = toneOf(e.node.change, s);
     const head: Seg[] =
       e.node.role === 'error'
         ? [{ text: errorMark(theme), token: 'error' }]
         : e.node.role === 'happy'
           ? [{ text: ascii ? '+ ' : '✓ ', token: 'happy' }]
           : [];
-    const token: Token = look.label;
+    const token: Token = tone ?? look.label;
     const marks = mark({ type: 'node', id: e.node.id }).flatMap((m): Seg[] => [{ text: ' ', token: 'text' }, m]);
     const lines = wrapLine([...head, { text: e.node.label, token }, ...marks], labelW);
     if (e.node.note) lines.push(...wrapLine([{ text: e.node.note, token: 'note' }], labelW));
-    for (const edge of d.edges.filter((x) => x.to === e.node.id)) {
+    for (const edge of d.edges.filter((x) => x.to === e.node.id && onSide(x.change, s))) {
       const src = d.nodes.find((n) => n.id === edge.from)?.label ?? edge.from;
       const em = mark({ type: 'edge', index: edge.index }).flatMap((m): Seg[] => [{ text: ' ', token: 'text' }, m]);
       lines.push(
         ...wrapLine(
-          [{ text: `${ascii ? '<-' : '↖'} from “${src}”${edge.label ? `: ${edge.label}` : ''}`, token: 'note' }, ...em],
+          [
+            {
+              text: `${ascii ? '<-' : '↖'} from “${src}”${edge.label ? `: ${edge.label}` : ''}`,
+              token: toneOf(edge.change, s) ?? 'note',
+            },
+            ...em,
+          ],
           labelW,
         ),
       );
@@ -143,6 +151,10 @@ export function drawTimeline(d: Timeline, theme: Theme, mark: Markers, width: nu
       continue;
     }
     if (e.type === 'end') {
+      if (!onSide(e.node.change, side)) {
+        y += 2;
+        continue;
+      }
       c.text(timeX + timeW - cellWidth(e.time), y, e.time, 'note');
       writeLine(c, labelX, y, [{ text: `${ascii ? '' : '└ '}end of “${e.node.label}”`, token: 'note' }]);
       endOf.set(e.node.id, y);
@@ -150,14 +162,20 @@ export function drawTimeline(d: Timeline, theme: Theme, mark: Markers, width: nu
       y += 2;
       continue;
     }
-    const lines = label(e);
+    const lines = label(e, side);
+    const rows = side === undefined ? lines.length : Math.max(lines.length, label(e, undefined).length);
+    if (!onSide(e.node.change, side)) {
+      y += rows + 1;
+      continue;
+    }
+    const tone = toneOf(e.node.change, side);
     const look = nodeLook(e.node.role);
     if (e.time) c.text(timeX + timeW - cellWidth(e.time), y, e.time, 'note');
     c.text(
       trackX(e.lane),
       y,
       ascii ? 'o' : e.node.role === 'focus' ? '◆' : '●',
-      look.token === 'line' ? 'label' : look.token,
+      tone ?? (look.token === 'line' ? 'label' : look.token),
     );
     lines.forEach((line, i) => writeLine(c, labelX, y + i, line));
     rowOf.set(e.node.id, y);
@@ -165,7 +183,7 @@ export function drawTimeline(d: Timeline, theme: Theme, mark: Markers, width: nu
     groupSets.forEach((set, g) => {
       if (set.has(e.node.id)) groupBottom.set(g, y + lines.length - 1);
     });
-    y += lines.length + 1;
+    y += rows + 1;
   }
   for (let l = 0; l < lanes; l++) {
     const top = d.lanes.length ? laneTop : (firstRow.get(l) ?? 0);

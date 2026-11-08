@@ -22,7 +22,9 @@ export type Token =
   | 'focus-label'
   | 'happy'
   | 'error'
-  | 'muted';
+  | 'muted'
+  | 'added'
+  | 'removed';
 
 interface Style {
   fg?: number;
@@ -65,6 +67,8 @@ const DARK: Record<Token, Style> = {
   happy: { bold: true },
   error: { bold: true },
   muted: { fg: 90 },
+  added: { fg: 92 },
+  removed: { fg: 91 },
 };
 
 const LIGHT: Record<Token, Style> = {
@@ -85,6 +89,8 @@ const LIGHT: Record<Token, Style> = {
   'focus-label': { bold: true, fg: 34 },
   happy: { bold: true },
   error: { bold: true },
+  added: { fg: 32 },
+  removed: { fg: 31 },
 };
 
 const sgrOf = (s: Style): string => {
