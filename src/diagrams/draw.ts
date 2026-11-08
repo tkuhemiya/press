@@ -74,11 +74,11 @@ export interface Labelled {
 
 export type EdgeLike = Labelled & { from: string; to: string; arrow: Arrow };
 
-export function edgeItem(e: EdgeLike, p: EdgePath, both: boolean): Item {
+export function edgeItem(e: EdgeLike, p: EdgePath, both: boolean, dashed = true): Item {
   const heads: Item[] = both ? [{ type: 'path', cls: 'pr-head', d: arrowhead(p.sx, p.sy, p.sdx, p.sdy) }] : [];
   return {
     type: 'group',
-    cls: `pr-edge${e.arrow === '-->' ? ' pr-dashed' : ''}`,
+    cls: `pr-edge${dashed && e.arrow === '-->' ? ' pr-dashed' : ''}`,
     attrs: [['data-edge', String(e.index)], ['data-from', e.from], ['data-to', e.to], ...markAttrs(e)],
     items: [
       { type: 'path', cls: 'pr-line', d: p.d },

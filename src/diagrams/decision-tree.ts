@@ -17,6 +17,7 @@ export const DECISION_TREE: DiagramDef<'decision-tree'> = {
       shape: (node) => (outcomes.has(node.id) ? outcomeShape(node) : questionShape(node)),
       first: (node) => node.id === d.root,
       svgClass: 'pr-decision-tree',
+      dashed: false,
     });
   },
   targets: (d) => nodeParts(d.nodes),

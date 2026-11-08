@@ -14,9 +14,8 @@ function fieldInk(role: Role | undefined): Ink {
     case 'focus':
       return { fill: ROLE.focus.fill, stroke: ROLE.focus.line, sw: 2 };
     case 'happy':
-      return { fill: ROLE.happy.fill, stroke: ROLE.happy.line, sw: 2 };
     case 'error':
-      return { fill: ROLE.error.fill, stroke: ROLE.error.line, sw: 2 };
+      return {};
     case 'muted':
       return { stroke: INK.mutedLine, sw: 1.2 };
     case undefined:
@@ -25,7 +24,7 @@ function fieldInk(role: Role | undefined): Ink {
 }
 
 const crowInk = (role: Role | undefined): string =>
-  role === undefined || role === 'muted' ? INK.edge : ROLE[role].line;
+  role === 'focus' ? ROLE.focus.line : role === 'muted' ? INK.mutedLine : INK.edge;
 
 export const er: Rule = (item, ctx) => {
   const { has, within } = look(item, ctx);

@@ -20,21 +20,21 @@
                │      Closed ①      │ ↺ success
                │ calls pass through │
                └───────────┬────────┘
-                           ┃      ▲
-                     ┏━━━━━┛      ┗━━━━━━━┓
-         ✗ failures ≥ threshold ②         ┃
-                     ┃                    ┃
-                     ▼                    ┃
-            ┏━━━━━━━━━━━━━━━━━┓           ┃
-            ┃  ✗ Open ③ [b]   ┃           ┃
-            ┃ calls fail fast ┃   trial succeeds ⑥
-            ┗━━━━━┳━━━━━━━━━━━┛           ┃
-                  │      ▲                ┃
-                  │      ┗━━━━━━┓         ┃
-           ╭──────╯             ┃         ┃
-  cool-down elapsed ④    ✗ trial fails ⑤  ┃
-           ╰─────────────────╮  ┃  ┏━━━━━━┛
-                             ▼  ┃  ┃
+                           │      ▲
+                     ╭─────╯      ╰───────╮
+         ✗ failures ≥ threshold ②         │
+                     │                    │
+                     ▼                    │
+            ┌─────────────────┐           │
+            │  ✗ Open ③ [b]   │           │
+            │ calls fail fast │   trial succeeds ⑥
+            └─────┬───────────┘           │
+                  │      ▲                │
+                  │      ╰──────╮         │
+           ╭──────╯             │         │
+  cool-down elapsed ④    ✗ trial fails ⑤  │
+           ╰─────────────────╮  │  ╭──────╯
+                             ▼  │  │
                        ╔════════╩══╩════╗
                        ║ Half-open [a]  ║
                        ║ one trial call ║
@@ -68,8 +68,8 @@
          ┊  ✗ fail fast ③   ┊                  ┊
          ┊◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤                  ┊
          ┊                  ┊                  ┊
-         ├━━┓ use cached stock level ④         ┊
-         ┊◀━┛               ┊                  ┊
+         ├──╮ use cached stock level ④         ┊
+         ┊◀─╯               ┊                  ┊
          ┊                  ┊                  ┊
 
   ① Checkout asks to reserve an item.

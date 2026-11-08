@@ -32,16 +32,16 @@
                     │ Slow or costly to │  │ Cache, and invalidate on │
                     │     compute?      │  │        write [b]         │
                     └────┬────────┬─────┘  │   harder than it looks   │
-                         │        ╎        ╰──────────────────────────╯
-                         │        ╎
-               ╭─────────╯        ╰╌╌╌╌╌╌╌╌╌╌╮
+                         │        │        ╰──────────────────────────╯
+                         │        │
+               ╭─────────╯        ╰──────────╮
              yes ③                         no ④
-               │                             ╎
+               │                             │
                ▼                             ▼
-  ┏━━━━━━━━━━━━━━━━━━━━━━━━┓    ╔═════════════════════════╗
-  ┃ Cache it, with a short ┃    ║ Fix the query first [a] ║
-  ┃          TTL           ┃    ╚═════════════════════════╝
-  ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ┌────────────────────────┐    ╔═════════════════════════╗
+  │ Cache it, with a short │    ║ Fix the query first [a] ║
+  │          TTL           │    ╚═════════════════════════╝
+  └────────────────────────┘
 
   ① A cache only pays when the same answer is read many times.
   ② Every cache serves stale data for a while; the product has to allow it.
@@ -50,7 +50,7 @@
   ④ If the computation is cheap, the slowness is somewhere else. Find it
      first.
 
-  The rarest branch is fixing the query[a]: it is dashed because it is the
-  answer people least expect, and the one that most often turns out right. If
-  readers must never see stale data, invalidating on write[b] works, but every
-  write path then has to remember the cache.
+  The rarest branch is fixing the query[a]: the one people least expect, and the
+  one that most often turns out right. If readers must never see stale data,
+  invalidating on write[b] works, but every write path then has to remember the
+  cache.

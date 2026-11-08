@@ -25,9 +25,9 @@ export function graph(item: Leaf, ctx: Context): Mark {
       if (has('pr-elabel-plate')) return { ...box, fill: within('pr-on-group') ? groupFill(within) : INK.paper };
       if (within('pr-group')) return { ...box, fill: groupFill(within), stroke: INK.groupLine, sw: 1 };
       if (within('pr-glyph')) return { ...box, ...GLYPH_LINE };
-      if (has('pr-store-fill')) return { ...box, fill: nodeBox(role, false).fill };
+      if (has('pr-store-fill')) return { ...box, fill: nodeBox(role).fill };
       const faint = has('pr-faint') && !role ? { fill: INK.groupFill } : {};
-      return { ...box, ...nodeBox(role, has('pr-outcome')), ...faint, ...(has('pr-external') ? DASH : {}) };
+      return { ...box, ...nodeBox(role), ...faint, ...(has('pr-external') ? DASH : {}) };
     }
     case 'circle': {
       const dot = { k: 'circle' as const, cx: item.cx, cy: item.cy, r: item.r };
@@ -56,12 +56,12 @@ export function graph(item: Leaf, ctx: Context): Mark {
     case 'path': {
       const segs = parsePath(item.d);
       if (within('pr-glyph')) return { k: 'path', segs, ...GLYPH_LINE };
-      if (has('pr-box')) return { k: 'path', segs, ...nodeBox(role, false) };
+      if (has('pr-box')) return { k: 'path', segs, ...nodeBox(role) };
       if (has('pr-box-detail')) return { k: 'path', segs, stroke: INK.nodeLine, sw: 1.2 };
-      const colour = role ? ROLE[role].line : INK.edge;
+      const colour = role === 'focus' ? ROLE.focus.line : role === 'muted' ? INK.mutedLine : INK.edge;
       if (has('pr-head')) return { k: 'path', segs, fill: colour };
       const dashed = within('pr-dashed');
-      const sw = role === 'focus' ? 2.2 : role === 'happy' || role === 'error' ? 2 : 1.4;
+      const sw = role === 'focus' ? 2.2 : 1.4;
       return {
         k: 'path',
         segs,

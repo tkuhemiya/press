@@ -5,19 +5,13 @@ import { linesMark, look, parsePath, type Rule } from '../marks.ts';
 const LINE_BOX: Record<Role | 'none', { fill?: string; stroke?: string; sw?: number }> = {
   none: {},
   focus: { fill: ROLE.focus.fill, stroke: ROLE.focus.line, sw: 2 },
-  happy: { fill: ROLE.happy.fill, stroke: ROLE.happy.line, sw: 2 },
-  error: { fill: ROLE.error.fill, stroke: ROLE.error.line, sw: 2 },
+  happy: {},
+  error: {},
   muted: { stroke: INK.mutedLine, sw: 1.2 },
 };
 
 const markInk = (role: Role | undefined): string =>
-  role === 'error'
-    ? ROLE.error.line
-    : role === 'happy'
-      ? ROLE.happy.line
-      : role === 'focus'
-        ? ROLE.focus.line
-        : INK.ink2;
+  role === 'focus' ? ROLE.focus.line : role === 'muted' ? INK.mutedInk : INK.ink2;
 
 export const dependency: Rule = (item, ctx) => {
   const { has, within } = look(item, ctx);
@@ -28,7 +22,7 @@ export const dependency: Rule = (item, ctx) => {
     if (within('pr-band'))
       return { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, fill: INK.groupFill };
     if (has('pr-cycle-box'))
-      return { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, stroke: ROLE.error.line, sw: 1.6 };
+      return { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, stroke: INK.ink, sw: 1.6 };
     if (has('pr-line-box'))
       return { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, ...LINE_BOX[key] };
     if (has('pr-mark')) {
@@ -38,10 +32,6 @@ export const dependency: Rule = (item, ctx) => {
         : { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, fill: ink };
     }
     if (has('pr-cell-box')) {
-      if (key === 'error')
-        return { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, fill: ROLE.error.fill };
-      if (key === 'happy')
-        return { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, fill: ROLE.happy.fill };
       if (key === 'focus')
         return { k: 'rect', x: item.x, y: item.y, w: item.w, h: item.h, r: item.r, fill: ROLE.focus.fill };
       return undefined;

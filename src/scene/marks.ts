@@ -148,17 +148,16 @@ export function linesMark(
   return { k: 'text', x: item.x, y: top + 0.35 * style.size, lines: item.lines, lh: item.lineHeight, anchor, ...style };
 }
 
-export function nodeBox(role: Role | undefined, outcome: boolean): { fill: string; stroke: string; sw: number } {
-  const base = { fill: outcome ? INK.groupFill : INK.nodeFill, stroke: INK.nodeLine, sw: outcome ? 1.6 : 1.2 };
-  if (role === 'focus' || role === 'happy' || role === 'error')
-    return { fill: ROLE[role].fill, stroke: ROLE[role].line, sw: 2 };
+export function nodeBox(role: Role | undefined): { fill: string; stroke: string; sw: number } {
+  const base = { fill: INK.nodeFill, stroke: INK.nodeLine, sw: 1.2 };
+  if (role === 'focus') return { fill: ROLE.focus.fill, stroke: ROLE.focus.line, sw: 2 };
   if (role === 'muted') return { ...base, stroke: INK.mutedLine };
   return base;
 }
 
 export function edgeLabel(role: Role | undefined): { size: number; weight: number; fill: string } {
   if (role === 'muted') return { size: 12.5, weight: 400, fill: INK.mutedInk };
-  if (role) return { size: 12.5, weight: 500, fill: ROLE[role].line };
+  if (role === 'focus') return { size: 12.5, weight: 500, fill: ROLE.focus.line };
   return { size: 12.5, weight: 400, fill: INK.ink2 };
 }
 

@@ -63,7 +63,7 @@ group "Name" { ... }           nesting
 | `happy` | The intended / success path      |
 | `muted` | Present for context, not central |
 
-Green and red are reserved for diffs. `happy` and `error` share one quiet ink treatment so they do not compete with change. `focus` is a blue ring; `muted` is a faint line.
+Green and red are reserved for diffs. `happy` and `error` look like ordinary nodes, so they do not add colour. `focus` is a blue ring; `muted` is a faint line.
 
 ### Properties
 
@@ -174,7 +174,7 @@ Small multiples (several frames) are allowed only when the author asks for them 
 
 - **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off. A call stack too wide for its frames prints as an indented trace of its calls and returns, and a memory layout lists its pointers under its blocks.
 - **Steps and references work as on paper.** Steps become numbered markers (①) on the figure with the captions as a legend below it, and prose references become letters ([a]) in both the prose and the figure.
-- **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Green and red are for diffs, not for roles.
+- **Roles show without colour.** `focus` draws a double border, `muted` a dotted line. `happy` and `error` look like ordinary nodes. Green and red are for diffs.
 - **Dark by default.** Terminals are usually dark, so colours are chosen for a dark background; `--theme light` is for light terminals. When the output is not a terminal, or `NO_COLOR` is set, it is plain text. `--ascii` draws with ASCII only.
 
 ## Diagram types in v0.1
@@ -364,8 +364,8 @@ Questions, the answers that branch from them, and the outcomes they lead to. Edg
 - There is exactly one root, the node nothing leads to. Two roots is an error that names both.
 - Branches may rejoin (two answers can lead to the same outcome), but a path may not loop back: that is an error that suggests a `state-machine`.
 - Every edge from a question with more than one answer needs a label. A missing one is an error, since the reader cannot tell the branches apart.
-- `-->` marks a weaker or rarer branch and draws dashed. `<->` is an error.
-- Roles mark the outcomes: `{role=happy}` for the recommended one, `{role=error}` for one to avoid. `steps` walk one path from the root.
+- `<->` is an error. Branches are all the same solid edge; a rarer answer is still just an answer.
+- `{role=focus}` marks the outcome to look at. `{role=happy}` and `{role=error}` are for the author, not a second colour. `steps` walk one path from the root.
 
 ```decision-tree id=cache title="Should this be cached?"
 reads: "Read far more than written?"
@@ -380,7 +380,7 @@ reads -> skip : no
 stale -> cost : yes
 stale -> skip : no
 cost -> cache : yes
-cost --> fix : no
+cost -> fix : no
 
 steps:
   reads -> stale   "Caching only pays when reads dominate."

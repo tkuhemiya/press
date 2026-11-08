@@ -52,9 +52,9 @@
             ╎ charge(card)                  ╎ ╎
             ╰╌╌╌╌╌╌┬╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯ ╎
                    ▼ ①                        ╎
-                 ┏━┻━━━━━━━━━━━━━━━━━━━━━━━━┓ ╎
-                 ┃ fetch(stripe)  → Timeout ┣╌╯
-                 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                 ┌─┴────────────────────────┐ ╎
+                 │ fetch(stripe)  → Timeout ├╌╯
+                 └──────────────────────────┘
 
   ① The charge waits on the network.
   ② The request times out. charge and saveOrder never finish; only handle

@@ -8,15 +8,15 @@ const STEM: Stroke = { stroke: INK.nodeLine, sw: 1.2 };
 const GRID: Stroke = { stroke: INK.rule, sw: 1, dash: [2, 4] };
 
 const dotPaint = (role: Role | undefined): { fill: string } & Stroke => {
-  if (role === undefined) return { fill: INK.paper, stroke: INK.ink2, sw: 1.6 };
+  if (role === 'focus') return { fill: ROLE.focus.line, stroke: ROLE.focus.line, sw: 1.6 };
   if (role === 'muted') return { fill: INK.paper, stroke: INK.mutedLine, sw: 1.6 };
-  return { fill: ROLE[role].line, stroke: ROLE[role].line, sw: 1.6 };
+  return { fill: INK.paper, stroke: INK.ink2, sw: 1.6 };
 };
 
 const spanPaint = (role: Role | undefined): { fill: string } & Stroke => {
-  if (role === undefined) return { fill: INK.nodeLine };
+  if (role === 'focus') return { fill: ROLE.focus.line, stroke: ROLE.focus.line, sw: 1 };
   if (role === 'muted') return { fill: INK.mutedLine };
-  return { fill: ROLE[role].line, stroke: ROLE[role].line, sw: 1 };
+  return { fill: INK.nodeLine };
 };
 
 export const timeline: Rule = (item: Leaf, ctx: Context): Mark | undefined => {

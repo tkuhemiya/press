@@ -18,7 +18,7 @@ reads -> skip : no
 stale -> cost : yes
 stale -> invalidate : no
 cost -> cache : yes
-cost --> fix : no
+cost -> fix : no
 
 steps:
   reads -> stale   "A cache only pays when the same answer is read many times."
@@ -27,7 +27,7 @@ steps:
   cost -> fix      "If the computation is cheap, the slowness is somewhere else. Find it first."
 ```
 
-The rarest branch is [fixing the query](#cache.fix): it is dashed because it is the answer
-people least expect, and the one that most often turns out right. If readers must never see
-stale data, [invalidating on write](#cache.invalidate) works, but every write path then has
-to remember the cache.
+The rarest branch is [fixing the query](#cache.fix): the one people least expect, and the
+one that most often turns out right. If readers must never see stale data,
+[invalidating on write](#cache.invalidate) works, but every write path then has to remember
+the cache.

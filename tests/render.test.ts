@@ -225,7 +225,7 @@ waiting -> end
     expect(svg).toMatch(/class="pr-svg pr-decision-tree[" ]/);
     expect(count(svg, /class="pr-box pr-question"/g)).toBe(3);
     expect(count(svg, /class="pr-box pr-outcome"/g)).toBe(4);
-    expect(count(svg, /class="pr-edge pr-dashed"/g)).toBe(1);
+    expect(count(svg, /class="pr-edge pr-dashed"/g)).toBe(0);
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 

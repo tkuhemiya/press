@@ -18,10 +18,10 @@
 
   --focus: #2f5bd3;
   --focus-fill: #eef2fd;
-  --happy: #22211e;
-  --happy-fill: #efe9d8;
-  --error: #22211e;
-  --error-fill: #efe9d8;
+  --happy: var(--node-line);
+  --happy-fill: var(--node-fill);
+  --error: var(--node-line);
+  --error-fill: var(--node-fill);
   --added: #1a7f4c;
   --added-fill: #e6f5ec;
   --removed: #c0392b;
@@ -230,23 +230,6 @@ th {
   text-transform: uppercase;
   color: var(--ink-3);
   margin: 0 0 8px;
-}
-.pr-pane[data-side='before'] {
-  --fig-bg: #f8eeec;
-}
-.pr-pane[data-side='after'] {
-  --fig-bg: #eef6f1;
-}
-.pr-pane[data-side='before'] .pr-pane-label {
-  color: var(--removed);
-}
-.pr-pane[data-side='after'] .pr-pane-label {
-  color: var(--added);
-}
-.pr-pane .pr-canvas {
-  background: var(--fig-bg);
-  border-radius: 10px;
-  padding: 8px 4px;
 }
 @media (max-width: 720px) {
   .pr-diff {
@@ -511,16 +494,6 @@ th {
   fill: var(--focus);
   stroke: var(--focus);
 }
-.pr-node[data-role='happy'] .pr-event-dot,
-.pr-node[data-role='error'] .pr-event-dot {
-  fill: var(--happy-fill);
-  stroke: var(--ink);
-  stroke-width: 2;
-}
-.pr-node[data-role='happy'] .pr-span,
-.pr-node[data-role='error'] .pr-span {
-  fill: var(--ink);
-}
 .pr-node[data-role='muted'] .pr-event-dot {
   stroke: var(--muted-line);
 }
@@ -565,19 +538,12 @@ th {
 .pr-edge-label[data-role='focus'] .pr-polarity {
   fill: var(--focus);
 }
-.pr-edge-label[data-role='happy'] .pr-polarity {
-  fill: var(--happy);
-}
-.pr-edge-label[data-role='error'] .pr-polarity {
-  fill: var(--error);
-}
 .pr-edge-label[data-role='muted'] .pr-polarity {
   fill: var(--muted-ink);
 }
 
 .pr-outcome {
-  fill: var(--group-fill);
-  stroke-width: 1.6;
+  fill: var(--node-fill);
 }
 
 .pr-rule {
@@ -632,17 +598,6 @@ th {
 .pr-tradeoffs .pr-cell-box {
   fill: none;
   stroke: none;
-}
-.pr-tradeoffs .pr-cell[data-role='happy'] .pr-cell-box {
-  fill: var(--happy-fill);
-  stroke: none;
-}
-.pr-tradeoffs .pr-cell[data-role='error'] .pr-cell-box {
-  fill: var(--error-fill);
-  stroke: none;
-}
-.pr-tradeoffs .pr-cell[data-role='error'] .pr-value {
-  fill: var(--error);
 }
 .pr-tradeoffs .pr-cell[data-role='muted'] .pr-value {
   fill: var(--muted-ink);
@@ -712,12 +667,6 @@ th {
 .pr-er .pr-field[data-role='focus'] .pr-field-box {
   fill: var(--focus-fill);
 }
-.pr-er .pr-field[data-role='error'] .pr-field-box {
-  fill: var(--error-fill);
-}
-.pr-er .pr-field[data-role='happy'] .pr-field-box {
-  fill: var(--happy-fill);
-}
 .pr-er .pr-field[data-role='muted'] .pr-field-name {
   fill: var(--muted-ink);
 }
@@ -727,15 +676,6 @@ th {
 .pr-edge[data-role='focus'] .pr-crow-ring {
   stroke: var(--focus);
 }
-.pr-edge[data-role='error'] .pr-crow,
-.pr-edge[data-role='error'] .pr-crow-ring {
-  stroke: var(--error);
-}
-.pr-edge[data-role='happy'] .pr-crow,
-.pr-edge[data-role='happy'] .pr-crow-ring {
-  stroke: var(--happy);
-}
-
 .pr-class-head {
   fill: var(--group-fill);
 }
@@ -784,12 +724,6 @@ th {
 .pr-class .pr-member[data-role='focus'] .pr-member-box {
   fill: var(--focus-fill);
 }
-.pr-class .pr-member[data-role='error'] .pr-member-box {
-  fill: var(--error-fill);
-}
-.pr-class .pr-member[data-role='happy'] .pr-member-box {
-  fill: var(--happy-fill);
-}
 .pr-class .pr-member[data-role='muted'] .pr-member-name {
   fill: var(--muted-ink);
 }
@@ -800,21 +734,6 @@ th {
 .pr-edge[data-role='focus'] .pr-diamond {
   fill: var(--focus);
 }
-.pr-edge[data-role='error'] .pr-gen,
-.pr-edge[data-role='error'] .pr-diamond {
-  stroke: var(--error);
-}
-.pr-edge[data-role='error'] .pr-diamond {
-  fill: var(--error);
-}
-.pr-edge[data-role='happy'] .pr-gen,
-.pr-edge[data-role='happy'] .pr-diamond {
-  stroke: var(--happy);
-}
-.pr-edge[data-role='happy'] .pr-diamond {
-  fill: var(--happy);
-}
-
 .pr-dependency .pr-line-box {
   fill: none;
   stroke: none;
@@ -830,22 +749,6 @@ th {
   fill: none;
   stroke: var(--ink-2);
   stroke-width: 1.5;
-}
-.pr-dependency .pr-cell[data-role='error'] .pr-cell-box {
-  fill: var(--error-fill);
-}
-.pr-dependency .pr-cell[data-role='error'] .pr-mark {
-  fill: var(--error);
-}
-.pr-dependency .pr-cell[data-role='error'] .pr-mark.pr-weak {
-  fill: none;
-  stroke: var(--error);
-}
-.pr-dependency .pr-cell[data-role='happy'] .pr-cell-box {
-  fill: var(--happy-fill);
-}
-.pr-dependency .pr-cell[data-role='happy'] .pr-mark {
-  fill: var(--happy);
 }
 .pr-dependency .pr-cell[data-role='focus'] .pr-cell-box {
   fill: var(--focus-fill);
@@ -870,16 +773,6 @@ th {
 .pr-node[data-role='focus'] .pr-store-fill {
   fill: var(--focus-fill);
 }
-.pr-node[data-role='happy'] .pr-store-fill,
-.pr-node[data-role='error'] .pr-store-fill {
-  fill: var(--happy-fill);
-}
-.pr-node[data-role='happy'] .pr-box,
-.pr-node[data-role='error'] .pr-box {
-  stroke: var(--ink);
-  fill: var(--happy-fill);
-  stroke-width: 2;
-}
 .pr-node[data-role='muted'] .pr-box {
   stroke: var(--muted-line);
 }
@@ -896,15 +789,6 @@ th {
 .pr-edge[data-role='focus'] .pr-head {
   fill: var(--focus);
 }
-.pr-edge[data-role='happy'] .pr-line,
-.pr-edge[data-role='error'] .pr-line {
-  stroke: var(--ink);
-  stroke-width: 2;
-}
-.pr-edge[data-role='happy'] .pr-head,
-.pr-edge[data-role='error'] .pr-head {
-  fill: var(--ink);
-}
 .pr-edge[data-role='muted'] .pr-line {
   stroke: var(--muted-line);
 }
@@ -913,14 +797,6 @@ th {
 }
 .pr-edge-label[data-role='focus'] .pr-elabel {
   fill: var(--focus);
-  font-weight: 500;
-}
-.pr-edge-label[data-role='happy'] .pr-elabel {
-  fill: var(--happy);
-  font-weight: 500;
-}
-.pr-edge-label[data-role='error'] .pr-elabel {
-  fill: var(--error);
   font-weight: 500;
 }
 .pr-edge-label[data-role='muted'] .pr-elabel {
@@ -1234,12 +1110,6 @@ a.pr-ref {
   text-decoration-thickness: 1.5px;
   text-decoration-color: var(--signal);
   cursor: pointer;
-}
-a.pr-ref[data-role='error'] {
-  text-decoration-color: var(--error);
-}
-a.pr-ref[data-role='happy'] {
-  text-decoration-color: var(--happy);
 }
 a.pr-ref:hover,
 a.pr-ref:focus-visible {
