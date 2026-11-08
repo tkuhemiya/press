@@ -23,13 +23,13 @@ interface RoleInk {
 
 export const ROLE: Record<Role, RoleInk> = {
   focus: { line: '#2f5bd3', fill: '#eef2fd' },
-  happy: { line: '#2c7a4b', fill: '#ecf5ef' },
-  error: { line: '#c03a2b', fill: '#fcefed' },
+  happy: { line: INK.ink, fill: '#efe9d8' },
+  error: { line: INK.ink, fill: '#faf8f3' },
   muted: { line: INK.mutedLine, fill: INK.nodeFill },
 };
 
 export const CHANGE: Record<Change, RoleInk> = {
-  added: ROLE.happy,
-  removed: ROLE.error,
+  added: { line: '#1a7f4c', fill: '#e6f5ec' },
+  removed: { line: '#c0392b', fill: '#fbeceb' },
   changed: { line: '#9a6700', fill: '#fbf4e2' },
 };

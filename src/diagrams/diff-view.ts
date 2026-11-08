@@ -1,7 +1,7 @@
 import type { Change, Diagram, DiagramType, Role } from '../model.ts';
 import { trusted } from '../brand.ts';
 import { attr, type Attrs, type Item, type Scene } from '../scene/scene.ts';
-import { changeIn, roleIn } from '../scene/marks.ts';
+import { changeIn } from '../scene/marks.ts';
 import { paintSvg } from '../scene/svg.ts';
 import type { Rendered } from './diagram.ts';
 
@@ -34,7 +34,7 @@ interface Lookup {
 
 export const splitsOnScreen = (d: Diagram): boolean => SPLIT.has(d.type) && hasChanges(d);
 
-export function hasChanges(d: Diagram): boolean {
+function hasChanges(d: Diagram): boolean {
   const { nodes, edges } = lookup(d);
   return [...nodes.values(), ...edges.values()].some((m) => m.change !== undefined);
 }
@@ -136,14 +136,16 @@ function retouch(
 }
 
 function restyle(attrs: Attrs | undefined, side: DiffSide, names: Lookup, change: Change | undefined): Attrs {
-  const kept = (attrs ?? []).filter(([k]) => k !== 'data-change' && (k !== 'id' || keepId(change, side)));
-  if (roleIn(kept)) return kept;
+  const kept = (attrs ?? []).filter(
+    ([k]) => k !== 'data-change' && k !== 'data-role' && (k !== 'id' || keepId(change, side)),
+  );
+  const paint: Change | undefined = change === 'changed' ? (side === 'before' ? 'removed' : 'added') : change;
   const node = kept.find(([k]) => k === 'data-node')?.[1];
   const edge = kept.find(([k]) => k === 'data-edge')?.[1];
   const role =
     (node === undefined ? undefined : names.nodes.get(node)?.role) ??
     (edge === undefined ? undefined : names.edges.get(edge)?.role);
-  return [...kept, ...attr('data-role', role)];
+  return [...kept, ...attr('data-change', paint), ...attr('data-role', role)];
 }
 
 function relabel(item: Item, text: string): Item {

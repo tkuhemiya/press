@@ -93,8 +93,11 @@ describe('sequence drawing', () => {
     expect(before).toContain('data-edge="2"');
     expect(after).not.toContain('data-edge="2"');
     expect(tagOf(before, 'class="pr-edge[ "]', 'data-edge="0"')).toContain('data-from="a" data-to="b"');
-    expect(before).not.toContain('data-change');
-    expect(after).not.toContain('data-change');
+    expect(before).toContain('data-change="removed"');
+    expect(after).toContain('data-change="added"');
+    expect(tagOf(after, 'class="pr-edge[ "]', 'data-edge="1"')).toContain('data-change="added"');
+    expect(tagOf(before, 'class="pr-edge[ "]', 'data-edge="2"')).toContain('data-change="removed"');
+    expect(tagOf(before, 'class="pr-edge[ "]', 'data-edge="0"')).not.toContain('data-change');
   });
 
   it('puts added participants, groups and phases on after, removed on before', () => {
@@ -120,6 +123,7 @@ describe('sequence drawing', () => {
     expect(before).not.toContain('Checkout API');
     expect(after).toContain('Checkout API');
     expect(after).not.toContain('Orders API');
+    expect(tagOf(after, 'class="pr-edge[ "]', 'data-edge="0"')).toContain('data-change="added"');
     expect(tagOf(after, 'class="pr-edge[ "]', 'data-edge="0"')).toContain('data-role="error"');
   });
 

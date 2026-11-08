@@ -62,11 +62,15 @@ describe('timeline diff marks', () => {
     expect(before).not.toContain('v2.2');
     expect(after).toContain('Roll back to v2.2');
     expect(opening(after, 'data-node="rollback"')).toMatch(/ id="[^"]*-node-rollback"/);
+    expect(opening(before, 'data-node="rollback"')).toContain('data-change="removed"');
+    expect(opening(after, 'data-node="rollback"')).toContain('data-change="added"');
     expect(opening(after, 'data-node="rollback"')).toContain('data-role="error"');
     expect(before).toContain('data-node="page"');
     expect(after).not.toContain('data-node="page"');
     expect(after).toContain('data-node="recovered"');
     expect(before).not.toContain('data-node="recovered"');
+    expect(opening(after, 'data-node="recovered"')).toContain('data-change="added"');
+    expect(opening(before, 'data-node="page"')).toContain('data-change="removed"');
     expect(opening(before, 'data-node="deploy"')).not.toContain('data-change');
     expect(opening(before, 'data-node="alerts"')).toContain('data-role="error"');
   });

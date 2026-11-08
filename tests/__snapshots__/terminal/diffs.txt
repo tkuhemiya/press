@@ -5,10 +5,12 @@
   A diagram can show a change. Mark each line that changed with + if it exists
   after the change, or - if it existed before. Unmarked lines are the same on
   both sides. On screen, a structural diff is two aligned panels from one
-  layout: Before and After, each a real diagram. Types that edit in place, and
-  print, keep one overlay: added things green, removed things red and dashed,
-  changed things amber with the old value in a note. Overlay labels also start
-  with +, − or ~, so a diff still reads in black and white and in the terminal.
+  layout: Before and After, painted like a git diff (removed red on the left,
+  added green on the right). Types that edit in place, and print, keep one
+  overlay: added things green, removed things red and dashed, changed things
+  amber with the old value in a note. Overlay labels also start with +, − or ~,
+  so a diff still reads in black and white and in the terminal. Roles keep their
+  marks (a check, a hatch) but not green or red — those colours mean change.
   Every diagram type takes the same marks.
 
   ## Order lifecycle, with a fraud check
@@ -35,23 +37,23 @@
                           ┌───────────┐                                 │
                           │ submitted │                                 │
                           └──┬─┬─┬────┘                                 │
-                             ┃ │ │ ▲                                    │
-                             ┃ │ │ ╰───────────────────────╮            │
-                             ┃ │ │                         │            │
-                             ┃ │ │                         │            │
-        ┏━━━━━━━━━━━━━━━━━━━━┛ │ │                         │            │
-        ┃                      │ │                         │            │
-        ┃               ╭──────╯ │                         │            │
-        ┃        + needs review  │                         │            │
-        ┃               │        │                         │            │
-        ┃               ▼        │                         │            │
-        ┃         ┌──────────┐   ╰──────────╮              │            │
+                             ┃ │ ┊ ▲                                    │
+                             ┃ │ ┊ ╰───────────────────────╮            │
+                             ┃ │ ┊                         │            │
+                             ┃ │ ┊                         │            │
+        ┏━━━━━━━━━━━━━━━━━━━━┛ │ ┊                         │            │
+        ┃                      │ ┊                         │            │
+        ┃               ╭──────╯ ┊                         │            │
+        ┃        + needs review  ┊                         │            │
+        ┃               │        ┊                         │            │
+        ┃               ▼        ┊                         │            │
+        ┃         ┌──────────┐   ╰┈┈┈┈┈┈┈┈┈┈╮              │            │
   − payment ok    │ + review │       ✗ card declined    − retry    + edit cart
-        ┃         └────┬─┬───┘              │        ╭─────┼────────────╯
-        ┃              ┃ │                  │        │     │
-        ┃      ┏━━━━━━━┛ ╰────╮             ╰─────╮  │     │
-        ┃ + approved    ✗ + rejected              │  │     │
-        ┃ ┏━━━━┛              ╰─────────────────╮ │ ╭┼─────╯
+        ┃         └────┬─┬───┘              ┊        ╭─────┼────────────╯
+        ┃              ┃ ┊                  ┊        │     │
+        ┃      ┏━━━━━━━┛ ╰┈┈┈┈╮             ╰┈┈┈┈┈╮  │     │
+        ┃ + approved    ✗ + rejected              ┊  │     │
+        ┃ ┏━━━━┛              ╰┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈╮ ┊ ╭┼─────╯
         ▼ ▼                                     ▼ ▼ ││
       ┌──────┐                                ┌─────┴┴─┐
       │ paid │                                │ failed │
@@ -526,12 +528,12 @@
                 ╭────╯│ + Needs strict │    │   │
               − yes   │   freshness?   │   no   │
                 │     └─────┬───┬──────┘    │   │
-                │           │   │           │   │
-                │           │   │           │   │
-                │   ╭───────╯   │           │   │
+                │           │   ┊           │   │
+                │           │   ┊           │   │
+                │   ╭───────╯   ┊           │   │
                 │ + no       ✗ + yes        │   │
-                │   │           │           │   │
-                ▼   ▼           ╰─────────╮ │   │
+                │   │           ┊           │   │
+                ▼   ▼           ╰┈┈┈┈┈┈┈┈┈╮ │   │
          ┌───────────────────┐            ▼ ▼   ▼
          │ Slow or costly to │       ╭─────────────╮
          │     compute?      │       │ Don't cache │

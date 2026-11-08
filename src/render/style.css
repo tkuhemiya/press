@@ -18,10 +18,16 @@
 
   --focus: #2f5bd3;
   --focus-fill: #eef2fd;
-  --happy: #2c7a4b;
-  --happy-fill: #ecf5ef;
-  --error: #c03a2b;
-  --error-fill: #fcefed;
+  --happy: #22211e;
+  --happy-fill: #efe9d8;
+  --error: #22211e;
+  --error-fill: #faf8f3;
+  --added: #1a7f4c;
+  --added-fill: #e6f5ec;
+  --removed: #c0392b;
+  --removed-fill: #fbeceb;
+  --fail: #c0392b;
+  --fail-fill: #fcefed;
   --muted-line: #dcd8ce;
   --muted-ink: #aaa59a;
   --changed: #9a6700;
@@ -225,6 +231,23 @@ th {
   color: var(--ink-3);
   margin: 0 0 8px;
 }
+.pr-pane[data-side='before'] {
+  --fig-bg: #f8eeec;
+}
+.pr-pane[data-side='after'] {
+  --fig-bg: #eef6f1;
+}
+.pr-pane[data-side='before'] .pr-pane-label {
+  color: var(--removed);
+}
+.pr-pane[data-side='after'] .pr-pane-label {
+  color: var(--added);
+}
+.pr-pane .pr-canvas {
+  background: var(--fig-bg);
+  border-radius: 10px;
+  padding: 8px 4px;
+}
 @media (max-width: 720px) {
   .pr-diff {
     grid-template-columns: 1fr;
@@ -388,9 +411,16 @@ th {
   fill: var(--ink-2);
 }
 .pr-hatch {
-  stroke: var(--error);
+  stroke: var(--ink);
   stroke-width: 1.4;
-  opacity: 0.16;
+  opacity: 0.2;
+}
+.pr-mark-ok {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .pr-step-marker,
 .pr-ref-marker {
@@ -488,15 +518,20 @@ th {
   fill: var(--focus);
   stroke: var(--focus);
 }
-.pr-node[data-role='happy'] .pr-event-dot,
-.pr-node[data-role='happy'] .pr-span {
-  fill: var(--happy);
-  stroke: var(--happy);
+.pr-node[data-role='happy'] .pr-event-dot {
+  fill: var(--happy-fill);
+  stroke: var(--ink);
+  stroke-width: 2;
 }
-.pr-node[data-role='error'] .pr-event-dot,
+.pr-node[data-role='happy'] .pr-span {
+  fill: var(--ink);
+}
+.pr-node[data-role='error'] .pr-event-dot {
+  fill: var(--card);
+  stroke: var(--ink);
+}
 .pr-node[data-role='error'] .pr-span {
-  fill: var(--error);
-  stroke: var(--error);
+  fill: var(--ink-3);
 }
 .pr-node[data-role='muted'] .pr-event-dot {
   stroke: var(--muted-line);
@@ -578,7 +613,7 @@ th {
   fill: var(--ink-3);
 }
 .pr-good {
-  fill: var(--happy);
+  fill: var(--ink);
 }
 .pr-caveat {
   fill: none;
@@ -835,7 +870,7 @@ th {
 }
 .pr-cycle-box {
   fill: none;
-  stroke: var(--error);
+  stroke: var(--ink);
   stroke-width: 1.6;
 }
 
@@ -889,6 +924,8 @@ th {
 .pr-edge[data-role='error'] .pr-line {
   stroke: var(--error);
   stroke-width: 1.6;
+  stroke-dasharray: 1.6 2.4;
+  stroke-linecap: round;
 }
 .pr-edge[data-role='error'] .pr-head {
   fill: var(--error);
@@ -916,12 +953,12 @@ th {
 }
 
 [data-change='added'] {
-  --change: var(--happy);
-  --change-fill: var(--happy-fill);
+  --change: var(--added);
+  --change-fill: var(--added-fill);
 }
 [data-change='removed'] {
-  --change: var(--error);
-  --change-fill: var(--error-fill);
+  --change: var(--removed);
+  --change-fill: var(--removed-fill);
 }
 [data-change='changed'] {
   --change: var(--changed);
@@ -937,7 +974,7 @@ th {
   stroke: var(--change);
   stroke-width: 1.6;
 }
-.pr-svg [data-change] path:not(.pr-head):not(.pr-loop-head):not(.pr-entity-head),
+.pr-svg [data-change] path:not(.pr-head):not(.pr-loop-head):not(.pr-entity-head):not(.pr-mark-ok),
 .pr-svg [data-change] line {
   stroke: var(--change);
 }
@@ -966,7 +1003,7 @@ th {
 .pr-svg [data-change] text {
   fill: var(--change);
 }
-.pr-svg [data-change='removed'] :is(rect, path):not(.pr-head) {
+.pr-svg [data-change='removed'] :is(rect, path):not(.pr-head):not(.pr-mark-ok) {
   stroke-dasharray: 4 3;
 }
 .pr-key {
@@ -1238,9 +1275,9 @@ a.pr-ref:focus-visible {
 
 .pr-error {
   font: 13px/1.5 var(--mono);
-  color: var(--error);
-  background: var(--error-fill);
-  border: 1px solid color-mix(in srgb, var(--error) 30%, white);
+  color: var(--fail);
+  background: var(--fail-fill);
+  border: 1px solid color-mix(in srgb, var(--fail) 30%, white);
   border-radius: 10px;
   padding: 12px 16px;
   white-space: pre-wrap;

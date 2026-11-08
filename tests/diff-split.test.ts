@@ -34,8 +34,10 @@ referrals -> customers : +
     expect(before).not.toContain('data-node="ads"');
     expect(after).toContain('data-node="ads"');
     expect(after).not.toContain('data-node="price"');
-    expect(before).not.toContain('data-change');
-    expect(after).not.toContain('data-change');
+    expect(before).toContain('data-change="removed"');
+    expect(after).toContain('data-change="added"');
+    expect(before).not.toContain('data-change="added"');
+    expect(after).not.toContain('data-change="removed"');
     const [beforeSvg, afterSvg] = svgs(html);
     const xOf = (svg: string, id: string) => {
       const g = svg.indexOf(`data-node="${id}"`);

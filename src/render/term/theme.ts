@@ -62,8 +62,8 @@ const DARK: Record<Token, Style> = {
   ref: { bold: true, fg: 93 },
   focus: { fg: 94 },
   'focus-label': { bold: true, fg: 94 },
-  happy: { fg: 92 },
-  error: { fg: 91 },
+  happy: { bold: true },
+  error: { bold: true },
   muted: { fg: 90 },
 };
 
@@ -83,8 +83,8 @@ const LIGHT: Record<Token, Style> = {
   ref: { bold: true, fg: 35 },
   focus: { fg: 34 },
   'focus-label': { bold: true, fg: 34 },
-  happy: { fg: 32 },
-  error: { fg: 31 },
+  happy: { bold: true },
+  error: { bold: true },
 };
 
 const sgrOf = (s: Style): string => {

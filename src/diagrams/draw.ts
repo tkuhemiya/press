@@ -11,7 +11,7 @@ import {
 import type { RenderContext } from './diagram.ts';
 import type { EdgePath } from '../layout/pele/route.ts';
 import { textWidth, wrap } from '../text/measure.ts';
-import { arrowhead, badgeItem, linesItem } from '../render/svg.ts';
+import { arrowhead, badgeItem, linesItem, n } from '../render/svg.ts';
 import { markAttrs, type Attrs, type Item } from '../scene/scene.ts';
 
 const LABEL_FONT = 12.5;
@@ -53,8 +53,19 @@ export function measureLabel(label: string, noteText: string | undefined, maxWid
   return { lines, note, first: textWidth(lines[0] ?? '', FONT, 'sans500'), w, h };
 }
 
-export const hatchItems = (node: { role?: Role }, b: Box, r: number): Item[] =>
-  node.role === 'error' ? [{ type: 'rect', cls: 'pr-hatch-fill', ...b, r, hatch: true }] : [];
+export function roleMarks(node: { role?: Role }, b: Box, r: number): Item[] {
+  if (node.role === 'error') return [{ type: 'rect', cls: 'pr-hatch-fill', ...b, r, hatch: true }];
+  if (node.role !== 'happy' || b.w < 22 || b.h < 16) return [];
+  const x = b.x + b.w - 9;
+  const y = b.y + 10;
+  return [
+    {
+      type: 'path',
+      cls: 'pr-mark-ok',
+      d: `M${n(x - 5.2)},${n(y)} L${n(x - 2.8)},${n(y + 2.7)} L${n(x + 3.6)},${n(y - 3.9)}`,
+    },
+  ];
+}
 
 export function textItems(t: TextLines, x: number, cy: number, align: 'middle' | 'start' = 'middle'): Item[] {
   const labelH = t.lines.length * LINE;

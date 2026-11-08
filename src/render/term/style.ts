@@ -35,7 +35,7 @@ export function edgeLook(role: Role | undefined, arrow: Arrow): { kind: LineKind
     case 'happy':
       return { kind: dashed ? 'dashed' : 'heavy', token: 'happy' };
     case 'error':
-      return { kind: dashed ? 'dashed' : 'round', token: 'error' };
+      return { kind: dashed ? 'dashed' : 'dotted', token: 'error' };
     case 'muted':
       return { kind: 'dotted', token: 'muted' };
     case undefined:

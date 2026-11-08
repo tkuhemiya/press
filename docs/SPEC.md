@@ -63,6 +63,8 @@ group "Name" { ... }           nesting
 | `happy` | The intended / success path      |
 | `muted` | Present for context, not central |
 
+Green and red are reserved for diffs. Roles use marks and weight: `happy` is a linen fill, a heavy stroke and a check; `error` is a hatch and a dotted edge; `focus` is the one remaining colour, a blue ring; `muted` is a faint line.
+
 ### Properties
 
 *New in v0.3, used by `er` and `tradeoffs`.* A property is a named value that belongs to a node:
@@ -94,7 +96,7 @@ draft -> submitted : submit
 - A `-` line and a `+` line that declare the same id, or give the same property, make one changed element. It shows the `+` side, with the `-` side's label or value as a `was "…"` note.
 - A group, phase or lane takes its status from what it holds: added when everything in it is added, removed when everything in it is removed.
 - An unmarked causal loop that runs through a removed link is a warning, since that loop no longer exists after the change.
-- On screen, a structural diff (`state-machine`, `sequence`, `architecture`, `data-flow`, `c4`, `deployment`, `causal-loop`, `decision-tree`, `timeline`) draws as two aligned panels, Before and After, from one layout of the union. Added things are absent on the left, removed things on the right; a hole stays so the two sides line up. Each panel is a normal diagram: role colour, no `+`/`−` paint. A renamed node shows its old label on the left and its new label on the right.
+- On screen, a structural diff (`state-machine`, `sequence`, `architecture`, `data-flow`, `c4`, `deployment`, `causal-loop`, `decision-tree`, `timeline`) draws as two aligned panels, Before and After, from one layout of the union. Added things are absent on the left, removed things on the right; a hole stays so the two sides line up. Each panel paints like a git diff: context in ink, removed things red on the left, added things green on the right. A renamed node shows its old label on the left and its new label on the right. A changed node is red on the left and green on the right.
 - Types that edit in place (`er`, `tradeoffs`, `class`, `dependency`) stay one figure. Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
 - Print and the terminal keep that single overlay for every type, so a diff does not take two pages or two terminal figures. Steps and prose references work as usual and may point at removed elements.
 
@@ -172,7 +174,7 @@ Small multiples (several frames) are allowed only when the author asks for them 
 
 - **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off. A call stack too wide for its frames prints as an indented trace of its calls and returns, and a memory layout lists its pointers under its blocks.
 - **Steps and references work as on paper.** Steps become numbered markers (①) on the figure with the captions as a legend below it, and prose references become letters ([a]) in both the prose and the figure.
-- **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Colour only repeats them.
+- **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Green and red are for diffs, not for roles.
 - **Dark by default.** Terminals are usually dark, so colours are chosen for a dark background; `--theme light` is for light terminals. When the output is not a terminal, or `NO_COLOR` is set, it is plain text. `--ascii` draws with ASCII only.
 
 ## Diagram types in v0.1

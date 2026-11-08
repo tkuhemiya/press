@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
-import { hatchItems, markerItems, refMarkers, type Box, nodeTargets, edgeTargets } from './draw.ts';
+import { roleMarks, markerItems, refMarkers, type Box, nodeTargets, edgeTargets } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { linesItem, n } from '../render/svg.ts';
 import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
@@ -269,7 +269,7 @@ function render(d: Dependency, context: RenderContext): Rendered {
       const cls = self ? 'pr-cell pr-self' : cell ? 'pr-cell pr-use' : 'pr-cell pr-empty';
       const cellItems: Item[] = [
         { type: 'rect', cls: 'pr-box pr-cell-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 4 },
-        ...hatchItems({ role: cell?.edge.role }, b, 4),
+        ...roleMarks({ role: cell?.edge.role }, b, 4),
       ];
       if (cell) {
         const cx = b.x + b.w / 2;

@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, resolveSteps, toNode } from '../parse/graph.ts';
 import { graphMethods } from './render-graph.ts';
-import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
+import { roleMarks, measureLabel, textItems, type NodeShape } from './draw.ts';
 import type { Item } from '../scene/scene.ts';
 
 export const STATE_MACHINE: DiagramDef<'state-machine'> = {
@@ -79,7 +79,7 @@ function stateShape(node: Node): NodeShape {
       attrs,
       items: [
         { type: 'rect', cls: 'pr-box', ...b, r: 9 },
-        ...hatchItems(node, b, 9),
+        ...roleMarks(node, b, 9),
         ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
       ],
     }),

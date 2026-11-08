@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, nodeParts, resolvePartSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
-import { hatchItems, markerItems, refMarkers, type Box, nodeTargets, propTargets } from './draw.ts';
+import { roleMarks, markerItems, refMarkers, type Box, nodeTargets, propTargets } from './draw.ts';
 import { textWidth, wrap } from '../text/measure.ts';
 import { linesItem, n } from '../render/svg.ts';
 import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
@@ -279,7 +279,7 @@ function render(d: Tradeoffs, context: RenderContext): Rendered {
       const cy = rowY[ri] + rowH[ri] / 2 - (notes.length * NOTE_LINE) / 2;
       const cellItems: Item[] = [
         { type: 'rect', cls: 'pr-box pr-cell-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 5 },
-        ...hatchItems({ role: p?.role }, b, 5),
+        ...roleMarks({ role: p?.role }, b, 5),
       ];
       const mark = p?.role === 'happy' ? 'pr-good' : p?.note && !p.role ? 'pr-caveat' : undefined;
       const textX = mark ? cx + MARK / 2 + 2 : cx;

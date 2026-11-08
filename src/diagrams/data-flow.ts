@@ -5,7 +5,7 @@ import type { Reporter } from '../diagnostics.ts';
 import type { Item } from '../scene/scene.ts';
 import { buildKinded, header } from '../parse/graph.ts';
 import { graphMethods } from './render-graph.ts';
-import { hatchItems, measureLabel, textItems, type Box, type NodeShape } from './draw.ts';
+import { roleMarks, measureLabel, textItems, type Box, type NodeShape } from './draw.ts';
 
 export const DATA_FLOW: DiagramDef<'data-flow'> = {
   type: 'data-flow',
@@ -56,7 +56,7 @@ function flowShape(node: FlowNode): NodeShape {
         type: 'group',
         cls: 'pr-node pr-flow',
         attrs,
-        items: [...shape.items, ...hatchItems(node, b, shape.r), ...textItems(text, b.x + b.w / 2, b.y + b.h / 2)],
+        items: [...shape.items, ...roleMarks(node, b, shape.r), ...textItems(text, b.x + b.w / 2, b.y + b.h / 2)],
       };
     },
   };
