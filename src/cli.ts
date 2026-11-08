@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, formatDiagnostic } from './index.ts';
+import { pngToJpeg, pngToWebp } from './render/encode.ts';
 import { pagedImageOutputs, pagedImagePath, printFigureCount, typstDocument } from './render/typst.ts';
 import { ICON_VENDORS, iconNames, isVendor } from './icons.ts';
 import { renderTerminal } from './render/terminal.ts';
@@ -13,10 +14,10 @@ import type { ThemeName } from './render/term/theme.ts';
 import { parseReports, settle, unfitSections, type Choices, type Report } from './render/settle.ts';
 
 const USAGE = `Usage:
-  press build <file.md> -o out.html | out.pdf | out.png | out.svg
+  press build <file.md> -o out.html | out.pdf | out.png | out.webp | out.jpg | out.svg
                                                             Render to HTML, typeset to PDF, or draw each
-                                                            figure as a tight PNG/SVG (PNG/SVG/PDF need typst)
-  press build <file.md> -o out.png [--ppi 144]              PNG density, 72–600 (default 144)
+                                                            figure as a tight image (images and PDF need typst)
+  press build <file.md> -o out.webp [--ppi 144]             Raster density, 72–600 (default 144)
   press build <file.md...> --out-dir dir                    Render each file to HTML
   press check <file.md...>                                  Report problems only
   press preview <file.md...> [--width N] [--theme dark|light|plain] [--ascii]
@@ -94,14 +95,14 @@ if (out && files.length > 1) {
   console.error('-o takes one input file; use --out-dir for several.');
   process.exit(2);
 }
-const ext = out ? /\.(html?|pdf|png|svg)$/i.exec(out)?.[1]?.toLowerCase() : 'html';
-const format = ext === 'htm' ? 'html' : ext;
+const ext = out ? /\.(html?|pdf|png|svg|webp|jpe?g)$/i.exec(out)?.[1]?.toLowerCase() : 'html';
+const format = ext === 'htm' ? 'html' : ext === 'jpg' ? 'jpeg' : ext;
 if (command === 'build' && !format) {
-  console.error(`Cannot tell the output format from \`${out}\`: end it in .html, .pdf, .png or .svg.`);
+  console.error(`Cannot tell the output format from \`${out}\`: end it in .html, .pdf, .png, .webp, .jpg or .svg.`);
   process.exit(2);
 }
-if (ppi !== undefined && format !== 'png') {
-  console.error('--ppi applies to PNG output only.');
+if (ppi !== undefined && !isRaster(format)) {
+  console.error('--ppi applies to PNG, WebP and JPEG output.');
   process.exit(2);
 }
 if (ppi !== undefined && (!Number.isInteger(ppi) || ppi < 72 || ppi > 600)) {
@@ -120,14 +121,14 @@ for (const file of files) {
   }
   if (command === 'check') continue;
   const stem = basename(file).replace(/\.(md|markdown|press)$/i, '');
-  if ((format === 'pdf' || format === 'png' || format === 'svg') && out) {
+  if (isPrint(format) && out) {
     const n = printFigureCount(result.document);
-    if ((format === 'png' || format === 'svg') && n === 0) {
+    if (format !== 'pdf' && n === 0) {
       console.error(`error: \`${file}\` has no figures to draw.`);
       failed = true;
       continue;
     }
-    const written = typeset(
+    const written = await typeset(
       JSON.stringify(typstDocument(result.document)),
       resolve(out),
       format,
@@ -144,7 +145,21 @@ for (const file of files) {
 }
 process.exit(failed ? 1 : 0);
 
-function typeset(json: string, target: string, format: string, figures: number, density: number): string[] {
+function isRaster(format: string | undefined): boolean {
+  return format === 'png' || format === 'webp' || format === 'jpeg';
+}
+
+function isPrint(format: string | undefined): format is 'pdf' | 'png' | 'svg' | 'webp' | 'jpeg' {
+  return format === 'pdf' || format === 'png' || format === 'svg' || format === 'webp' || format === 'jpeg';
+}
+
+async function typeset(
+  json: string,
+  target: string,
+  format: string,
+  figures: number,
+  density: number,
+): Promise<string[]> {
   requireTypst(format);
   const dir = mkdtempSync(join(tmpdir(), 'press-'));
   const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
@@ -154,16 +169,29 @@ function typeset(json: string, target: string, format: string, figures: number, 
     const entry = join(dir, 'press.typ');
     const common = ['--root', dir, '--font-path', here('../assets/fonts/ttf'), '--ignore-system-fonts'];
     const extra: string[] = format === 'pdf' ? [] : ['--input', 'mode=image'];
-    if (format === 'png') extra.push('--ppi', String(density));
+    if (isRaster(format)) extra.push('--ppi', String(density));
     const choices = format === 'pdf' ? settlePdf(entry, common) : '{}';
-    const dest = format === 'pdf' ? target : pagedImagePath(target, figures);
+    const encoded = format === 'webp' || format === 'jpeg';
+    const dest = format === 'pdf' ? target : encoded ? pngPages(dir, figures) : pagedImagePath(target, figures);
     execFileSync('typst', ['compile', ...common, ...extra, '--input', `choices=${choices}`, entry, dest], {
       stdio: 'inherit',
     });
-    return format === 'pdf' ? [target] : pagedImageOutputs(target, figures);
+    if (format === 'pdf') return [target];
+    if (!encoded) return pagedImageOutputs(target, figures);
+    const outs = pagedImageOutputs(target, figures);
+    const pngs = pagedImageOutputs(join(dir, 'page.png'), figures);
+    for (let i = 0; i < outs.length; i++) {
+      const png = readFileSync(pngs[i]);
+      writeFileSync(outs[i], format === 'webp' ? await pngToWebp(png) : pngToJpeg(png));
+    }
+    return outs;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function pngPages(dir: string, figures: number): string {
+  return pagedImagePath(join(dir, 'page.png'), figures);
 }
 
 function settlePdf(entry: string, common: string[]): string {
@@ -202,7 +230,16 @@ function requireTypst(format: string): void {
   try {
     execFileSync('typst', ['--version'], { stdio: 'ignore' });
   } catch {
-    const kind = format === 'pdf' ? 'PDF' : format === 'png' ? 'PNG' : 'SVG';
+    const kind =
+      format === 'pdf'
+        ? 'PDF'
+        : format === 'png'
+          ? 'PNG'
+          : format === 'svg'
+            ? 'SVG'
+            : format === 'webp'
+              ? 'WebP'
+              : 'JPEG';
     console.error(
       `error: \`typst\` was not found on PATH, so the ${kind} cannot be typeset.\n` +
         '  fix: Install Typst (https://github.com/typst/typst) and put `typst` on PATH, or build HTML with `-o out.html` or `--out-dir`.',

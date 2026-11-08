@@ -149,10 +149,12 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 
 ### Images
 
-*New in v0.5.* `press build doc.md -o doc.png` or `-o doc.svg` typesets each figure as its own page, sized to the drawing (Typst `page` width and height `auto`), not to A4. PNG and SVG use the same print marks as the PDF, so a figure cannot drift from paper. Surrounding prose, page numbers and leftover sheet are omitted. The figure title is kept. Steps stay as numbered markers on the drawing; their captions are not repeated as a legend.
+*New in v0.5.* `press build doc.md -o doc.png` (or `.webp`, `.jpg`, `.svg`) typesets each figure as its own page, sized to the drawing (Typst `page` width and height `auto`), not to A4. Every image format uses the same print marks as the PDF, so a figure cannot drift from paper. Surrounding prose, page numbers and leftover sheet are omitted. The figure title is kept. Steps stay as numbered markers on the drawing; their captions are not repeated as a legend.
 
-- **One file per figure.** A document with one figure writes the path given in `-o`. Several figures write `name-1.png`, `name-2.png`, … next to it (and the same for `.svg`).
-- **PNG density.** `--ppi` defaults to 144 (two pixels per PostScript point). It must be an integer from 72 to 600, and it applies only to PNG.
+- **One file per figure.** A document with one figure writes the path given in `-o`. Several figures write `name-1.png`, `name-2.png`, … next to it (and the same for `.webp`, `.jpg`, `.svg`).
+- **SVG is Typst’s print SVG**, with colours and type resolved, not the class-only SVG inside the HTML page. The HTML SVG needs the page stylesheet; the export does not.
+- **Raster density.** `--ppi` defaults to 144 (two pixels per PostScript point). It must be an integer from 72 to 600, and it applies to PNG, WebP and JPEG. 144 ppi keeps the smallest print type around 12 device pixels.
+- **WebP is lossless**, re-encoded from the Typst PNG. It is the usual bitmap to ship: same pixels as PNG, typically about a third the size. JPEG is for hosts that will not take WebP; it is lossy and often larger than PNG on these drawings.
 - **No Chromium.** Images are Typst output. HTML screenshots are not a Press export.
 
 ### Readability
