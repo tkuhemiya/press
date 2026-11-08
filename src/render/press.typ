@@ -279,8 +279,38 @@
   }
 }
 
-#for (i, s) in doc.sections.enumerate() {
-  if s.fresh { pagebreak(weak: true) }
-  if s.keep { keep-section(s, i) }
-  else { flow-section(s) }
+#let image-page(f) = {
+  let variant = f.variants.first()
+  if "title" in f {
+    block(below: 8pt, text(font: sans, size: 11pt, weight: 600, fill: ink2, soft(f.title)))
+  }
+  drawing(variant.scene, 1pt)
+}
+
+#let image-figures() = {
+  let out = ()
+  for s in doc.sections {
+    for b in s.blocks {
+      if b.t == "figure" { out.push(b) }
+    }
+  }
+  out
+}
+
+#let mode = sys.inputs.at("mode", default: "print")
+
+#if mode == "image" {
+  set page(width: auto, height: auto, margin: 16pt, fill: rgb("#fbfaf7"), numbering: none)
+  set text(font: sans)
+  let figs = image-figures()
+  for (i, f) in figs.enumerate() {
+    if i > 0 { pagebreak() }
+    image-page(f)
+  }
+} else {
+  for (i, s) in doc.sections.enumerate() {
+    if s.fresh { pagebreak(weak: true) }
+    if s.keep { keep-section(s, i) }
+    else { flow-section(s) }
+  }
 }

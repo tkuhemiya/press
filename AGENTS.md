@@ -39,4 +39,4 @@ These were settled deliberately. Don't reopen them without a good reason.
 - Diagram SVG carries meaning as classes and `data-role`, never colours; styling lives in `style.css` for the screen and in `src/render/press.typ` for paper. Print has no browser stylesheet.
 - No comments in code; they go stale. Let names, types and tests carry the meaning. The one exception is `src/layout/pele`.
 - `src/layout/pele` is vendored. Keep changes there minimal and note them in the file header.
-- After a visual change, build the examples and look at them on screen, in print (`node src/cli.ts build doc.md -o doc.pdf`, which needs `typst` on PATH) and in the terminal (`node src/cli.ts preview doc.md`). The terminal snapshots in `tests/__snapshots__/terminal` show what changed.
+- After a visual change, build the examples and look at them on screen, in print (`node src/cli.ts build doc.md -o doc.pdf`, which needs `typst` on PATH), as images (`node src/cli.ts build doc.md -o doc.png`) and in the terminal (`node src/cli.ts preview doc.md`). The terminal snapshots in `tests/__snapshots__/terminal` show what changed.

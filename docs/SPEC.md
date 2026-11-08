@@ -147,6 +147,14 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 - **Diagrams never split across pages.**
 - **Figures fill the page they are on.** A figure that does not fit in the space left on its page prints smaller, down to 60% of its size, or in its other direction, before it moves to the next page. Figures never move out of reading order, and a heading never ends a page alone.
 
+### Images
+
+*New in v0.5.* `press build doc.md -o doc.png` or `-o doc.svg` typesets each figure as its own page, sized to the drawing (Typst `page` width and height `auto`), not to A4. PNG and SVG use the same print marks as the PDF, so a figure cannot drift from paper. Surrounding prose, page numbers and leftover sheet are omitted. The figure title is kept. Steps stay as numbered markers on the drawing; their captions are not repeated as a legend.
+
+- **One file per figure.** A document with one figure writes the path given in `-o`. Several figures write `name-1.png`, `name-2.png`, … next to it (and the same for `.svg`).
+- **PNG density.** `--ppi` defaults to 144 (two pixels per PostScript point). It must be an integer from 72 to 600, and it applies only to PNG.
+- **No Chromium.** Images are Typst output. HTML screenshots are not a Press export.
+
 ### Readability
 
 A diagram that is too big to read in print gets a warning, and the build still succeeds. The warning names the line and says to split the diagram into several smaller ones linked from prose. The limits are 30 states, components or decision nodes, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells, 30 call-stack frames and 128 bytes of memory layout.
