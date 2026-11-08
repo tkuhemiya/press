@@ -91,7 +91,8 @@
     bottom-edge: "baseline",
     if m.at("upper", default: false) { upper(line) } else { line },
   )
-  let body = if m.at("underline", default: false) { underline(offset: 2 * s, plain) } else { plain }
+  let lined = if m.at("underline", default: false) { underline(offset: 2 * s, plain) } else { plain }
+  let body = if m.at("strike", default: false) { strike(lined) } else { lined }
   context {
     let w = measure(body).width
     let shift = if m.anchor == "middle" { w / 2 } else if m.anchor == "end" { w } else { 0pt }

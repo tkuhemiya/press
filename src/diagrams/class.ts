@@ -24,7 +24,7 @@ import { textWidth, wrap } from '../text/measure.ts';
 import { arrowhead, linesItem, n } from '../render/svg.ts';
 import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
-import { signedText, wasText } from './sign.ts';
+import { renameOf, renamedItems, signedText, struck } from './sign.ts';
 
 export const CLASS: DiagramDef<'class'> = {
   type: 'class',
@@ -102,7 +102,6 @@ function build(fence: Fence, report: Reporter): ClassDiagram {
         if (p.value !== undefined) member.type = p.value;
         if (p.role) member.role = p.role;
         if (p.change) member.change = p.change;
-        if (p.was !== undefined) member.was = p.was;
         return member;
       });
     return node;
@@ -144,6 +143,7 @@ const FONT = 14;
 const MEMBER_FONT = 13;
 const TYPE_FONT = 11.5;
 const HEAD_H = 34;
+const RENAME_H = 16;
 const STEREO_H = 14;
 const ROW_H = 26;
 const PAD_X = 12;
@@ -173,18 +173,19 @@ interface Card {
   box: Box;
 }
 
-const titleH = (kind: ClassKind | undefined): number => HEAD_H + (kind === 'interface' ? STEREO_H : 0);
+const titleH = (node: Classifier): number =>
+  HEAD_H + (node.kind === 'interface' ? STEREO_H : 0) + (renameOf(node) === undefined ? 0 : RENAME_H);
 
 const rowBox = (c: Card, k: number): Box => ({
   x: c.box.x + 3,
-  y: c.box.y + titleH(c.node.kind) + k * ROW_H + 3,
+  y: c.box.y + titleH(c.node) + k * ROW_H + 3,
   w: c.box.w - 6,
   h: ROW_H,
 });
 
 const memberText = (m: Member): { name: string; type: string } => ({
   name: `${signedText(m.name, m.change)}${m.op ? '()' : ''}`,
-  type: [m.type ?? '', m.was !== undefined && m.was !== m.type ? wasText(m.was) : ''].filter(Boolean).join(' · '),
+  type: m.type ?? '',
 });
 
 function render(d: ClassDiagram, context: RenderContext): Rendered {
@@ -203,9 +204,16 @@ function render(d: ClassDiagram, context: RenderContext): Rendered {
     );
     const stereo = node.kind === 'interface' ? textWidth('«interface»', TYPE_FONT) : 0;
     const w = Math.ceil(
-      Math.max(MIN_W, textWidth(node.label, FONT, 'sans600') + 2 * PAD_X, stereo + 2 * PAD_X, memberW + 2 * PAD_X),
+      Math.max(
+        MIN_W,
+        ...[node.label, ...(renameOf(node) === undefined ? [] : [`− ${renameOf(node)}`, `+ ${node.label}`])].map(
+          (t) => textWidth(t, FONT, 'sans600') + 2 * PAD_X,
+        ),
+        stereo + 2 * PAD_X,
+        memberW + 2 * PAD_X,
+      ),
     );
-    const h = titleH(node.kind) + members.length * ROW_H + (members.length ? 6 : 0);
+    const h = titleH(node) + members.length * ROW_H + (members.length ? 6 : 0);
     return { node, fields, methods, w, h, box: { x: 0, y: 0, w, h } };
   });
   const byId = new Map(cards.map((c) => [c.node.id, c]));
@@ -332,7 +340,7 @@ function render(d: ClassDiagram, context: RenderContext): Rendered {
   const height = Math.ceil(layout.height + 2 * MARGIN);
   const boxes = new Map<string, Box>();
   for (const c of cards) {
-    boxes.set(c.node.id, { x: c.box.x, y: c.box.y, w: c.box.w, h: titleH(c.node.kind) });
+    boxes.set(c.node.id, { x: c.box.x, y: c.box.y, w: c.box.w, h: titleH(c.node) });
     [...c.fields, ...c.methods].forEach((m, k) => boxes.set(`${c.node.id}.${m.name}`, rowBox(c, k)));
   }
   const members = d.nodes.flatMap((node) => node.members.map((m) => ({ node: node.id, key: m.name })));
@@ -416,7 +424,7 @@ function diamond(e: End): Item {
 function classItems(c: Card, domId: string): Item[] {
   const { node } = c;
   const b = c.box;
-  const hh = titleH(node.kind);
+  const hh = titleH(node);
   const stereo = node.kind === 'interface';
   const members = [...c.fields, ...c.methods];
   const head: Item = members.length
@@ -438,7 +446,9 @@ function classItems(c: Card, domId: string): Item[] {
   const nameY = b.y + (stereo ? STEREO_H + (hh - STEREO_H) / 2 : hh / 2);
   const name: Item[] = [
     ...(stereo ? [linesItem(['«interface»'], b.x + b.w / 2, b.y + 12, 14, 'pr-stereo')] : []),
-    linesItem([node.label], b.x + b.w / 2, nameY, 18, 'pr-label pr-class-name'),
+    ...(renameOf(node) === undefined
+      ? [linesItem([node.label], b.x + b.w / 2, nameY, 18, 'pr-label pr-class-name')]
+      : renamedItems(renameOf(node) ?? '', node.label, b.x + b.w / 2, nameY, 18, 'pr-label pr-class-name')),
   ];
   const kind = node.kind ?? 'class';
   const entity: Item = {
@@ -457,13 +467,26 @@ function memberItem(c: Card, m: Member, k: number, domId: string): Item {
   const id = `${node.id}.${m.name}`;
   const cy = row.y + ROW_H / 2;
   const t = memberText(m);
+  const replaced = m.change === 'removed' && node.members.some((o) => o.name === m.name && o.change === 'added');
   return {
     type: 'group',
     cls: `pr-node pr-member${m.op ? ' pr-op' : ''}`,
-    attrs: [['data-node', id], ['data-in', node.id], ['id', `${domId}-node-${id}`], ...markAttrs(m)],
+    attrs: [
+      ['data-node', id],
+      ['data-in', node.id],
+      ...(replaced ? [] : [['id', `${domId}-node-${id}`] as const]),
+      ...markAttrs(m),
+    ],
     items: [
       { type: 'rect', cls: 'pr-box pr-member-box', x: row.x, y: row.y, w: row.w, h: row.h, r: 4 },
-      { type: 'text', cls: 'pr-member-name', x: b.x + PAD_X, y: cy, text: t.name, dy: '0.35em' },
+      {
+        type: 'text',
+        cls: m.change === 'removed' ? struck('pr-member-name') : 'pr-member-name',
+        x: b.x + PAD_X,
+        y: cy,
+        text: t.name,
+        dy: '0.35em',
+      },
       { type: 'text', cls: 'pr-member-type', x: b.x + b.w - PAD_X, y: cy, text: t.type, dy: '0.35em' },
     ],
   };

@@ -8,6 +8,7 @@ import { timeline } from './rules/timeline.ts';
 import { classRule } from './rules/class.ts';
 import { dependency } from './rules/dependency.ts';
 import { tradeoffs } from './rules/tradeoffs.ts';
+import { INK } from './tokens.ts';
 
 export interface PrintScene {
   width: number;
@@ -15,7 +16,20 @@ export interface PrintScene {
   marks: Mark[];
 }
 
-const RULES: Rule[] = [causalLoop, classRule, dependency, er, sequence, timeline, tradeoffs];
+const paneRule: Rule = (item) =>
+  item.type === 'line' && classesOf(item.cls).includes('pr-pane-rule')
+    ? {
+        k: 'path',
+        segs: [
+          ['M', item.x1, item.y1],
+          ['L', item.x2, item.y2],
+        ],
+        stroke: INK.rule,
+        sw: 1,
+      }
+    : undefined;
+
+const RULES: Rule[] = [paneRule, causalLoop, classRule, dependency, er, sequence, timeline, tradeoffs];
 
 const paint = (item: Parameters<Rule>[0], ctx: Context): Mark =>
   RULES.reduce<Mark | undefined>((found, rule) => found ?? rule(item, ctx), undefined) ?? graph(item, ctx);
@@ -38,8 +52,13 @@ export function printScene(scene: Scene): PrintScene {
         if (role) inner.role = role;
         if (change) inner.change = change;
         walk(item.items, inner, dx + tx, dy + ty);
-      } else
-        marks.push(moved(recolour(paint(item, ctx), ctx.change, [...ctx.classes, ...classesOf(item.cls)]), dx, dy));
+      } else {
+        const classes = [...ctx.classes, ...classesOf(item.cls)];
+        const mark = recolour(paint(item, ctx), ctx.change, classes);
+        marks.push(
+          moved(mark.k === 'text' && classes.includes('pr-struck') ? { ...mark, strike: true } : mark, dx, dy),
+        );
+      }
     }
   };
   walk(scene.items, { classes: new Set(['pr-svg', ...classesOf(scene.cls)]) }, 0, 0);

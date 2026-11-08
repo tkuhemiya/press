@@ -65,7 +65,7 @@ describe('diff marks in causal loops', () => {
     expect(out).toMatch(/data-from="a" data-to="c"[^>]*data-change="removed"/);
   });
 
-  it('marks a changed variable amber and keeps what it was called', () => {
+  it('draws a renamed variable red under its old name before and green under its new name after', () => {
     const body = `- sat: "Market saturation"
 + sat: "Saturated market"
 a -> sat : +`;

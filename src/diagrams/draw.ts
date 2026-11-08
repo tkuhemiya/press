@@ -158,7 +158,9 @@ export function markerItems(
     const k = stacked.get(key) ?? 0;
     stacked.set(key, k + 1);
     const x = t.type === 'edge' ? spot.x - 6 : spot.x;
-    out.push(badgeItem('pr-step-marker', [['data-step', String(i + 1)]], x - k * 18, spot.y, String(i + 1)));
+    const owner: [string, string] =
+      t.type === 'edge' ? ['data-for-edge', String(t.index)] : ['data-for-node', targetName(t)];
+    out.push(badgeItem('pr-step-marker', [['data-step', String(i + 1)], owner], x - k * 18, spot.y, String(i + 1)));
   });
   for (const [id, letter] of refMarkers) {
     const edge = /^#(\d+)$/.exec(id);

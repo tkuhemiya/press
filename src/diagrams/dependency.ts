@@ -1,4 +1,4 @@
-import type { Dependency, Edge, NodeId, Use } from '../model.ts';
+import type { Dependency, Edge, Node, NodeId, Paint, Use } from '../model.ts';
 import type { DiagramDef, RenderContext, Rendered } from './diagram.ts';
 import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
@@ -10,6 +10,7 @@ import { linesItem, n } from '../render/svg.ts';
 import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
 import { list } from '../diagnostics.ts';
+import { renameOf, renamedItems, signedText } from './sign.ts';
 
 export const DEPENDENCY: DiagramDef<'dependency'> = {
   type: 'dependency',
@@ -118,7 +119,7 @@ interface CellUse {
   weak: boolean;
 }
 
-function usesOf(d: Dependency): Map<string, CellUse> {
+function usesOf(edges: readonly Use[]): Map<string, CellUse> {
   const cells = new Map<string, CellUse>();
   const put = (from: NodeId, to: NodeId, e: Use): void => {
     if (from === to) return;
@@ -128,7 +129,7 @@ function usesOf(d: Dependency): Map<string, CellUse> {
     if (!prev || (prev.weak && !weak) || (e.role === 'error' && prev.edge.role !== 'error'))
       cells.set(key, { edge: e, weak: prev ? prev.weak && weak : weak });
   };
-  for (const e of d.edges) {
+  for (const e of edges) {
     put(e.from, e.to, e);
     if (e.arrow === '<->') put(e.to, e.from, e);
   }
@@ -147,10 +148,21 @@ const CAPTION = 18;
 
 function render(d: Dependency, context: RenderContext): Rendered {
   const { domId } = context;
-  const uses = usesOf(d);
+  const before = usesOf(d.edges.filter((e) => e.change !== 'added'));
+  const after = usesOf(d.edges.filter((e) => e.change !== 'removed'));
   const modules = d.nodes;
-  const head = modules.map((m) => wrap(m.label, FONT, 88, 'sans500'));
-  const rowHead = modules.map((m) => wrap(m.label, FONT, 120, 'sans500'));
+  const named = (m: Node, max: number): string[] => {
+    const was = renameOf(m);
+    return was === undefined
+      ? wrap(m.label, FONT, max, 'sans500')
+      : [signedText(was, 'removed'), signedText(m.label, 'added')];
+  };
+  const headOf = (m: Node, lines: string[], x: number, cy: number, cls: string): Item[] => {
+    const was = renameOf(m);
+    return was === undefined ? [linesItem(lines, x, cy, LINE, cls)] : renamedItems(was, m.label, x, cy, LINE, cls);
+  };
+  const head = modules.map((m) => named(m, 88));
+  const rowHead = modules.map((m) => named(m, 120));
   const lineW = (lines: string[], face: 'sans500' | 'sans400' = 'sans400') =>
     Math.max(0, ...lines.map((l) => textWidth(l, FONT, face)));
 
@@ -247,7 +259,7 @@ function render(d: Dependency, context: RenderContext): Rendered {
       attrs: [['data-node', m.id], ['id', `${domId}-node-${m.id}`], ...markAttrs(m)],
       items: [
         { type: 'rect', cls: 'pr-box pr-line-box', x: MARGIN, y: rowY[i], w: x - MARGIN, h: rowH[i], r: 6 },
-        linesItem(rowHead[i], MARGIN + PAD, rowY[i] + rowH[i] / 2, LINE, 'pr-label pr-start pr-row-head'),
+        ...headOf(m, rowHead[i], MARGIN + PAD, rowY[i] + rowH[i] / 2, 'pr-label pr-start pr-row-head'),
       ],
     });
     items.push({
@@ -256,7 +268,7 @@ function render(d: Dependency, context: RenderContext): Rendered {
       attrs: [['data-node', m.id], ...markAttrs(m)],
       items: [
         { type: 'rect', cls: 'pr-box pr-line-box', x: colX[i], y: MARGIN, w: colW[i], h: headH, r: 6 },
-        linesItem(head[i], colX[i] + colW[i] / 2, MARGIN + headH / 2, LINE, 'pr-label pr-head'),
+        ...headOf(m, head[i], colX[i] + colW[i] / 2, MARGIN + headH / 2, 'pr-label pr-head'),
       ],
     });
   });
@@ -264,24 +276,36 @@ function render(d: Dependency, context: RenderContext): Rendered {
   modules.forEach((row, ri) => {
     modules.forEach((col, ci) => {
       const b = { x: colX[ci] + 3, y: rowY[ri] + 3, w: colW[ci] - 6, h: rowH[ri] - 6 };
-      const cell = uses.get(`${row.id}>${col.id}`);
+      const key = `${row.id}>${col.id}`;
+      const was = before.get(key);
+      const now = after.get(key);
+      const kept = was !== undefined && now !== undefined && was.weak === now.weak;
+      const cell = now ?? was;
       const self = ri === ci;
       const cls = self ? 'pr-cell pr-self' : cell ? 'pr-cell pr-use' : 'pr-cell pr-empty';
       const cellItems: Item[] = [{ type: 'rect', cls: 'pr-box pr-cell-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 4 }];
-      if (cell) {
-        const cx = b.x + b.w / 2;
-        const cy = b.y + b.h / 2;
-        cellItems.push({
-          type: 'rect',
-          cls: cell.weak ? 'pr-mark pr-weak' : 'pr-mark',
-          x: cx - MARK,
-          y: cy - MARK,
-          w: MARK * 2,
-          h: MARK * 2,
-          r: 2.5,
-        });
+      const markAt = (use: CellUse, cx: number): Item => ({
+        type: 'rect',
+        cls: use.weak ? 'pr-mark pr-weak' : 'pr-mark',
+        x: cx - MARK,
+        y: b.y + b.h / 2 - MARK,
+        w: MARK * 2,
+        h: MARK * 2,
+        r: 2.5,
+      });
+      const cx = b.x + b.w / 2;
+      if (kept) cellItems.push(markAt(now, cx));
+      else {
+        const both = was !== undefined && now !== undefined;
+        const sides: [CellUse | undefined, Paint, number][] = [
+          [was, 'removed', both ? cx - MARK - 2 : cx],
+          [now, 'added', both ? cx + MARK + 2 : cx],
+        ];
+        for (const [use, change, mx] of sides)
+          if (use) cellItems.push({ type: 'group', attrs: [['data-change', change]], items: [markAt(use, mx)] });
       }
-      const attrs = cell ? markAttrs(cell.edge) : [];
+      const attrs =
+        cell && kept ? markAttrs(cell.edge.change === undefined ? cell.edge : { role: cell.edge.role }) : [];
       items.push({
         type: 'group',
         cls: `pr-node ${cls}`,

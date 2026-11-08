@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.10)
+# Press language spec (draft, v0.11)
 
 ## Document
 
@@ -93,12 +93,14 @@ draft -> submitted : submit
 - Every statement can be marked: declarations, edges and chains, properties, events and loops. `group`, `phase` and `lane` lines, a closing `}` and steps cannot, and are an error that says so.
 - An edge, property or loop has the status of its own line.
 - A node is added when only `+` lines mention it, and removed when only `-` lines do. A node that any unmarked line mentions existed before and after, so a new node's other lines need a `+` too.
-- A `-` line and a `+` line that declare the same id, or give the same property, make one changed element. It shows the `+` side, with the `-` side's label or value as a `was "…"` note.
+- A `-` line and a `+` line that declare the same id, or give the same property, are the old and new versions of one element. *Changed in v0.11:* nothing is drawn as "changed". The old version draws as a removal and the new one as an addition, the way git shows an edited line as a `-` line followed by a `+` line.
 - A group, phase or lane takes its status from what it holds: added when everything in it is added, removed when everything in it is removed.
 - An unmarked causal loop that runs through a removed link is a warning, since that loop no longer exists after the change.
-- On screen, a structural diff (`state-machine`, `sequence`, `architecture`, `data-flow`, `c4`, `deployment`, `causal-loop`, `decision-tree`, `timeline`) draws as two aligned panels, Before and After, from one layout of the union. Added things are absent on the left, removed things on the right; a hole stays so the two sides line up. Each panel paints like a git diff: context in ink, removed things red on the left, added things green on the right. A renamed node shows its old label on the left and its new label on the right. A changed node is red on the left and green on the right.
-- Types that edit in place (`er`, `tradeoffs`, `class`, `dependency`) stay one figure. Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
-- Print and the terminal keep that single overlay for every type, so a diff does not take two pages or two terminal figures. Steps and prose references work as usual and may point at removed elements.
+- **Two kinds of change, never three.** *Changed in v0.11.* Removed things draw red and dashed, and their labels start with `−`. Added things draw green, and their labels start with `+`. There is no third colour, no `~` mark and no `was` note. The `+` and `−` make a diff read without colour. A change draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
+- **Graph and row types split into Before and After.** *Changed in v0.11.* A diff in `state-machine`, `sequence`, `architecture`, `data-flow`, `c4`, `deployment`, `causal-loop`, `decision-tree` or `timeline` draws as two aligned panels, Before on the left and After on the right, from one layout of the union. This holds on screen, in images, on paper and in the terminal. Before shows the context in ink and removed things in red; After shows the context and added things in green. A hole stays where an element exists on only one side, so shared elements sit in the same place in both. A renamed node shows its old label, red, on the left and its new label, green, on the right. The panel headers read `− Before` and `+ After`.
+- **Table types stay one figure, with rows like a unified diff.** *Changed in v0.11.* In `er`, `tradeoffs`, `class` and `dependency` an added row (a field, a member, a criterion, a module) is green and a removed one is red and struck through. An edited field or member is two rows: the old one in red, then the new one in green. An edited `tradeoffs` cell holds two lines, the old value in red and struck through, above the new value in green. A `dependency` cell whose mark changes shows the old mark in red and the new mark in green side by side. A renamed entity, class, option or module shows its old name in red above its new name in green.
+- **Fitting the panels.** The pair is one figure. In print it scales down to fit the page like any figure, after trying the other direction when the author gave none; a pair that fits only below the 60% floor still prints scaled to fit, and `press build` warns that the diff is too wide to read and suggests cutting the fence down to the part that changed. Images are sized to the drawing, so the pair is never scaled. In the terminal the panels sit side by side when both fit the width, and otherwise Before prints above After; a panel that cannot fit on its own falls back as any terminal figure does.
+- **Steps and prose references** work as usual and may point at removed elements. Their marker appears in each panel that holds the element: Before for a removed one, After for an added one, both for one that is unchanged.
 
 ## Steps
 
@@ -147,7 +149,7 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 - **Steps compress into one frame.** Each step's edge gets a small numbered marker, and the captions become a compact numbered legend beside or under the diagram.
 - **Prose references become markers.** A reference prints as the text plus a superscript marker that matches a marker on the node. Step markers are numbers (1, 2, 3); prose reference markers are letters (a, b, c), so the two never collide.
 - **A figure that would print small may print differently.** Press tries it in the other direction (only when the author gave no `direction`) and without its `muted` elements (only when no step or prose reference points at one), and prints whichever layout keeps the text largest. The screen always shows the diagram as written.
-- **Diagrams never split across pages.**
+- **Diagrams never split across pages.** A diff's Before and After panels are one figure and stay on one page (see Changes).
 - **Figures fill the page they are on.** A figure that does not fit in the space left on its page prints smaller, down to 60% of its size, or in its other direction, before it moves to the next page. Figures never move out of reading order, and a heading never ends a page alone.
 
 ### Images

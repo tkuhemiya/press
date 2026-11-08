@@ -1,4 +1,4 @@
-import type { Change, Role } from '../model.ts';
+import type { Paint, Role } from '../model.ts';
 
 export const INK = {
   paper: '#ffffff',
@@ -28,8 +28,7 @@ export const ROLE: Record<Role, RoleInk> = {
   muted: { line: INK.mutedLine, fill: INK.nodeFill },
 };
 
-export const CHANGE: Record<Change, RoleInk> = {
+export const CHANGE: Record<Paint, RoleInk> = {
   added: { line: '#1a7f4c', fill: '#e6f5ec' },
   removed: { line: '#c0392b', fill: '#fbeceb' },
-  changed: { line: '#9a6700', fill: '#fbf4e2' },
 };

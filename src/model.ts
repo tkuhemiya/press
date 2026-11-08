@@ -20,6 +20,8 @@ export type Role = (typeof ROLES)[number];
 
 export const CHANGES = ['added', 'removed', 'changed'] as const;
 export type Change = (typeof CHANGES)[number];
+export const PAINTS = ['added', 'removed'] as const;
+export type Paint = (typeof PAINTS)[number];
 
 export type Direction = 'right' | 'down';
 

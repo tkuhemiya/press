@@ -83,7 +83,7 @@ A change of thirty files may move one edge. A one-line change may add a state. D
 
 Look past the diff for what it changes that the diff does not spell out: a column another service reads, a message format a consumer parses, a flag default, a cache key. Those belong in the figure or in the risk section.
 
-**Draw one fence with `+` and `-` lines.** Show the change in its context, like a diff's context lines: keep the unchanged parts the change touches, one hop out, and leave the rest of the system out. Walk the new path in `steps:`. A step on a removed edge says what used to happen. Write one fence; Press projects Before and After. Never author two fences.
+**Draw one fence with `+` and `-` lines.** Show the change in its context, like a diff's context lines: keep the unchanged parts the change touches, one hop out, and leave the rest of the system out. Walk the new path in `steps:`. A step on a removed edge says what used to happen. Write one fence; Press draws it as `− Before` and `+ After` side by side, in the image and on paper too, so a graph diff is twice as wide as either side. Keep it to the part that changed. An edited label, field or value shows as its old version removed and its new one added; there is no "changed" mark. Never author two fences.
 
 **Shape the document.** The title says what changes in behaviour, in plain words: "Checkout: payments move onto a queue", not "PR #123" or "Refactor payment module".
 

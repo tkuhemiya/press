@@ -22,7 +22,7 @@ import { textWidth, wrap } from '../text/measure.ts';
 import { linesItem, n } from '../render/svg.ts';
 import { markAttrs, type Item, type Scene } from '../scene/scene.ts';
 import { paintSvg } from '../scene/svg.ts';
-import { signedText, wasText } from './sign.ts';
+import { renameOf, renamedItems, signedText, struck } from './sign.ts';
 
 export const ER: DiagramDef<'er'> = {
   type: 'er',
@@ -173,7 +173,6 @@ function build(fence: Fence, report: Reporter): Er {
         if (p.value !== undefined) field.type = p.value;
         if (p.role) field.role = p.role;
         if (p.change) field.change = p.change;
-        if (p.was !== undefined) field.was = p.was;
         return field;
       }),
   }));
@@ -195,6 +194,7 @@ const FONT = 14;
 const FIELD_FONT = 13;
 const TYPE_FONT = 11.5;
 const HEAD_H = 34;
+const RENAMED_H = 48;
 const ROW_H = 26;
 const PAD_X = 12;
 const GAP = 22;
@@ -210,6 +210,7 @@ const LEAD = 30;
 interface Table {
   node: Entity;
   fields: Field[];
+  head: number;
   w: number;
   h: number;
   box: Box;
@@ -227,7 +228,7 @@ interface End extends Point {
 
 const rowBox = (e: Table, k: number): Box => ({
   x: e.box.x + 3,
-  y: e.box.y + HEAD_H + k * ROW_H + 3,
+  y: e.box.y + e.head + k * ROW_H + 3,
   w: e.box.w - 6,
   h: ROW_H,
 });
@@ -247,12 +248,13 @@ function render(d: Er, context: RenderContext): Rendered {
           textWidth(typeText(f), TYPE_FONT),
       ),
     );
-    const wasW = node.was === undefined ? 0 : textWidth(wasText(node.was), TYPE_FONT);
-    const w = Math.ceil(
-      Math.max(MIN_W, textWidth(node.label, FONT, 'sans600') + 2 * PAD_X, wasW + 2 * PAD_X, fieldW + 2 * PAD_X),
-    );
-    const h = HEAD_H + fields.length * ROW_H + (fields.length ? 6 : 0);
-    return { node, fields, w, h, box: { x: 0, y: 0, w, h } };
+    const was = renameOf(node);
+    const names = was === undefined ? [node.label] : [signedText(was, 'removed'), signedText(node.label, 'added')];
+    const nameW = Math.max(...names.map((t) => textWidth(t, FONT, 'sans600')));
+    const w = Math.ceil(Math.max(MIN_W, nameW + 2 * PAD_X, fieldW + 2 * PAD_X));
+    const head = was === undefined ? HEAD_H : RENAMED_H;
+    const h = head + fields.length * ROW_H + (fields.length ? 6 : 0);
+    return { node, fields, head, w, h, box: { x: 0, y: 0, w, h } };
   });
   const byId = new Map(entities.map((e) => [e.node.id, e]));
 
@@ -314,8 +316,8 @@ function render(d: Er, context: RenderContext): Rendered {
   for (const { e, c } of boxed) e.box = { x: MARGIN + c.x - e.w / 2, y: MARGIN + c.y - e.h / 2, w: e.w, h: e.h };
 
   const rowY = (e: Table, key?: NodeId): number => {
-    const i = key ? e.fields.findIndex((f) => f.name === key) : -1;
-    return i < 0 ? e.box.y + HEAD_H / 2 : e.box.y + HEAD_H + i * ROW_H + ROW_H / 2;
+    const i = key ? e.fields.findLastIndex((f) => f.name === key) : -1;
+    return i < 0 ? e.box.y + e.head / 2 : e.box.y + e.head + i * ROW_H + ROW_H / 2;
   };
   const sides = ({ from, to, a, b }: (typeof routed)[number]): [End, End] => {
     const aMid = a.box.x + a.box.w / 2;
@@ -395,7 +397,7 @@ function render(d: Er, context: RenderContext): Rendered {
   const height = Math.ceil(layout.height + 2 * MARGIN);
   const boxes = new Map<string, Box>();
   for (const e of entities) {
-    boxes.set(e.node.id, { x: e.box.x, y: e.box.y, w: e.box.w, h: HEAD_H });
+    boxes.set(e.node.id, { x: e.box.x, y: e.box.y, w: e.box.w, h: e.head });
     e.fields.forEach((f, k) => boxes.set(`${e.node.id}.${f.name}`, rowBox(e, k)));
   }
   const fields = d.nodes.flatMap((node) => node.fields.map((f) => ({ node: node.id, key: f.name })));
@@ -442,6 +444,7 @@ function relation(e: Reference, fromId: NodeId, toId: NodeId, p: End, q: End, c1
 function entityItems(e: Table, domId: string): Item[] {
   const { node } = e;
   const b = e.box;
+  const HEAD_H = e.head;
   const head: Item = e.fields.length
     ? {
         type: 'path',
@@ -452,13 +455,11 @@ function entityItems(e: Table, domId: string): Item[] {
   const rule: Item[] = e.fields.length
     ? [{ type: 'path', cls: 'pr-entity-rule', d: `M${n(b.x)},${n(b.y + HEAD_H)}H${n(b.x + b.w)}` }]
     : [];
+  const was = renameOf(node);
   const name: Item[] =
-    node.was === undefined
+    was === undefined
       ? [linesItem([node.label], b.x + b.w / 2, b.y + HEAD_H / 2, 18, 'pr-label pr-entity-name')]
-      : [
-          linesItem([node.label], b.x + b.w / 2, b.y + 12, 18, 'pr-label pr-entity-name'),
-          linesItem([wasText(node.was)], b.x + b.w / 2, b.y + 26, 14, 'pr-note'),
-        ];
+      : renamedItems(was, node.label, b.x + b.w / 2, b.y + HEAD_H / 2, 18, 'pr-label pr-entity-name');
   const entity: Item = {
     type: 'group',
     cls: 'pr-node pr-entity',
@@ -475,16 +476,22 @@ function fieldItem(e: Table, f: Field, k: number, domId: string): Item {
   const id = `${node.id}.${f.name}`;
   const cy = row.y + ROW_H / 2;
   const key = f.primary;
+  const replaced = f.change === 'removed' && e.fields.some((g) => g.name === f.name && g.change === 'added');
   return {
     type: 'group',
     cls: `pr-node pr-field${key ? ' pr-key' : ''}`,
-    attrs: [['data-node', id], ['data-in', node.id], ['id', `${domId}-node-${id}`], ...markAttrs(f)],
+    attrs: [
+      ['data-node', id],
+      ['data-in', node.id],
+      ...(replaced ? [] : [['id', `${domId}-node-${id}`] as const]),
+      ...markAttrs(f),
+    ],
     items: [
       { type: 'rect', cls: 'pr-box pr-field-box', x: row.x, y: row.y, w: row.w, h: row.h, r: 4 },
       ...(key ? [keyGlyph(b.x + PAD_X + 5, cy)] : []),
       {
         type: 'text',
-        cls: 'pr-field-name',
+        cls: f.change === 'removed' ? struck('pr-field-name') : 'pr-field-name',
         x: b.x + PAD_X + KEY_W,
         y: cy,
         text: signedText(f.name, f.change),
@@ -505,8 +512,7 @@ function ends(e: Reference): [{ entity: NodeId; field?: NodeId }, { entity: Node
 }
 
 function typeText(f: Field): string {
-  const was = f.was !== undefined && f.was !== f.type ? [wasText(f.was)] : [];
-  return [f.type ?? '', f.unique ? 'unique' : '', f.nullable ? 'null' : '', ...was].filter(Boolean).join(' · ');
+  return [f.type ?? '', f.unique ? 'unique' : '', f.nullable ? 'null' : ''].filter(Boolean).join(' · ');
 }
 
 function keyGlyph(x: number, y: number): Item {

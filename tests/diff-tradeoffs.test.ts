@@ -13,7 +13,13 @@ const tradeoffs = (doc: Document) => {
 const element = (html: string, id: string): string => {
   const at = html.indexOf(`data-node="${id}"`);
   if (at < 0) throw new Error(`no element for ${id}`);
-  return html.slice(html.lastIndexOf('<g', at), html.indexOf('</g>', at) + 4);
+  const start = html.lastIndexOf('<g', at);
+  let depth = 0;
+  for (const m of html.slice(start).matchAll(/<g[\s>]|<\/g>/g)) {
+    depth += m[0] === '</g>' ? -1 : 1;
+    if (depth === 0) return html.slice(start, start + (m.index ?? 0) + 4);
+  }
+  return html.slice(start);
 };
 const opening = (html: string, id: string): string => {
   const el = element(html, id);
@@ -127,28 +133,29 @@ postgres.ops : "already running"
     expect(opening(html, 'ops')).not.toContain('data-change');
   });
 
-  it('pairs a changed cell, keeps the new value and records the old one', () => {
+  it('keeps an edited cell as its old value removed and its new value added', () => {
     const body = `redis: "Redis"
 latency: "Read latency"
 - redis.latency : "<1 ms"
 + redis.latency : "<2 ms"`;
     const doc = parse(body);
     expect(doc.diagnostics).toEqual([]);
-    expect(tradeoffs(doc).cells).toEqual([
-      expect.objectContaining({
-        option: 'redis',
-        criterion: 'latency',
-        value: '<2 ms',
-        change: 'changed',
-        was: '<1 ms',
-      }),
+    expect(tradeoffs(doc).cells.map((c) => [c.value, c.change])).toEqual([
+      ['<1 ms', 'removed'],
+      ['<2 ms', 'added'],
     ]);
     const html = page(body);
-    expect(opening(html, 'redis.latency')).toContain('data-change="changed"');
-    expect(element(html, 'redis.latency')).toContain('was &quot;&lt;1 ms&quot;');
+    expect(opening(html, 'redis.latency')).not.toContain('data-change');
+    expect(element(html, 'redis.latency')).toMatch(
+      /<g data-change="removed"><text class="pr-value pr-struck"[^>]*><tspan[^>]*>− &lt;1 ms</,
+    );
+    expect(element(html, 'redis.latency')).toMatch(
+      /<g data-change="added"><text class="pr-value"[^>]*><tspan[^>]*>\+ &lt;2 ms</,
+    );
+    expect(html).not.toContain('was &quot;');
   });
 
-  it('shows a changed cell old value after its own note, and rings only an author caveat', () => {
+  it('keeps the new value of an edited cell with its own note, and rings only an author caveat', () => {
     const body = `redis: "Redis"
 postgres: "Postgres"
 latency: "Read latency"
@@ -161,14 +168,13 @@ postgres.ops : "already running"
 + redis.ops : "managed service" {note="billed per GB"}`;
     const doc = parse(body);
     expect(doc.diagnostics).toEqual([]);
-    expect(tradeoffs(doc).cells.find((c) => c.option === 'redis' && c.criterion === 'ops')).toMatchObject({
-      change: 'changed',
-      note: 'billed per GB',
-      was: 'another service',
-    });
+    expect(tradeoffs(doc).cells.filter((c) => c.option === 'redis' && c.criterion === 'ops')).toEqual([
+      expect.objectContaining({ value: 'another service', change: 'removed', role: 'error' }),
+      expect.objectContaining({ value: 'managed service', change: 'added', note: 'billed per GB' }),
+    ]);
     const html = page(body);
-    expect(element(html, 'redis.ops')).toContain('billed per GB · was &quot;another');
-    expect(element(html, 'redis.ops')).toContain('service&quot;');
+    expect(element(html, 'redis.ops')).toContain('billed per GB');
+    expect(element(html, 'redis.ops')).not.toContain('was &quot;');
     expect(element(html, 'redis.ops')).toContain('pr-caveat');
     expect(element(html, 'redis.latency')).not.toContain('pr-caveat');
     expect(element(html, 'postgres.latency')).toContain('pr-caveat');

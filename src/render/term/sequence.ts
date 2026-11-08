@@ -1,13 +1,15 @@
 import type { Participant, Sequence } from '../../model.ts';
 import { ARROWS, DOWN, LEFT, RIGHT, canvas, type Canvas } from './canvas.ts';
 import { cellWidth } from './cells.ts';
-import { lineWidth, type Line, type Seg } from './graph.ts';
+import { lineWidth, onSide, toneOf, type Line, type Seg, type Side } from './graph.ts';
+import { renameOf, signedText } from '../../diagrams/sign.ts';
 import { edgeLook, errorMark, labelLines, nodeLook, type Markers } from './style.ts';
-import type { Theme } from './theme.ts';
+import type { Theme, Token } from './theme.ts';
 
 interface Col {
   node: Participant;
   lines: Line[];
+  was?: Line[];
   tag?: string;
   w: number;
   x: number;
@@ -42,20 +44,24 @@ const writeLine = (c: Canvas, x: number, y: number, line: Line): void => {
   }
 };
 
-export function drawSequence(d: Sequence, theme: Theme, mark: Markers, maxLabel: number): Canvas {
+export function drawSequence(d: Sequence, theme: Theme, mark: Markers, maxLabel: number, side?: Side): Canvas {
   const ascii = theme.ascii;
   const tight = maxLabel <= 10;
   const GAP = tight ? 1 : 2;
   const cols: Col[] = order(d).map((node) => {
     const look = nodeLook(node.role);
     const head: Seg[] = node.role === 'error' ? [{ text: errorMark(theme), token: 'error' }] : [];
-    const lines = [
-      ...labelLines(node.label, maxLabel, look.label, mark({ type: 'node', id: node.id }), head),
-      ...(node.note ? labelLines(node.note, maxLabel, 'note') : []),
+    const renamed = renameOf(node);
+    const note = node.note ? labelLines(node.note, maxLabel, 'note') : [];
+    const named = (text: string): Line[] => [
+      ...labelLines(text, maxLabel, look.label, mark({ type: 'node', id: node.id }), head),
+      ...note,
     ];
+    const lines = named(renamed === undefined ? node.label : signedText(node.label, 'added'));
+    const was = renamed === undefined ? undefined : named(signedText(renamed, 'removed'));
     const tag = maxLabel > 10 ? (node.icon ?? node.kind) : undefined;
-    const inner = Math.max(...lines.map(lineWidth), tag ? cellWidth(tag) + 2 : 0);
-    return { node, lines, w: inner + (tight ? 2 : 4), x: 0, ...(tag ? { tag } : {}) };
+    const inner = Math.max(...lines.map(lineWidth), ...(was ?? []).map(lineWidth), tag ? cellWidth(tag) + 2 : 0);
+    return { node, lines, w: inner + (tight ? 2 : 4), x: 0, ...(tag ? { tag } : {}), ...(was ? { was } : {}) };
   });
   const index = new Map(cols.map((c, i) => [c.node.id, i]));
   const labels = d.edges.map((e) => {
@@ -100,13 +106,28 @@ export function drawSequence(d: Sequence, theme: Theme, mark: Markers, maxLabel:
 
   const c = canvas();
   const headerTop = groupDepth;
-  const headH = Math.max(...cols.map((col) => col.lines.length)) + 2;
-  for (const col of cols) {
+  const headH = Math.max(...cols.map((col) => Math.max(col.lines.length, col.was?.length ?? 0))) + 2;
+  const shown = cols.filter((col) => onSide(col.node.change, side));
+  const lookOf = (col: Col): { border: ReturnType<typeof nodeLook>['border']; token: Token } => {
     const look = nodeLook(col.node.role);
+    const tone = toneOf(col.node.change, side);
+    return tone === undefined ? look : { border: tone === 'removed' ? 'dashed' : look.border, token: tone };
+  };
+  for (const col of shown) {
+    const look = lookOf(col);
+    const tone = toneOf(col.node.change, side);
     const bx = col.x - Math.floor(col.w / 2);
     c.box(bx, headerTop, col.w, headH, look.border, look.token);
     if (col.tag) c.text(bx + 2, headerTop, ` ${col.tag} `, 'tag');
-    col.lines.forEach((line, i) => writeLine(c, col.x - Math.floor(lineWidth(line) / 2), headerTop + 1 + i, line));
+    const lines = side === 'before' && col.was ? col.was : col.lines;
+    lines.forEach((line, i) =>
+      writeLine(
+        c,
+        col.x - Math.floor(lineWidth(line) / 2),
+        headerTop + 1 + i,
+        tone === undefined ? line : line.map((seg) => ({ ...seg, token: tone })),
+      ),
+    );
   }
 
   const starts = new Map<number, number[]>();
@@ -144,24 +165,27 @@ export function drawSequence(d: Sequence, theme: Theme, mark: Markers, maxLabel:
   });
   const bottom = y - 1;
 
-  for (const col of cols)
+  for (const col of shown)
     c.path(
       [
         { x: col.x, y: headerTop + headH },
         { x: col.x, y: bottom },
       ],
       'dotted',
-      'line',
+      toneOf(col.node.change, side) ?? 'line',
     );
-  for (const col of cols)
-    c.arms(col.x, headerTop + headH - 1, DOWN, nodeLook(col.node.role).border, nodeLook(col.node.role).token);
+  for (const col of shown) c.arms(col.x, headerTop + headH - 1, DOWN, lookOf(col).border, lookOf(col).token);
 
   for (const { k, y: top } of rows) {
     const e = d.edges[k];
     const a = index.get(e.from);
     const b = index.get(e.to);
-    if (a === undefined || b === undefined) continue;
-    const { lines, look } = labels[k];
+    if (a === undefined || b === undefined || !onSide(e.change, side)) continue;
+    const tone = toneOf(e.change, side);
+    const plain = labels[k];
+    const look =
+      tone === undefined ? plain.look : { kind: tone === 'removed' ? 'dashed' : plain.look.kind, token: tone };
+    const lines = tone === undefined ? plain.lines : plain.lines.map((l) => l.map((seg) => ({ ...seg, token: tone })));
     const xa = cols[a].x;
     const xb = cols[b].x;
     if (a === b) {
@@ -200,6 +224,7 @@ export function drawSequence(d: Sequence, theme: Theme, mark: Markers, maxLabel:
 
   for (const f of frames) {
     const p = d.phases[f.pi];
+    if (!p.edges.some((k) => onSide(d.edges[k]?.change, side))) continue;
     const inset = phaseDepth(f.pi) * 2;
     const x0 = left - 1 + inset;
     const x1 = rightEdge + 1 - inset;
@@ -209,7 +234,7 @@ export function drawSequence(d: Sequence, theme: Theme, mark: Markers, maxLabel:
   }
 
   d.groups.forEach((g, gi) => {
-    const members = cols.filter((col) => inGroup(d, col.node.group, gi));
+    const members = shown.filter((col) => inGroup(d, col.node.group, gi));
     const firstCol = members[0];
     const lastMember = members.at(-1);
     if (!firstCol || !lastMember) return;

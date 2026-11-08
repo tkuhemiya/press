@@ -75,34 +75,35 @@ group "Legacy" {
     expect(fieldTag(html, 'items.qty')).not.toMatch(/data-change/);
   });
 
-  it('shows a changed field with its new type and the old one as a was note', () => {
+  it('shows an edited field as its old row removed, then its new row added', () => {
     const { model, html, messages } = figure(`${KEPT}
 - orders.placed_at : timestamp
 + orders.placed_at : timestamptz`);
     expect(messages).toEqual([]);
-    expect(model.nodes.find((n) => n.id === 'orders')?.fields.find((f) => f.name === 'placed_at')).toMatchObject({
-      change: 'changed',
-      type: 'timestamptz',
-      was: 'timestamp',
-    });
-    expect(fieldTag(html, 'orders.placed_at')).toMatch(/data-change="changed"/);
-    expect(html).toContain('timestamptz · was &quot;timestamp&quot;');
+    const fields = model.nodes.find((n) => n.id === 'orders')?.fields.filter((f) => f.name === 'placed_at');
+    expect(fields?.map((f) => [f.type, f.change])).toEqual([
+      ['timestamp', 'removed'],
+      ['timestamptz', 'added'],
+    ]);
+    const rows = [...svg(html).matchAll(/<g class="pr-node pr-field[^"]*"[^>]*data-node="orders.placed_at"[^>]*>/g)];
+    expect(rows.map((m) => m[0].match(/data-change="(\w+)"/)?.[1])).toEqual(['removed', 'added']);
+    expect(rows.filter((m) => m[0].includes(' id=')).length).toBe(1);
+    expect(html).toContain('pr-field-name pr-struck');
+    expect(html).not.toContain('was &quot;');
+    expect(html).not.toContain('data-change="changed"');
   });
 
-  it('marks a field changed by an attribute alone without a was note', () => {
-    const { model, html, messages } = figure(`${KEPT}
+  it('shows a field edited by an attribute alone as a removal and an addition', () => {
+    const { model, messages } = figure(`${KEPT}
 orders.user_id : uuid
 - orders.coupon_id : uuid
 + orders.coupon_id : uuid {null=yes}`);
     expect(messages).toEqual([]);
-    expect(model.nodes.find((n) => n.id === 'orders')?.fields.find((f) => f.name === 'coupon_id')).toMatchObject({
-      change: 'changed',
-      was: 'uuid',
-      nullable: true,
-    });
-    expect(fieldTag(html, 'orders.coupon_id')).toMatch(/data-change="changed"/);
-    expect(html).toContain('uuid · null');
-    expect(html).not.toContain('was &quot;uuid');
+    const fields = model.nodes.find((n) => n.id === 'orders')?.fields.filter((f) => f.name === 'coupon_id');
+    expect(fields?.map((f) => [f.nullable, f.change])).toEqual([
+      [false, 'removed'],
+      [true, 'added'],
+    ]);
   });
 
   it('draws an added and a removed reference as edges with data-change', () => {
@@ -124,19 +125,17 @@ orders.user_id : uuid
     expect(edgeTag(html, 1)).not.toMatch(/data-role/);
   });
 
-  it('shows a changed entity name with its old name as a was note', () => {
+  it('shows a renamed entity as its old name removed above its new name added', () => {
     const { model, html, messages } = figure(`${KEPT}
 - items: "Line item"
 + items: "Order line"
 items.sku : text`);
     expect(messages).toEqual([]);
-    expect(model.nodes.find((n) => n.id === 'items')).toMatchObject({
-      change: 'changed',
-      label: 'Order line',
-      was: 'Line item',
-    });
-    expect(entityTag(html, 'items')).toMatch(/data-change="changed"/);
-    expect(html).toContain('was &quot;Line item&quot;');
+    expect(model.nodes.find((n) => n.id === 'items')).toMatchObject({ label: 'Order line', was: 'Line item' });
+    expect(entityTag(html, 'items')).not.toMatch(/data-change/);
+    expect(html).toMatch(/<g data-change="removed"><text class="[^"]*pr-struck[^"]*"[^>]*><tspan[^>]*>− Line item</);
+    expect(html).toMatch(/<g data-change="added"><text[^>]*><tspan[^>]*>\+ Order line</);
+    expect(html).not.toContain('was &quot;');
   });
 
   it('leaves an unchanged diagram without any change marks, keeping its roles', () => {

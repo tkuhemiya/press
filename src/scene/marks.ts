@@ -1,4 +1,4 @@
-import { CHANGES, ROLES, type Change, type Role } from '../model.ts';
+import { PAINTS, ROLES, type Paint, type Role } from '../model.ts';
 import type { Attrs, Item } from './scene.ts';
 import { CHANGE, INK, ROLE } from './tokens.ts';
 
@@ -30,6 +30,7 @@ export type Mark =
       italic?: boolean;
       tabular?: boolean;
       underline?: boolean;
+      strike?: boolean;
       tracking?: number;
       upper?: boolean;
     };
@@ -41,7 +42,7 @@ export type Leaf = Exclude<Item, { type: 'group' }>;
 export interface Context {
   classes: ReadonlySet<string>;
   role?: Role;
-  change?: Change;
+  change?: Paint;
 }
 
 export type Rule = (item: Leaf, ctx: Context) => Mark | undefined;
@@ -56,9 +57,9 @@ export const roleIn = (attrs: Attrs | undefined): Role | undefined => {
   return ROLES.find((r) => r === value);
 };
 
-export const changeIn = (attrs: Attrs | undefined): Change | undefined => {
+export const changeIn = (attrs: Attrs | undefined): Paint | undefined => {
   const value = attrs?.find(([k]) => k === 'data-change')?.[1];
-  return CHANGES.find((c) => c === value);
+  return PAINTS.find((c) => c === value);
 };
 
 const DIFF_DASH = [4, 3];
@@ -96,7 +97,7 @@ export function moved(mark: Mark, dx: number, dy: number): Mark {
   }
 }
 
-export function recolour(mark: Mark, change: Change | undefined, classes: readonly string[]): Mark {
+export function recolour(mark: Mark, change: Paint | undefined, classes: readonly string[]): Mark {
   if (!change) return mark;
   const ink = CHANGE[change].line;
   const tint = CHANGE[change].fill;
@@ -113,6 +114,8 @@ export function recolour(mark: Mark, change: Change | undefined, classes: readon
       return { ...mark, fill: ink };
     case 'rect':
       if (mark.hatch !== undefined) return { ...mark, hatch: ink };
+      if (classes.includes('pr-mark'))
+        return { ...mark, fill: classes.includes('pr-weak') ? INK.paper : ink, stroke: ink, sw: 1.6, ...dash };
       return {
         ...mark,
         fill: tint,
