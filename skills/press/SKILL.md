@@ -146,7 +146,7 @@ report.
 ## 6. Check, then look
 
 1. Run `press check doc.md` (in a clone of Press without `npm link`, `node src/cli.ts check doc.md`). Fix every error and warning; each names the line and a fix you can apply as written.
-2. Look at the result. `press build doc.md -o doc.html` for the screen, `press build doc.md -o doc.pdf` for paper, `press build doc.md -o doc.webp` for one image per figure (PDF and images need `typst`). Without a browser, `press preview doc.md` draws every figure in the terminal, and the same mistakes show there. The checker cannot see a raw id used as a label, text shrunk too small, or a figure that says something other than you meant.
+2. Look at the result. If the user asked for an image, the only command is `press build doc.md -o doc.webp` (or `.png`). That is Typst, the same drawing as the PDF. Install `typst` if it is missing. **Never screenshot the HTML.** Walk through is a screen control; it must not appear in an image you hand back. `press build doc.md -o doc.pdf` is paper. `press preview doc.md` is the terminal. The checker cannot see a raw id used as a label, text shrunk too small, or a figure that says something other than you meant.
 3. Test each figure: could a reader who knows nothing about this answer "what talks to what" or "what happens when X fails" from it in under a minute? If not, it is too big or it makes no point.
 4. Check each figure against the code once more. Every edge you drew, you can point at.
 

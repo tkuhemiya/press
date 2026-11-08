@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -72,6 +72,24 @@ describe('press build -o png', () => {
       expect(result.stderr).toMatch(/has no figures to draw/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('tells you to install Typst, not to screenshot HTML', () => {
+    const bin = mkdtempSync(join(tmpdir(), 'press-nopath-'));
+    try {
+      symlinkSync(process.execPath, join(bin, 'node'));
+      const result = spawnSync(
+        join(bin, 'node'),
+        ['src/cli.ts', 'build', 'docs/how-press-works.md', '-o', join(bin, 'x.png')],
+        { cwd, encoding: 'utf8', env: { ...process.env, PATH: bin } },
+      );
+      expect(result.status).toBe(2);
+      expect(result.stderr).toMatch(/typst.*not found on PATH/i);
+      expect(result.stderr).toMatch(/Do not screenshot HTML/);
+      expect(result.stderr).not.toMatch(/-o out\.html/);
+    } finally {
+      rmSync(bin, { recursive: true, force: true });
     }
   });
 

@@ -155,7 +155,7 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 - **SVG is Typst’s print SVG**, with colours and type resolved, not the class-only SVG inside the HTML page. The HTML SVG needs the page stylesheet; the export does not.
 - **Raster density.** `--ppi` defaults to 144 (two pixels per PostScript point). It must be an integer from 72 to 600, and it applies to PNG, WebP and JPEG. 144 ppi keeps the smallest print type around 12 device pixels.
 - **WebP is lossless**, re-encoded from the Typst PNG. It is the usual bitmap to ship: same pixels as PNG, typically about a third the size. JPEG is for hosts that will not take WebP; it is lossy and often larger than PNG on these drawings.
-- **No Chromium.** Images are Typst output. HTML screenshots are not a Press export.
+- **Images are Typst, the same marks as the PDF.** There is no Chromium, Playwright, or HTML-screenshot path. A screenshot of the HTML page is not a Press image: it includes the Walk through control, which exists only on screen. If `typst` is missing, install it; do not fall back to a browser.
 
 ### Readability
 

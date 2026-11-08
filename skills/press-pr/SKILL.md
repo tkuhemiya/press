@@ -123,7 +123,7 @@ press check pr-123.md
 press build pr-123.md -o pr-123.webp
 ```
 
-WebP (and PNG, JPEG, SVG) need `typst` on PATH. Each figure is one image, page sized to the drawing. WebP is lossless from the Typst PNG. Then open `pr-123.webp` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf`.
+WebP (and PNG, JPEG, SVG) need `typst` on PATH. Each figure is one image, page sized to the drawing, typeset by Typst — the same marks as the PDF. **Never screenshot HTML.** Walk through exists only on the HTML page. If `typst` is missing, install it; do not open `pr-123.html` in a browser and crop. WebP is lossless from the Typst PNG. Then open `pr-123.webp` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf`.
 
 **Before you finish, walk the diff hunk by hunk.** Every hunk that changes behaviour is in the figure, in the card's text, or named in your hand-back as left out.
 
