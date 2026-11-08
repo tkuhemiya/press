@@ -119,13 +119,10 @@ Save the card next to where it will be used, for example `pr-123.md`. In a clone
 
 ```sh
 press check pr-123.md
-press build pr-123.md -o pr-123.html
-npx playwright screenshot --full-page --viewport-size=1000,700 "file://$PWD/pr-123.html" pr-123.png
+press build pr-123.md -o pr-123.png
 ```
 
-The first run of `npx playwright` may need `npx playwright install chromium`. Any headless browser that takes a full-page screenshot works the same way.
-
-Then open `pr-123.png` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf` (needs `typst`).
+PNG (and SVG) need `typst` on PATH. Each figure is one image, page sized to the drawing. Then open `pr-123.png` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf`.
 
 **Before you finish, walk the diff hunk by hunk.** Every hunk that changes behaviour is in the figure, in the card's text, or named in your hand-back as left out.
 

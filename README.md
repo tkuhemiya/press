@@ -45,6 +45,7 @@ Press needs Node 26 or later.
 npm install
 node src/cli.ts build docs/examples/checkout.md --out-dir out   # HTML
 node src/cli.ts build doc.md -o doc.pdf                    # PDF, typeset by Typst (needs typst on PATH)
+node src/cli.ts build doc.md -o doc.png                    # each figure as a tight PNG (needs typst)
 node src/cli.ts check doc.md                               # problems only
 node src/cli.ts preview doc.md                             # read it in the terminal
 ```

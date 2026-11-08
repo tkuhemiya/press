@@ -1,3 +1,4 @@
+import { basename, dirname, extname, join } from 'node:path';
 import { targetName, type Direction, type NodeId } from '../model.ts';
 import type { Document, Figure } from '../parse/document.ts';
 import { documentBlocks, htmlInlines, plain, type Blocks, type Inline } from './blocks.ts';
@@ -46,6 +47,23 @@ export function typstDocument(doc: Document): TypstDocument {
   const out: TypstDocument = { scale: PT_PER_PX, sections: sectionsOf(blocks) };
   if (doc.title !== undefined) out.title = doc.title;
   return out;
+}
+
+export function printFigureCount(doc: Document): number {
+  return typstDocument(doc).sections.reduce((n, s) => n + s.blocks.filter((b) => b.t === 'figure').length, 0);
+}
+
+export function pagedImagePath(target: string, figures: number): string {
+  if (figures <= 1 || target.includes('{p}')) return target;
+  const ext = extname(target);
+  return join(dirname(target), `${basename(target, ext)}-{p}${ext}`);
+}
+
+export function pagedImageOutputs(target: string, figures: number): string[] {
+  if (figures <= 1) return [target];
+  const ext = extname(target);
+  const stem = join(dirname(target), basename(target, ext));
+  return Array.from({ length: figures }, (_, i) => `${stem}-${i + 1}${ext}`);
 }
 
 function sectionsOf(blocks: Block[]): Section[] {
