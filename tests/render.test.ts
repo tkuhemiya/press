@@ -275,6 +275,36 @@ waiting -> end
     expect(html).toContain('"from":"b.a_id","to":"a.id"');
   });
 
+  it('draws a dependency matrix: a mark for each use, a band per group', () => {
+    const src = readFileSync(new URL('../docs/examples/module-deps.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toMatch(/class="pr-svg pr-dependency[" ]/);
+    expect(count(svg, /class="pr-node pr-cell pr-use"/g)).toBe(5);
+    expect(svg).toMatch(/data-from="fulfillment" data-to="billing"[^>]*data-role="error"/);
+    expect(count(svg, /class="pr-group pr-band"/g)).toBe(2);
+    expect(svg).toContain('Row uses column');
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
+  it('draws a class diagram: compartments, a diamond, a hollow triangle', () => {
+    const src = readFileSync(new URL('../docs/examples/checkout-types.md', import.meta.url), 'utf8');
+    const { html, diagnostics } = build(src, { embedFonts: false });
+    expect(diagnostics).toEqual([]);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toMatch(/class="pr-svg pr-class[" ]/);
+    expect(count(svg, /class="pr-node pr-classifier/g)).toBe(5);
+    expect(count(svg, /class="pr-group /g)).toBe(2);
+    expect(svg).toContain('«interface»');
+    expect(svg).toContain('submit()');
+    expect(svg).toMatch(/data-node="order"[^>]*data-role="focus"/);
+    expect(count(svg, /class="pr-diamond"/g)).toBe(1);
+    expect(count(svg, /class="pr-gen"/g)).toBe(1);
+    expect(svg).toMatch(/data-kind="interface"/);
+    expect(svg).not.toMatch(/NaN|Infinity|undefined/);
+  });
+
   it('puts an opaque plate under every edge label', () => {
     const { html } = build('```state-machine direction=right\na -> b : go now\n```', { embedFonts: false });
     expect(html).toMatch(/<g class="pr-edge-label"[^>]*><rect class="pr-elabel-plate"/);
@@ -344,7 +374,7 @@ describe('the Press skill', () => {
 
   it.each([
     ['SKILL.md', 0],
-    ['references/language.md', 15],
+    ['references/language.md', 17],
     ['references/explorer-prompt.md', 0],
   ])('teaches only Press that builds cleanly in %s', (path, figures) => {
     const { diagnostics, html } = build(skillFile(path), { embedFonts: false });

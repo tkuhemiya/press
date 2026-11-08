@@ -43,8 +43,8 @@ Then:
 For a repo, a subsystem or a piece of code. Adapt the shape; drop any part with nothing to say.
 
 - **Overview.** One or two paragraphs: what it is, what it does, why it exists. A reader should be able to stop here and know whether to keep going.
-- **The map.** One small figure of the parts: `c4` for who uses it and what it is made of, `architecture` for how the parts connect, or `architecture` over modules for a library. Five to nine nodes. The rest of the document zooms into it.
-- **How it works.** The longest part. Follow one real path: what triggers it, what happens in order, where data goes, where the decisions are. Usually a `sequence` with steps. Then the hard part, in whichever type fits: a `state-machine` for a lifecycle, a `causal-loop` for behaviour under load, a `decision-tree` for branching logic, an `er` for the data.
+- **The map.** One small figure of the parts: `c4` for who uses it and what it is made of, `architecture` for how the parts connect, or `dependency` for which modules may import which. Five to nine nodes. The rest of the document zooms into it.
+- **How it works.** The longest part. Follow one real path: what triggers it, what happens in order, where data goes, where the decisions are. Usually a `sequence` with steps. Then the hard part, in whichever type fits: a `state-machine` for a lifecycle, a `causal-loop` for behaviour under load, a `decision-tree` for branching logic, an `er` for the data. For a library, a `class` figure grouped by module shows the types a neighbour actually calls — that class is the module's interface, not an inventory of helpers.
 - **Where things live.** A short list of the files a newcomer would open first. Prose, not a figure.
 - **Gotchas.** What looks like it works one way and works another. Skip it if there is nothing.
 
@@ -70,7 +70,8 @@ The PR body, the linked issue and the commit messages say why. The diff says wha
 |---|---|
 | adds or removes a state, or changes what moves between states | `state-machine` |
 | adds a hop, reorders calls, adds a retry, a cache check or a timeout | `sequence` |
-| adds, removes or rewires a service, queue, cache or module | `architecture` or `c4` |
+| adds, removes or rewires a service, queue, cache or module | `architecture` or `c4`; `dependency` when the claim is who may import whom |
+| changes a type or method other modules call | `class` |
 | changes where personal or payment data goes | `data-flow` |
 | changes tables, columns, keys or references | `er` |
 | changes replicas, zones, or where something runs | `deployment` |

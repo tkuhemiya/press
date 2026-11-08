@@ -614,7 +614,7 @@ export function parseFence(input: FenceInput, report: Reporter): Fence {
     if (keyed && !has('field')) {
       error(
         line,
-        `\`${keyed.node}.${keyed.key}\` names a field, and only ${input.formsElsewhere('field').join(' and ')} edges join fields.`,
+        `\`${keyed.node}.${keyed.key}\` names a field, and only ${list(input.formsElsewhere('field'))} edges join fields.`,
         `Join the nodes themselves: \`${ends.map((e) => e.node).join(' -> ')}\`.`,
       );
       continue;

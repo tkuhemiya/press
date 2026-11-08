@@ -80,7 +80,7 @@ The modules, the rules about what may import what, and the files a newcomer open
 
 - **Why:** it connects the map of the running system to the files you edit.
 - **Look for:** top-level directories, package boundaries, lint rules on imports, a `core` or `domain` package.
-- **Show as:** `architecture` over modules when the layering is the point; otherwise a table of directories and what lives in each.
+- **Show as:** `dependency` when the point is who may import whom. `class`, grouped by those modules, for the types a neighbour calls — that class is the module's interface, not its internals. A table of directories when the layering is not the point.
 
 ## 3. What does it remember?
 

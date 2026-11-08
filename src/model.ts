@@ -294,6 +294,38 @@ export interface MemoryLayout extends Header {
   steps: Step<NodeTarget | EdgeTarget | PropTarget>[];
 }
 
+export type Use = Edge<'->' | '-->' | '<->'>;
+
+export type Dependency = Graph<Node, Use, NodeTarget | EdgeTarget> & {
+  type: 'dependency';
+};
+
+export const CLASS_KINDS = ['class', 'interface', 'abstract'] as const;
+export type ClassKind = (typeof CLASS_KINDS)[number];
+
+export const CLASS_RELS = ['extends', 'implements', 'contains', 'uses'] as const;
+export type ClassRel = (typeof CLASS_RELS)[number];
+
+export interface Member {
+  owner: NodeId;
+  name: NodeId;
+  type?: string;
+  op: boolean;
+  role?: Role;
+  change?: Change;
+  was?: string;
+  line: number;
+}
+
+export type Classifier = Node & { kind?: ClassKind; members: Member[] };
+
+export type ClassLink = Edge & { rel?: ClassRel };
+
+export type ClassDiagram = Graph<Classifier, ClassLink, NodeTarget | EdgeTarget | PropTarget> & {
+  type: 'class';
+  direction?: Direction;
+};
+
 export interface DiagramMap {
   'state-machine': StateMachine;
   sequence: Sequence;
@@ -308,6 +340,8 @@ export interface DiagramMap {
   tradeoffs: Tradeoffs;
   'call-stack': CallStack;
   'memory-layout': MemoryLayout;
+  dependency: Dependency;
+  class: ClassDiagram;
 }
 
 export type DiagramType = keyof DiagramMap;

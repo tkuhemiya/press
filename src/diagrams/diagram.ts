@@ -8,6 +8,8 @@ import { trusted } from '../brand.ts';
 import { ARCHITECTURE } from './architecture.ts';
 import { C4 } from './c4.ts';
 import { CALL_STACK } from './call-stack.ts';
+import { CLASS } from './class.ts';
+import { DEPENDENCY } from './dependency.ts';
 import { CAUSAL_LOOP } from './causal-loop.ts';
 import { DATA_FLOW } from './data-flow.ts';
 import { DECISION_TREE } from './decision-tree.ts';
@@ -64,6 +66,8 @@ const DIAGRAMS: { [T in DiagramType]: DiagramDef<T> } = {
   tradeoffs: TRADEOFFS,
   'call-stack': CALL_STACK,
   'memory-layout': MEMORY_LAYOUT,
+  dependency: DEPENDENCY,
+  class: CLASS,
 };
 
 function keyed(r: Rendered): Rendered {

@@ -12,9 +12,10 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 - **v0.4** (shipped): phases in `sequence`, lanes and times since the start in `timeline`, caveats in `tradeoffs`, prose links to edges, phases and loops. Chosen from the authoring eval (`docs/eval/REPORT.md`)
 - **v0.5** (shipped): native Typst print, page-aware figure sizing, and page hints on headings
 - **v0.6:** vendor icons (AWS, Azure, Google Cloud, Kubernetes) in `architecture` and `sequence`
-- **v0.7:** `data-flow`, `c4` (context and containers) and `deployment`, for software architecture. Later candidates from the same issue: class, activity, dependency graphs, gantt, threat models
+- **v0.7:** `data-flow`, `c4` (context and containers) and `deployment`, for software architecture. Later candidates from the same issue: activity, gantt, threat models
 - **v0.8:** diffs: show a change in any diagram with `+` and `-` lines
 - **v0.9:** `call-stack` and `memory-layout`, for how a program runs
+- **v0.10:** `dependency` (who imports whom, as a matrix) and `class` (the types a module publishes as its surface)
 - **Later:** the rest, prioritized by what software explanations need most
 
 ## Software
@@ -30,6 +31,8 @@ Status: `planned` → `spec` (syntax agreed in SPEC.md) → `building` → `done
 | `er`            | Entities and relationships              | 0.3     | done    |
 | `call-stack`    | Stack frames over time                  | 0.9     | done    |
 | `memory-layout` | Bytes, pointers, structs                | 0.9     | done    |
+| `dependency`    | Which modules use which, as a grid      | 0.10    | done    |
+| `class`         | Types a caller uses to talk to a module | 0.10    | done    |
 
 ## Systems and economics
 

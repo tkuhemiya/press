@@ -1,6 +1,7 @@
 import {
   ARCHITECTURE_KINDS,
   C4_KINDS,
+  CLASS_KINDS,
   DATA_FLOW_KINDS,
   DEPLOYMENT_KINDS,
   SEQUENCE_KINDS,
@@ -24,6 +25,8 @@ export const GRAMMARS: { [T in DiagramType]: Grammar } = {
   tradeoffs: { ...plain, forms: ['prop'], directional: true },
   'call-stack': { ...plain, directional: true },
   'memory-layout': { ...plain, attrs: ['size', 'packed'], forms: ['prop', 'field'], directional: false },
+  dependency: { ...plain, directional: false },
+  class: { ...plain, kinds: CLASS_KINDS, attrs: ['op', 'rel'], forms: ['prop', 'field'], directional: true },
 };
 
 export function formsElsewhere(form: LineForm): DiagramType[] {

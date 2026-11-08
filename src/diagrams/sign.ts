@@ -58,6 +58,8 @@ export function signed(d: Diagram): Diagram {
     case 'c4':
     case 'deployment':
     case 'decision-tree':
+    case 'dependency':
+    case 'class':
       return signedGraph(d);
   }
 }

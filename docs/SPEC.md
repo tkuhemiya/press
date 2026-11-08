@@ -1,4 +1,4 @@
-# Press language spec (draft, v0.9)
+# Press language spec (draft, v0.10)
 
 ## Document
 
@@ -72,7 +72,7 @@ node.key : value {attrs}
 ```
 
 - `node` is created by first use, like any node. `key` is an id. The value is a single word or a quoted string, and it is optional where the type allows it.
-- In `er` a property is a field of an entity (`orders.user_id : uuid`). In `tradeoffs` it is a cell: what one option offers on one criterion (`redis.ops : "another service"`).
+- In `er` a property is a field of an entity (`orders.user_id : uuid`). In `tradeoffs` it is a cell: what one option offers on one criterion (`redis.ops : "another service"`). In `class` it is a field or, with `{op=yes}`, a method (`order.submit : void {op=yes}`).
 - Roles work on properties as on nodes: `{role=happy}` marks a favourable value, `{role=error}` an unfavourable one.
 - A type that has no properties reports `a.b` as an error that names the types that do.
 
@@ -159,7 +159,7 @@ Paper is a budget. A diagram should not take more space on paper than it does on
 
 ### Readability
 
-A diagram that is too big to read in print gets a warning, and the build still succeeds. The warning names the line and says to split the diagram into several smaller ones linked from prose. The limits are 30 states, components or decision nodes, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells, 30 call-stack frames and 128 bytes of memory layout.
+A diagram that is too big to read in print gets a warning, and the build still succeeds. The warning names the line and says to split the diagram into several smaller ones linked from prose. The limits are 30 states, components or decision nodes, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells, 30 call-stack frames, 128 bytes of memory layout, 16 modules in a dependency matrix and 15 classes.
 
 A label word longer than 40 characters with no spaces is also a warning. Labels wrap at a fixed width, and a word longer than that width is broken into pieces on screen and on paper, so nothing leaves its card.
 
@@ -614,13 +614,111 @@ order.pad : padding {size=3}
 order.total : u32
 ```
 
+## Diagram types in v0.10
+
+Two types for the shape of code, meant to be read together. **`dependency` is which modules may talk to which.** **`class` is how they talk:** the types one module publishes as its surface, the operations a caller invokes. Both use the shared grammar. A dependency matrix has no properties; a class diagram uses properties for fields and methods.
+
+A class in that figure is not an inventory of every helper in the package. It is the interface of the module: what another module imports and calls. Private types stay out, or `{role=muted}`. Groups on the class diagram are the same modules as the rows of the matrix.
+
+### `dependency`
+
+Which modules use which. The author writes ordinary edges, **`a -> b` means `a` uses `b`** (an import, a call, a package dependency). The picture is a square grid, not a node-link graph: the same modules label the rows and the columns, in source order, and a mark in a cell means the row uses the column.
+
+- **Read a row** to see what that module depends on. **Read a column** to see who depends on it.
+- **A filled square is a use.** `-->` is a weaker use (a type-only import, an optional link) and draws as a hollow square. `<->` is mutual use and fills both cells.
+- **The diagonal is empty.** A module using itself is an error.
+- **Layered code fills one triangle.** With modules listed from most dependent to most stable, marks sit to the right of the diagonal. A cycle of two or more modules draws as a square around that block, and is a warning that names them.
+- **A group is a layer or a package**, and draws as a band across those rows and columns.
+- An edge label is kept for steps and does not appear in the cell. `{role=error}` marks a use that should not exist, `{role=happy}` an intended one, `{role=focus}` a module to look at (its row and column).
+- `direction` has no meaning; the parser ignores it with a warning. Node kinds: none. Properties are an error.
+- Steps and prose references name a module or an edge (`checkout -> billing`).
+
+```dependency id=shop title="Who imports whom"
+checkout -> catalog
+checkout -> billing
+billing -> payments
+fulfillment -> catalog
+fulfillment -> billing {role=error}
+
+group "storefront" {
+  checkout
+  catalog
+}
+group "back office" {
+  billing
+  payments
+  fulfillment
+}
+
+steps:
+  fulfillment -> billing  "Fulfillment talks to billing directly; it should go through checkout."
+```
+
+### `class`
+
+The types a caller uses to talk to a module: what they hold, the operations they expose, and how they relate. A node is a class, an interface or an abstract type. Its members are properties: `type.member : Type {attrs}`. `{op=yes}` marks a method, the usual way another module interacts; other properties are fields that belong on that surface. `direction` defaults to `down`.
+
+Node kinds:
+
+| Kind | Draws as | Means |
+|---|---|---|
+| `class` | a box with a name, then fields, then methods | a concrete type (the default) |
+| `interface` | the same box, with «interface» above the name | a protocol, no instances |
+| `abstract` | the same box, name in italics | a type that must be subclassed |
+
+- **Draw the published surface, not the module's internals.** The types other modules import, the methods they call. A helper that never leaves the package is left out, or `{role=muted}`. `{role=focus}` on the type that *is* the module's interface (the one a neighbour imports).
+- **Fields and methods draw in source order**, fields above a rule, methods below it. The value is the member's type (`Uuid`, `Money`). A method shows `name()` and then its type. `{op=yes}` is the only member attribute; write `{op=yes}` or leave it out.
+- **Edges are relationships between types**, not between members. Join two types: `order -> user : places`. Member-to-member edges are an error.
+- **`rel` is required to mean anything other than an association.** `{rel=extends}` is inheritance (hollow triangle at the parent). `{rel=implements}` is realizing an interface (dashed, same triangle). `{rel=contains}` is composition (filled diamond at the owner). `{rel=uses}` is a dependency, the same as `-->`. An unknown `rel` is an error that lists those four.
+- **`->` with no `rel`** is an association; the label names it (`places`, `pays with`). **`-->`** is a dashed dependency. **`<->`** is a bidirectional association; it cannot take `rel`.
+- **Groups are modules**, the same names as in a `dependency` figure of the same system. The matrix says who may import whom; this figure says what they import. Steps and prose references name a type, a member (`order.submit`) or an edge.
+
+```class id=shop title="What checkout and billing publish"
+user: "User"
+user.email : String
+user.place_order : Order {op=yes}
+
+order: "Order" {role=focus}
+order.id : Uuid
+order.status : Status
+order.total : Money {op=yes}
+order.submit : void {op=yes}
+
+item: "LineItem"
+item.sku : String
+item.qty : Int
+item.price : Money
+
+payment: interface "Payment" {role=focus}
+payment.capture : void {op=yes}
+
+card: "CardPayment"
+card.last4 : String
+card.capture : void {op=yes}
+
+user -> order : places
+order -> item {rel=contains}
+order -> payment : pays with
+card -> payment {rel=implements}
+
+group "checkout" {
+  user
+  order
+  item
+}
+group "billing" {
+  payment
+  card
+}
+```
+
 ## Node kinds
 
 Each diagram type has a fixed list of node kinds, and each kind has a designed shape or icon. The list is closed so that every kind looks good. A kind the renderer doesn't know draws as a plain box, and the parser emits a warning naming the known kinds. To add a kind, add it to the spec.
 
 `architecture` kinds: `client`, `service`, `database`, `queue`, `cache`, `storage`, `external`, `user`. `sequence` uses the same names (in v0.2, a subset: `user`, `service`, `database`, `queue`, `external`).
 
-`data-flow` kinds: `external`, `process`, `store`. `c4` kinds: `person`, `system`, `container`. `deployment` kinds: `node`, `workload`, `lb`, `cdn`, `volume`; the icons for `node` and `volume` are the `service` and `storage` icons from `architecture`.
+`data-flow` kinds: `external`, `process`, `store`. `c4` kinds: `person`, `system`, `container`. `deployment` kinds: `node`, `workload`, `lb`, `cdn`, `volume`; the icons for `node` and `volume` are the `service` and `storage` icons from `architecture`. `class` kinds: `class`, `interface`, `abstract`.
 
 ### Vendor icons
 

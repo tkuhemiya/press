@@ -28,8 +28,9 @@ Walk every dimension and answer: did this change it? Most changes touch one or t
 | Dimension | It changed if the PR… | Draw it as a diff in a |
 |---|---|---|
 | Ways in and out | adds, removes or reshapes a route, command, consumed or emitted event, webhook, schedule, outgoing call | `architecture` or `sequence` |
-| Dependencies | adds a dependency, removes one, or turns a soft one hard (now fails when it is down) | `architecture` |
+| Dependencies | adds a dependency, removes one, or turns a soft one hard (now fails when it is down) | `architecture` for running services; `dependency` for module imports |
 | Parts | adds, removes or rewires a service, worker, queue, cache or module | `architecture` or `c4` |
+| Published types | changes a type or method other modules call | `class` |
 | Trust | moves personal, payment or secret data somewhere new, or moves an auth check | `data-flow` |
 | Data model | changes tables, columns, keys, references, or a stored document's shape | `er` |
 | Data ownership | adds a copy of data, or changes what keeps a copy current | `data-flow` |
