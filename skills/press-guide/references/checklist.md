@@ -35,7 +35,7 @@ Five to nine parts: services, workers, queues, stores, and how they connect.
 
 - **Why:** everything else zooms into it. It is the picture the reader keeps in their head.
 - **Look for:** clients built at startup, service URLs in config, `docker-compose`, queue and cache clients, packages in a monorepo.
-- **Show as:** `architecture`, or `c4` containers.
+- **Show as:** `architecture`, or `c4` containers. On a cloud, use the vendor's icons (`aws.lambda`, `k8s.pod`); `press icons` lists them.
 
 ### 2.2 The edges: every way in and out (core)
 
@@ -125,6 +125,15 @@ In-memory caches, sessions, files on disk, queue contents, feature flag values, 
 - **Include when:** there is any.
 - **Show as:** prose and a short table; mark it on the map if it changes how the parts connect.
 
+### 3.6 Bytes on disk and on the wire
+
+A binary file format, a wire protocol, a struct shared with C or another process, a page or record layout.
+
+- **Why:** a reader who changes a field without knowing the offsets breaks every reader of old data. The layout is a contract, like a route.
+- **Look for:** `#[repr(C)]`, `struct` in C or Zig, `encoding/binary`, `struct.pack`, page and record headers in a storage engine, FFI bindings. A protobuf or JSON schema is not this; its field order does not matter, so it belongs in 3.1.
+- **Include when:** the code reads or writes bytes at fixed offsets.
+- **Show as:** `memory-layout`, one block per record type, padding written out, pointers as edges.
+
 ## 4. What happens when it runs?
 
 ### 4.1 The main paths (core)
@@ -168,7 +177,7 @@ Environments, regions, replicas, scaling, what is stateful.
 
 - **Look for:** Terraform, Helm, Kubernetes manifests, replica counts, autoscaling rules, health checks.
 - **Include when:** there are infra files.
-- **Show as:** `deployment`.
+- **Show as:** `deployment`, with vendor icons when it runs on a cloud or on Kubernetes.
 
 ### 4.6 Scale and hot spots
 
@@ -185,7 +194,7 @@ For each dependency and each step of the main paths: what happens when it is slo
 
 - **Why:** this is what on call needs, and the code answers it only one `catch` at a time.
 - **Look for:** `catch` blocks, fallbacks, error responses, dead-letter queues, compensations.
-- **Show as:** the failure branch in the `sequence` for that path; a `decision-tree` for "what happens if"; a table of dependency, symptom, effect.
+- **Show as:** the failure branch in the `sequence` for that path; a `decision-tree` for "what happens if"; a `call-stack` when an error unwinds through several layers and which one catches it matters; a table of dependency, symptom, effect.
 
 ### 5.2 Load and retries
 

@@ -97,7 +97,7 @@ Link prose into a figure, and hovering highlights what the link names. On paper 
 
 ### Changes
 
-Mark lines as in a diff. `+ ` is a line that exists after the change. `- ` is a line that existed before. Unmarked lines exist on both sides.
+Mark lines as in a diff, in every type except `call-stack` and `memory-layout`. `+ ` is a line that exists after the change. `- ` is a line that existed before. Unmarked lines exist on both sides.
 
 ```state-machine id=checkout-change title="Checkout, with a fraud review"
 start -> cart
@@ -318,7 +318,7 @@ cookie.revoke : "at expiry" {role=error}
 
 ### call-stack
 
-Use it for what is waiting on what: recursion, a trace, an exception that unwinds. A frame is a node; label it with the call as a reader would write it, `f3: "factorial(3)"`, and put the locals that matter in a note. `a -> b` is `a` calling `b`; `b --> a : value` is `b` returning, labelled with what it returns. Lines run in time order, and only the frame on top may call or return. A return to a frame further down unwinds the frames between; mark it `{role=error}` to show a throw. A frame that never returns stays open, which is how to draw the stack at the moment of a crash. Call a function twice with two ids (`log`, `log_2`). One fence is one thread; for concurrency use a `sequence`.
+Use it for what is waiting on what: recursion, a trace, an exception that unwinds. A frame is a node; label it with the call as a reader would write it, `f3: "factorial(3)"`, and put the locals that matter in a note. `a -> b` is `a` calling `b`; `b --> a : value` is `b` returning, labelled with what it returns. Lines run in time order, and only the frame on top may call or return. A return to a frame further down unwinds the frames between; mark it `{role=error}` to show a throw. A frame that never returns stays open, which is how to draw the stack at the moment of a crash. Call a function twice with two ids (`log`, `log_2`). One fence is one thread; for concurrency use a `sequence`. A call stack cannot be marked with `+` and `-`; to show a change in what is called or what unwinds, use a `sequence` diff, or draw the stack after the change and say in prose what moved.
 
 ```call-stack title="factorial(3)"
 f3: "factorial(3)"
@@ -334,7 +334,7 @@ steps:
 
 ### memory-layout
 
-Use it for the bytes of a value. A node is a block (a struct, a frame, an allocation); its fields are properties in memory order, `block.field : type`. Sizes come from `bool`, `u8` to `u64`, `i8` to `i64`, `f32`, `f64`, `usize`, `ptr`, `Node*` and arrays such as `"u8[24]"`; anything else needs `{size=N}`. Press does not insert padding: write it, `order.pad : padding {size=7}`, and Press warns when a field is misaligned. A pointer is an edge from a field to a block or field, `a.next -> b`; a null pointer is a field with `{note=null}`. Groups are regions, such as `Stack` and `Heap`.
+Use it for the bytes of a value. A node is a block (a struct, a frame, an allocation); its fields are properties in memory order, `block.field : type`. Sizes come from `bool`, `u8` to `u64`, `i8` to `i64`, `f32`, `f64`, `usize`, `isize`, `ptr`, `Node*` and arrays such as `"u8[24]"`; anything else needs `{size=N}`. Press does not insert padding: write it, `order.pad : padding {size=7}`, and Press warns when a field is misaligned. A block the language packs on purpose takes `{packed=yes}` (`order {packed=yes}`), which turns the warning off. A pointer is an edge from a field to a block or field, `a.next -> b`; a null pointer is a field with `{note=null}`. Groups are regions, such as `Stack` and `Heap`. A layout cannot be marked with `+` and `-`; draw the layout after the change and name in prose the fields that moved or grew.
 
 ```memory-layout title="struct Order, 16 bytes"
 order.id : u64
@@ -405,7 +405,8 @@ group "billing" {
 | A new node marked `+` on one line and unmarked on another | Mark every line that mentions it |
 | A second call to the same function reusing its id | A new id per call: `log_2: "log()"` |
 | A call stack drawn as a `sequence` of one participant | `call-stack`, with calls and returns |
-| A struct's fields packed with no padding | Write the padding: `order.pad : padding {size=7}` |
+| A struct's fields packed with no padding | Write the padding: `order.pad : padding {size=7}`, or `{packed=yes}` on a block that really is packed |
+| `+` or `-` lines in a `call-stack` or `memory-layout` | Draw the result, and say in prose what changed |
 | An import graph drawn as `architecture` | `dependency`, so cycles and layers read as a grid |
 | A class diagram drawn as `er` | `class`. `er` is tables and `card`; `class` is types and `rel` |
 | Every helper class in a module | The types other modules import. Helpers stay in prose, or `{role=muted}` |

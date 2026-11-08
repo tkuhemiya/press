@@ -44,7 +44,7 @@ For a repo, a subsystem or a piece of code. Adapt the shape; drop any part with 
 
 - **Overview.** One or two paragraphs: what it is, what it does, why it exists. A reader should be able to stop here and know whether to keep going.
 - **The map.** One small figure of the parts: `c4` for who uses it and what it is made of, `architecture` for how the parts connect, or `dependency` for which modules may import which. Five to nine nodes. The rest of the document zooms into it.
-- **How it works.** The longest part. Follow one real path: what triggers it, what happens in order, where data goes, where the decisions are. Usually a `sequence` with steps. Then the hard part, in whichever type fits: a `state-machine` for a lifecycle, a `causal-loop` for behaviour under load, a `decision-tree` for branching logic, an `er` for the data. For a library, a `class` figure grouped by module shows the types a neighbour actually calls — that class is the module's interface, not an inventory of helpers.
+- **How it works.** The longest part. Follow one real path: what triggers it, what happens in order, where data goes, where the decisions are. Usually a `sequence` with steps. Then the hard part, in whichever type fits: a `state-machine` for a lifecycle, a `causal-loop` for behaviour under load, a `decision-tree` for branching logic, an `er` for the data, a `call-stack` for recursion or an error that unwinds through layers, a `memory-layout` for a struct, a wire format or a pointer structure where the bytes are the point. For a library, a `class` figure grouped by module shows the types a neighbour actually calls — that class is the module's interface, not an inventory of helpers.
 - **Where things live.** A short list of the files a newcomer would open first. Prose, not a figure.
 - **Gotchas.** What looks like it works one way and works another. Skip it if there is nothing.
 
@@ -78,6 +78,10 @@ The PR body, the linked issue and the commit messages say why. The diff says wha
 | changes which path a flag, a config value or a request takes | `decision-tree` |
 | changes behaviour under load: retries, backoff, limits | `causal-loop` |
 | was chosen over alternatives the reviewer will ask about | `tradeoffs` |
+| changes what calls what, or which layer catches an error | `sequence` |
+| adds, reorders or resizes a struct's fields or a wire format | `memory-layout` of the new layout |
+
+`call-stack` and `memory-layout` cannot show `+` and `-` lines yet. For a change to a layout, draw the layout after the change and name in the prose the fields that moved, grew or lost their alignment.
 
 A change of thirty files may move one edge. A one-line change may add a state. Draw the effect, not the file list. A pure refactor with no change in behaviour can be an `architecture` diff of modules, or a sentence saying nothing a user sees changes.
 
@@ -141,12 +145,13 @@ report.
 - **Step captions say why, not what.** The arrow already says "API writes order". The caption says "Only a paid order is written, so a failed charge leaves nothing behind." Three to six steps, along the path that matters.
 - **Prose and figure never repeat each other.** The prose gives the claim and the reason; the figure gives the structure. Point from prose into the figure with `[the retry](#order.failed->submitted)` instead of describing where to look.
 - **Write plainly.** Short sentences, concrete names, one name per concept. Say what the code does, not how it feels. No framing such as "the key insight" or "at its core". Never write `{color=…}`; meaning only.
-- **Leave layout to Press.** `direction` is the only hint, and you rarely need it. Never add nodes or reorder lines to push the layout around.
+- **Use vendor icons when the cloud is the point.** On AWS, Azure, Google Cloud or Kubernetes, put the icon where the kind goes in `architecture`, `sequence` or `deployment`: `fn: aws.lambda "Resize"`. Run `press icons aws lambda` to find the name rather than guessing. Label the node with what it does here; the icon already names the product.
+- **Leave layout to Press.** `direction` on a fence is the only figure hint, and you rarely need it. Never add nodes or reorder lines to push the layout around. For a long document headed for paper, `{page=new}` on a heading starts a major part on a new page and `{page=keep}` keeps a short section on one page; use them sparingly.
 
 ## 6. Check, then look
 
 1. Run `press check doc.md` (in a clone of Press without `npm link`, `node src/cli.ts check doc.md`). Fix every error and warning; each names the line and a fix you can apply as written.
-2. Look at the result. If the user asked for an image, the only command is `press build doc.md -o doc.webp` (or `.png`). That is Typst, the same drawing as the PDF. Install `typst` if it is missing. **Never screenshot the HTML.** Walk through is a screen control; it must not appear in an image you hand back. `press build doc.md -o doc.pdf` is paper. `press preview doc.md` is the terminal. The checker cannot see a raw id used as a label, text shrunk too small, or a figure that says something other than you meant.
+2. Look at the result. If the user asked for an image, the only command is `press build doc.md -o doc.webp` (or `.png`). That is Typst, the same drawing as the PDF. Install `typst` if it is missing. **Never screenshot the HTML.** Walk through is a screen control; it must not appear in an image you hand back. `press build doc.md -o doc.pdf` is paper. `press preview doc.md` is the terminal (`--ascii` if it mangles box drawing). The checker cannot see a raw id used as a label, text shrunk too small, or a figure that says something other than you meant.
 3. Test each figure: could a reader who knows nothing about this answer "what talks to what" or "what happens when X fails" from it in under a minute? If not, it is too big or it makes no point.
 4. Check each figure against the code once more. Every edge you drew, you can point at.
 
