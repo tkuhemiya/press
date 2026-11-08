@@ -75,10 +75,10 @@ describe('press build -o png', () => {
     }
   });
 
-  it('rejects --ppi on non-PNG output', () => {
+  it('rejects --ppi on non-raster output', () => {
     const result = press(['build', 'docs/how-press-works.md', '-o', '/tmp/x.pdf', '--ppi', '144']);
     expect(result.status).toBe(2);
-    expect(result.stderr).toMatch(/--ppi applies to PNG output only/);
+    expect(result.stderr).toMatch(/--ppi applies to PNG, WebP and JPEG output/);
   });
 
   it.skipIf(!hasTypst())('writes one tight PNG per figure', () => {
@@ -96,6 +96,39 @@ describe('press build -o png', () => {
       expect(a.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
       expect(b.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
       expect(a.length).toBeGreaterThan(1000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(!hasTypst())('writes a lossless WebP from the Typst PNG', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'press-img-'));
+    try {
+      const md = join(dir, 'card.md');
+      writeFileSync(md, card);
+      const webp = join(dir, 'card.webp');
+      const result = press(['build', md, '-o', webp]);
+      expect(result.status).toBe(0);
+      expect(result.stderr).toMatch(/wrote .*card\.webp/);
+      const bytes = readFileSync(webp);
+      expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF');
+      expect(bytes.subarray(8, 12).toString('ascii')).toBe('WEBP');
+      expect(bytes.length).toBeGreaterThan(500);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(!hasTypst())('writes JPEG when asked', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'press-img-'));
+    try {
+      const md = join(dir, 'card.md');
+      writeFileSync(md, card);
+      const jpg = join(dir, 'card.jpg');
+      const result = press(['build', md, '-o', jpg]);
+      expect(result.status).toBe(0);
+      const bytes = readFileSync(jpg);
+      expect(bytes.subarray(0, 3).toString('hex')).toBe('ffd8ff');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -16,10 +16,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "markdown-it": "^15.0.3"
+    "@jsquash/webp": "^1.5.0",
+    "jpeg-js": "^0.4.4",
+    "markdown-it": "^15.0.3",
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
+    "@types/jpeg-js": "^0.3.0",
     "@types/node": "^26.6.5",
+    "@types/pngjs": "^6.0.5",
     "knip": "^6.43.0",
     "oxfmt": "^0.75.0",
     "oxlint": "^1.90.0",
