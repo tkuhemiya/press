@@ -1,6 +1,6 @@
 # How Press works
 
-The README figure is a screenshot of the diagram below.
+The README figure is this document typeset by Typst (`press build docs/how-press-works.md -o docs/how-press-works.png`). It is not a screenshot of the HTML page.
 
 The author writes Markdown with fenced diagrams. Press parses that into a typed
 document, lays each figure out once, and draws the same model three ways.
@@ -25,7 +25,7 @@ group "Layout" {
 
 group "Render" {
   html: client "HTML" {note="screen"}
-  paper: client "PDF" {note="paper"}
+  paper: client "PDF · PNG" {note="Typst"}
   term: client "Terminal" {note="preview"}
 }
 

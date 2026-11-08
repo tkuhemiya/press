@@ -81,5 +81,6 @@ Add a row when you study a project. Name the problems in words you would search 
 | [goptics/vizb](https://github.com/goptics/vizb) | Tabular data turned into ECharts charts. | Axes, series, and a chart from a table. Open it for `plot`. |
 | [organui/organui](https://github.com/organui/organui) | Healthcare UI components. | Anatomy figures, and a visual language for biology. Open it for `pathway` and `cycle`. |
 | [kitlangton/motel](https://github.com/kitlangton/motel) | A local OpenTelemetry viewer. | A trace, and a span waterfall. No Press type uses this yet. |
+| [NDepend DSM](https://www.ndepend.com/docs/dependency-structure-matrix-dsm) | A dependency structure matrix for .NET. | A square grid of modules: a cell is a use, a triangle is layered code, a block on the diagonal is a cycle. Open it for `dependency`. |
 | [danielwh2/drawably](https://github.com/danielwh2/drawably) | Hand-drawn UI controls from a seeded stroke. | A sketch look that stays stable for a given seed. Open it for a sketch theme. |
 | [tlaplus/tlaplus](https://github.com/tlaplus/tlaplus) | The TLA+ tools, including the TLC model checker. | An error trace as a `steps:` walkthrough over a state machine. The tools have not been read in depth. |

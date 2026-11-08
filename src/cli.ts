@@ -14,9 +14,10 @@ import type { ThemeName } from './render/term/theme.ts';
 import { parseReports, settle, unfitSections, type Choices, type Report } from './render/settle.ts';
 
 const USAGE = `Usage:
-  press build <file.md> -o out.html | out.pdf | out.png | out.webp | out.jpg | out.svg
-                                                            Render to HTML, typeset to PDF, or draw each
-                                                            figure as a tight image (images and PDF need typst)
+  press build <file.md> -o out.html                         Interactive page (Walk through lives here only)
+  press build <file.md> -o out.pdf                          Typeset by Typst
+  press build <file.md> -o out.png | out.webp | out.jpg | out.svg
+                                                            Each figure as a tight image, same Typst marks as the PDF
   press build <file.md> -o out.webp [--ppi 144]             Raster density, 72–600 (default 144)
   press build <file.md...> --out-dir dir                    Render each file to HTML
   press check <file.md...>                                  Report problems only
@@ -242,7 +243,8 @@ function requireTypst(format: string): void {
               : 'JPEG';
     console.error(
       `error: \`typst\` was not found on PATH, so the ${kind} cannot be typeset.\n` +
-        '  fix: Install Typst (https://github.com/typst/typst) and put `typst` on PATH, or build HTML with `-o out.html` or `--out-dir`.',
+        '  fix: Install Typst (https://github.com/typst/typst) and put `typst` on PATH.\n' +
+        '  Images and PDF are Typst. Do not screenshot HTML; Walk through is screen-only.',
     );
     process.exit(2);
   }

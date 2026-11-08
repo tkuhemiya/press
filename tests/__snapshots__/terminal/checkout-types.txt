@@ -1,0 +1,87 @@
+
+  What checkout and billing publish
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  A class here is how another module talks to this one, not a list of every type
+  in the package. Order is checkout’s surface; Payment is billing’s. Neighbours
+  call submit() and capture(). They do not import helpers.
+
+  Who may import whom is the import grid (module-deps.md). Groups here use the
+  same module names as that grid.
+
+  What checkout and billing publish
+
+  ╭─ checkout ────────────────╮
+  │                           │
+  │  ┌──────────────────────┐ │
+  │  │         User         │ │
+  │  ├──────────────────────┤ │
+  │  │ email  String        │ │
+  │  │ place_order()  Order │ │
+  │  └───────────┬──────────┘ │
+  │              │            │
+  │              │            │
+  │              │            │
+  │           places          │
+  │              │            │
+  │              ▼            │
+  │  ╔══════════════════════╗ │
+  │  ║        Order         ║ │
+  │  ╠══════════════════════╣ │
+  │  ║ id  Uuid             ║ │
+  │  ║ status  Status       ║ │
+  │  ║ total()  Money       ║ │
+  │  ║ submit()  void ① [a] ║ │
+  │  ╚══════╦══════════╦════╝ │
+  │         │          │      │
+  │         │          │      │
+  │    contains  ③     │      │
+  │         │          │      │
+  │         │          │      │
+  │         ▼          │      │
+  │ ┌──────────────┐   │      │
+  │ │   LineItem   │   │      │
+  │ ├──────────────┤   │      │
+  │ │ sku  String  │   │      │
+  │ │ qty  Int     │   │      │
+  │ │ price  Money │   │      │
+  │ └──────────────┘   │      │
+  │                    │      │
+  ╰────────────────────┼──────╯
+                       │
+                       │
+                       │
+                       │
+                   pays with
+                       │
+                       │
+                       │
+                  ╭────╯
+                 ╭┼ billing ──────────────────╮
+                 ││                           │
+                 ││       ┌─────────────────┐ │
+                 ││       │   CardPayment   │ │
+                 ││       ├─────────────────┤ │
+                 ││       │ last4  String   │ │
+                 ││       │ capture()  void │ │
+                 ││       └────────┬────────┘ │
+                 ││                ╎          │
+                 ││                ╎          │
+                 ││                ╎          │
+                 ││           implements      │
+                 │╰────╮           ╎          │
+                 │     ▼           ▼          │
+                 │ ╔═ interface ═══════╗      │
+                 │ ║      Payment      ║      │
+                 │ ╠═══════════════════╣      │
+                 │ ║ capture()  void ② ║      │
+                 │ ╚═══════════════════╝      │
+                 │                            │
+                 ╰────────────────────────────╯
+
+  ① submit() is what a neighbour of checkout calls.
+  ② capture() is what a neighbour of billing calls.
+  ③ Line items live inside an order; they are not a second surface.
+
+  submit[a] is the command. The diamond on contains is ownership. The hollow
+  triangle on implements is the payment protocol billing publishes.

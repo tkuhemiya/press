@@ -5,6 +5,8 @@ import { er } from './rules/er.ts';
 import { graph } from './rules/graph.ts';
 import { sequence } from './rules/sequence.ts';
 import { timeline } from './rules/timeline.ts';
+import { classRule } from './rules/class.ts';
+import { dependency } from './rules/dependency.ts';
 import { tradeoffs } from './rules/tradeoffs.ts';
 
 export interface PrintScene {
@@ -13,7 +15,7 @@ export interface PrintScene {
   marks: Mark[];
 }
 
-const RULES: Rule[] = [causalLoop, er, sequence, timeline, tradeoffs];
+const RULES: Rule[] = [causalLoop, classRule, dependency, er, sequence, timeline, tradeoffs];
 
 const paint = (item: Parameters<Rule>[0], ctx: Context): Mark =>
   RULES.reduce<Mark | undefined>((found, rule) => found ?? rule(item, ctx), undefined) ?? graph(item, ctx);

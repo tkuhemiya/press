@@ -1,6 +1,7 @@
 import type {
   C4Diagram,
   CausalLoop,
+  ClassDiagram,
   DecisionTree,
   Direction,
   Edge,
@@ -175,6 +176,59 @@ export function erGraph(d: Er, ctx: Ctx): TermGraph {
       ],
     ];
     return { from, to, both: false, label: lines, kind: look.kind, token: look.token };
+  });
+  return { nodes, edges, groups: d.groups };
+}
+
+export function classGraph(d: ClassDiagram, ctx: Ctx): TermGraph {
+  const nodes = d.nodes.map((cls): TermNode => {
+    const look = nodeLook(cls.role);
+    const tag = cls.kind === 'interface' ? 'interface' : cls.kind === 'abstract' ? 'abstract' : undefined;
+    const title: Line = [
+      { text: cls.label, token: look.label === 'label' ? 'title' : look.label },
+      ...ctx.mark({ type: 'node', id: cls.id }).flatMap((m) => [{ text: ' ', token: 'text' as const }, m]),
+    ];
+    const fields = cls.members.filter((m) => !m.op);
+    const methods = cls.members.filter((m) => m.op);
+    const row = (m: (typeof cls.members)[number]): Line => {
+      const token =
+        m.role === 'muted' ? 'muted' : m.role === 'error' ? 'error' : m.role === 'focus' ? 'focus-label' : 'label';
+      return [
+        { text: `${m.name}${m.op ? '()' : ''}`, token },
+        { text: m.type ? `  ${m.type}` : '', token: 'note' },
+        ...ctx
+          .mark({ type: 'prop', node: cls.id, key: m.name })
+          .flatMap((x) => [{ text: ' ', token: 'text' as const }, x]),
+      ];
+    };
+    const out: TermNode = {
+      id: cls.id,
+      lines: [title, ...fields.map(row), ...methods.map(row)],
+      border: look.border,
+      token: look.token,
+      ...(fields.length || methods.length ? { divider: 0 } : {}),
+    };
+    if (tag) out.tag = tag;
+    if (cls.group !== undefined) out.group = cls.group;
+    return out;
+  });
+  const edges = d.edges.map((e): TermEdge => {
+    const rel = e.rel ? `${e.rel} ` : '';
+    const look = edgeLook(e.role, e.arrow);
+    const lines: Line[] = [
+      ...(e.label ? labelLines(e.label, ctx.maxLabel, 'label') : []),
+      ...(rel
+        ? [
+            [
+              { text: rel, token: 'strong' as const },
+              ...ctx.mark({ type: 'edge', index: e.index }).flatMap((m) => [{ text: ' ', token: 'text' as const }, m]),
+            ],
+          ]
+        : ctx.mark({ type: 'edge', index: e.index }).length
+          ? [ctx.mark({ type: 'edge', index: e.index })]
+          : []),
+    ];
+    return { from: e.from, to: e.to, both: e.arrow === '<->', label: lines, kind: look.kind, token: look.token };
   });
   return { nodes, edges, groups: d.groups };
 }

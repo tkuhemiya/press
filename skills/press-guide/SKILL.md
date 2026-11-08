@@ -94,7 +94,7 @@ Save the source where the next person will find it: `docs/press/guide.md` unless
 ## 5. Build, check and look
 
 1. `press check docs/press/guide.md` (in a clone of Press without `npm link`, `node src/cli.ts check …`). Fix every error and warning; each names the line and a fix.
-2. `press build docs/press/guide.md -o docs/press/guide.pdf` (needs `typst` on PATH). Also build `-o guide.html` if the reader will use it on screen. Without either, `press preview docs/press/guide.md` draws it in the terminal.
+2. `press build docs/press/guide.md -o docs/press/guide.pdf` (needs `typst` on PATH). Also build `-o guide.html` if the reader will use it on screen. **Never screenshot the HTML to make an image**; Walk through is screen-only. Without Typst, `press preview docs/press/guide.md` draws it in the terminal.
 3. Look at the PDF page by page. A figure that shrank too small, a raw id used as a label, a section split badly: fix the source, not the output.
 4. Check each figure against the code once more. Every edge you drew, you can point at.
 5. Check the guide against the reader. Could a new engineer answer each of the six questions from it? Could someone on call find what to do when a dependency is down?

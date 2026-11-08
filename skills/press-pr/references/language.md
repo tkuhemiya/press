@@ -21,6 +21,8 @@ Pick the type whose edges mean what you want to say. The edge is the claim.
 | Options compared on several criteria | `tradeoffs` | none; it is a table of judged cells |
 | Which calls are waiting on which, and what each returns | `call-stack` | a call (`->`) or a return (`-->`), in order |
 | The bytes of a struct: fields, offsets, padding, pointers | `memory-layout` | a pointer, from a field to what it points at |
+| Which modules import which | `dependency` | a use: the row imports the column |
+| The types a caller uses to talk to a module | `class` | an association, or `{rel=extends\|implements\|contains\|uses}` |
 
 **Where each one hides in code.** Press never reads code; you do. These are the shapes to look for.
 
@@ -39,6 +41,8 @@ Pick the type whose edges mean what you want to say. The edge is the claim.
 | A design doc, an ADR or a PR description weighing options | `tradeoffs` |
 | Recursion, a stack trace, an exception that skips frames, middleware that wraps a handler | `call-stack` |
 | A `struct` or `#[repr(C)]` type, a wire format, a linked list or tree of nodes, a cache line | `memory-layout` |
+| Package imports, `go.mod`, `package.json` workspace deps, who may talk to whom in the codebase | `dependency` |
+| A public class, interface or trait other packages import; the methods they call | `class` |
 
 **One concern per fence.** A context, a data flow and a deployment are three fences, not one. Let the prose say how they relate.
 
@@ -52,7 +56,7 @@ a -> b -> c                  chain. One edge per segment. No label on a chain.
 id: kind "Label" {attrs}     declaration. kind and label are optional.
 id {note="short qualifier"}  a note prints small, under the label
 group "Name" { ... }         grouping: a boundary, a place, a category
-node.key : value {attrs}     property, in er, tradeoffs and memory-layout only
+node.key : value {attrs}     property, in er, tradeoffs, memory-layout and class only
 # comment
 steps:                       last section. One step per line.
   a -> b "Caption"           a step on an edge
@@ -113,7 +117,7 @@ paid -> end
 
 ### Size
 
-`press check` warns when a figure is too big to read in print: 30 states or components, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells, 30 call-stack frames, 128 bytes of memory layout. Those are ceilings, not targets. A label word over 40 characters with no spaces also warns.
+`press check` warns when a figure is too big to read in print: 30 states or components, 10 sequence participants, 20 causal-loop variables, 40 timeline events, 15 entities, 40 tradeoffs cells, 30 call-stack frames, 128 bytes of memory layout, 16 modules in a dependency matrix, 15 classes. Those are ceilings, not targets. A label word over 40 characters with no spaces also warns.
 
 ### Page hints
 
@@ -172,7 +176,7 @@ bucket --> jobs : object created
 
 For a system on a cloud, name the vendor's icon where the kind goes: `fn: aws.lambda "Resize"`, `db: azure.cosmos-db "Orders"`, `run: gcp.cloud-run "API"`, `pod: k8s.pod "web"`. This works in `architecture`, `sequence` and `deployment`. Run `press icons aws lambda` to find a name rather than guessing. Label the node with what this instance does; the icon already names the product. Use plain kinds when the vendor is not the point.
 
-For a codebase's modules, nodes are modules and edges are calls or imports. Put the module's path in a note when the reader will go looking for it: `parse: "Parser" {note="src/parse"}`.
+For a codebase's modules, use `dependency`: who may import whom, as a grid. Use `class` for the types a neighbour actually calls; group those types by module. `architecture` is the running parts.
 
 ### c4
 
@@ -342,6 +346,42 @@ steps:
   order.pad "The struct rounds up to a multiple of 8."
 ```
 
+### dependency
+
+Use it when the claim is who is allowed to import whom, not how a request flows. An edge `a -> b` means a uses b. Press draws a square grid: the same modules on both axes, a filled cell when the row uses the column. `-->` is a weaker use and draws hollow. A cycle of modules is a warning and a square on the grid. Groups are layers. Do not use this for running services; that is `architecture`.
+
+```dependency title="Who imports whom"
+checkout -> catalog
+checkout -> billing
+billing -> payments
+fulfillment -> catalog
+fulfillment -> billing {role=error}
+```
+
+### class
+
+Use it for the types a caller uses to talk to a module, not every helper in the package. A class is the module's interface: what a neighbour imports and the methods it calls (`{op=yes}`). `{role=focus}` the type that *is* that surface. Groups are the same modules as a `dependency` figure. `{rel=extends}` is inheritance, `{rel=implements}` an interface, `{rel=contains}` composition, `{rel=uses}` (or `-->`) a dependency. A plain `->` is an association. Kinds: `class` (default), `interface`, `abstract`. Tables and foreign keys are `er`; bytes of one struct are `memory-layout`.
+
+```class title="What checkout and billing publish"
+order: "Order" {role=focus}
+order.id : Uuid
+order.submit : void {op=yes}
+item: "LineItem"
+payment: interface "Payment" {role=focus}
+payment.capture : void {op=yes}
+card: "CardPayment"
+order -> item {rel=contains}
+card -> payment {rel=implements}
+group "checkout" {
+  order
+  item
+}
+group "billing" {
+  payment
+  card
+}
+```
+
 ## Common mistakes
 
 | Mistake | Instead |
@@ -366,3 +406,6 @@ steps:
 | A second call to the same function reusing its id | A new id per call: `log_2: "log()"` |
 | A call stack drawn as a `sequence` of one participant | `call-stack`, with calls and returns |
 | A struct's fields packed with no padding | Write the padding: `order.pad : padding {size=7}` |
+| An import graph drawn as `architecture` | `dependency`, so cycles and layers read as a grid |
+| A class diagram drawn as `er` | `class`. `er` is tables and `card`; `class` is types and `rel` |
+| Every helper class in a module | The types other modules import. Helpers stay in prose, or `{role=muted}` |

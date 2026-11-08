@@ -606,9 +606,12 @@ describe('properties', () => {
     expect(doc.refs[0].target).toEqual({ type: 'prop', node: 'redis', key: 'ops' });
   });
 
-  it('only er and memory-layout edges join fields', () => {
+  it('only er, memory-layout and class edges join fields', () => {
     const e = errors(parse('state-machine', 'a.x -> b'))[0];
-    expect(e.message).toMatch(/only er and memory-layout edges join fields/);
+    expect(e.message).toMatch(/join fields/);
+    expect(e.message).toContain('`er`');
+    expect(e.message).toContain('`memory-layout`');
+    expect(e.message).toContain('`class`');
   });
 });
 
@@ -1020,6 +1023,90 @@ describe('page hints on headings', () => {
     expect(errors).toEqual([
       { line: 1, message: 'Heading ends in an unclosed `{`.', hint: 'Close the brace, as in `{page=keep}`.' },
     ]);
+  });
+});
+
+describe('dependency', () => {
+  it('parses uses, groups and a cycle warning', () => {
+    const doc = parse(
+      'dependency',
+      `a -> b
+b -> c
+c -> a
+group "core" {
+  a
+  b
+}`,
+    );
+    const d = first(doc, 'dependency');
+    expect(d.nodes.map((n) => n.id)).toEqual(['a', 'b', 'c']);
+    expect(d.edges.map((e) => [e.from, e.to])).toEqual([
+      ['a', 'b'],
+      ['b', 'c'],
+      ['c', 'a'],
+    ]);
+    expect(doc.diagnostics.some((x) => x.message.includes('cycle'))).toBe(true);
+  });
+
+  it('rejects a module using itself', () => {
+    const e = errors(parse('dependency', 'a -> a'))[0];
+    expect(e.message).toMatch(/cannot use itself/);
+  });
+
+  it('ignores direction with a warning', () => {
+    const doc = parse('dependency', 'a -> b', 'direction=right');
+    expect(doc.diagnostics[0].message).toMatch(/direction/);
+  });
+});
+
+describe('class', () => {
+  it('parses members, kinds, relationships and module groups', () => {
+    const doc = parse(
+      'class',
+      `order: "Order" {role=focus}
+order.id : Uuid
+order.submit : void {op=yes}
+pay: interface "Payment" {role=focus}
+pay.capture : void {op=yes}
+card: "CardPayment"
+card -> pay {rel=implements}
+order -> pay : pays with
+order -> item {rel=contains}
+item: "LineItem"
+group "checkout" {
+  order
+  item
+}
+group "billing" {
+  pay
+  card
+}`,
+    );
+    expect(doc.diagnostics).toEqual([]);
+    const d = first(doc, 'class');
+    expect(d.nodes.map((n) => [n.id, n.kind, n.role])).toEqual([
+      ['order', undefined, 'focus'],
+      ['pay', 'interface', 'focus'],
+      ['card', undefined, undefined],
+      ['item', undefined, undefined],
+    ]);
+    expect(d.nodes[0].members.map((m) => [m.name, m.op, m.type])).toEqual([
+      ['id', false, 'Uuid'],
+      ['submit', true, 'void'],
+    ]);
+    expect(d.edges.map((e) => [e.from, e.to, e.rel, e.label])).toEqual([
+      ['card', 'pay', 'implements', undefined],
+      ['order', 'pay', undefined, 'pays with'],
+      ['order', 'item', 'contains', undefined],
+    ]);
+    expect(d.groups.map((g) => g.label)).toEqual(['checkout', 'billing']);
+    expect(d.nodes.find((n) => n.id === 'order')?.group).toBe(0);
+    expect(d.nodes.find((n) => n.id === 'pay')?.group).toBe(1);
+  });
+
+  it('rejects member-to-member edges and unknown rel', () => {
+    expect(errors(parse('class', 'a.x -> b.y'))[0].message).toMatch(/joins a member/);
+    expect(errors(parse('class', 'a -> b {rel=inherits}'))[0].hint).toMatch(/extends/);
   });
 });
 

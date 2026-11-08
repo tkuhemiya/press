@@ -25,14 +25,15 @@ steps:
 When the card is declined, [the failed state](#order.failed) loops back.
 ````
 
-The output is one self-contained HTML file:
+The output is one self-contained HTML file, a Typst PDF, or one image per figure:
 
 - **On screen**, steps become a walkthrough: next and previous, with the current edge
   highlighted and a caption. `#order/2` links straight to step 2. Hovering a prose
-  reference points at its node.
-- **On paper**, each diagram prints as a single frame. Steps become numbered markers with
-  a caption legend, prose references become lettered markers, and diagrams never split
-  across pages.
+  reference points at its node. That control is HTML only.
+- **On paper and in images**, each diagram is one frame, typeset by Typst. Steps become
+  numbered markers, prose references become lettered markers, and diagrams never split
+  across pages. `press build doc.md -o doc.png` is that drawing. It is not a screenshot of
+  the HTML page.
 
 The language is defined in [`SPEC.md`](docs/SPEC.md). [`VISUALIZATIONS.md`](docs/VISUALIZATIONS.md)
 lists the diagram types, and [`docs/examples/`](docs/examples) has complete explanations.
@@ -91,11 +92,13 @@ pull request does to the system, from a fingerprint of the dimensions it changes
 ## Develop
 
 ```sh
-npx playwright install chromium   # once, for the browser tests
+npx playwright install chromium   # once, for HTML walkthrough tests only — not for images
 npm test            # parser, rendering, and browser checks
 npm run check       # format check, lint, typecheck
 npm run build:examples
 ```
+
+Images and PDF need `typst` on PATH. Playwright is never an image exporter.
 
 Node runs the TypeScript directly, so there is no build step. Layout for graph diagrams
 is pele's layered layout, vendored in `src/layout/pele` (MIT); see `docs/PRIOR_ART.md` for why.

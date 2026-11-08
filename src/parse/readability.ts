@@ -37,6 +37,8 @@ const LIMITS: Record<DiagramType, Limit> = {
     unit: 'cells',
     count: (d) => (d.type === 'tradeoffs' ? d.options.length * d.criteria.length : 0),
   },
+  dependency: nodes('modules', 16),
+  class: nodes('classes', 15),
 };
 
 interface Spoken {
@@ -51,6 +53,8 @@ function spoken(d: Diagram): Spoken[] {
   if ('options' in d) items.push(...[...d.options, ...d.criteria].map((n) => ({ text: n.label, line: n.line })));
   if ('cells' in d) items.push(...d.cells.map((c) => ({ text: c.value ?? '', line: c.line })));
   if ('edges' in d) items.push(...d.edges.map((e) => ({ text: e.label ?? '', line: e.line })));
+  if (d.type === 'class')
+    items.push(...d.nodes.flatMap((n) => n.members.map((m) => ({ text: `${m.name} ${m.type ?? ''}`, line: m.line }))));
   return items;
 }
 

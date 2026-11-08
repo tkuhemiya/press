@@ -112,6 +112,8 @@ describe('press preview', () => {
         fence('er', 'users.id : uuid {key=yes}\norders.user_id : uuid\norders.user_id -> users.id {card=N:1}'),
         fence('timeline', '14:02 a: "Deploy"\n14:09 b: "Alert" {until=14:20}\na -> b : caused'),
         fence('tradeoffs', 'x.speed : fast {role=happy}\ny.speed : slow {role=error}'),
+        fence('dependency', 'web -> api\napi -> db'),
+        fence('class', 'a: "A"\na.x : Int\nb: interface "B"\na -> b {rel=implements}'),
       ].join('\n'),
     );
     for (const text of [
@@ -125,6 +127,10 @@ describe('press preview', () => {
       'end of “Alert”',
       '✓ fast',
       '✗ slow',
+      'web',
+      '■',
+      'interface',
+      'implements',
     ])
       expect(out).toContain(text);
   });

@@ -692,6 +692,132 @@ th {
   stroke: var(--happy);
 }
 
+.pr-class-head {
+  fill: var(--group-fill);
+}
+.pr-class-rule {
+  stroke: var(--node-line);
+  stroke-width: 1;
+}
+.pr-class-name {
+  font-weight: 600;
+}
+.pr-abstract .pr-class-name,
+.pr-interface .pr-class-name {
+  font-style: italic;
+}
+.pr-stereo {
+  font-size: 11.5px;
+  fill: var(--ink-3);
+}
+.pr-class .pr-member-box {
+  fill: none;
+  stroke: none;
+}
+.pr-member-name {
+  font-weight: 500;
+  font-size: 13px;
+  fill: var(--ink);
+}
+.pr-member-type {
+  font-size: 11.5px;
+  fill: var(--ink-3);
+  text-anchor: end;
+  font-family: var(--mono);
+}
+.pr-gen {
+  fill: var(--fig-bg);
+  stroke: var(--edge);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.pr-diamond {
+  fill: var(--edge);
+  stroke: var(--edge);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.pr-class .pr-member[data-role='focus'] .pr-member-box {
+  fill: var(--focus-fill);
+}
+.pr-class .pr-member[data-role='error'] .pr-member-box {
+  fill: var(--error-fill);
+}
+.pr-class .pr-member[data-role='happy'] .pr-member-box {
+  fill: var(--happy-fill);
+}
+.pr-class .pr-member[data-role='muted'] .pr-member-name {
+  fill: var(--muted-ink);
+}
+.pr-edge[data-role='focus'] .pr-gen,
+.pr-edge[data-role='focus'] .pr-diamond {
+  stroke: var(--focus);
+}
+.pr-edge[data-role='focus'] .pr-diamond {
+  fill: var(--focus);
+}
+.pr-edge[data-role='error'] .pr-gen,
+.pr-edge[data-role='error'] .pr-diamond {
+  stroke: var(--error);
+}
+.pr-edge[data-role='error'] .pr-diamond {
+  fill: var(--error);
+}
+.pr-edge[data-role='happy'] .pr-gen,
+.pr-edge[data-role='happy'] .pr-diamond {
+  stroke: var(--happy);
+}
+.pr-edge[data-role='happy'] .pr-diamond {
+  fill: var(--happy);
+}
+
+.pr-dependency .pr-line-box {
+  fill: none;
+  stroke: none;
+}
+.pr-dependency .pr-cell-box {
+  fill: none;
+  stroke: none;
+}
+.pr-dependency .pr-mark {
+  fill: var(--ink-2);
+}
+.pr-dependency .pr-mark.pr-weak {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+}
+.pr-dependency .pr-cell[data-role='error'] .pr-cell-box {
+  fill: var(--error-fill);
+}
+.pr-dependency .pr-cell[data-role='error'] .pr-mark {
+  fill: var(--error);
+}
+.pr-dependency .pr-cell[data-role='error'] .pr-mark.pr-weak {
+  fill: none;
+  stroke: var(--error);
+}
+.pr-dependency .pr-cell[data-role='happy'] .pr-cell-box {
+  fill: var(--happy-fill);
+}
+.pr-dependency .pr-cell[data-role='happy'] .pr-mark {
+  fill: var(--happy);
+}
+.pr-dependency .pr-cell[data-role='focus'] .pr-cell-box {
+  fill: var(--focus-fill);
+}
+.pr-dependency .pr-row[data-role='focus'] .pr-line-box,
+.pr-dependency .pr-col[data-role='focus'] .pr-line-box {
+  fill: var(--focus-fill);
+  stroke: var(--focus);
+  stroke-width: 2;
+}
+.pr-cycle-box {
+  fill: none;
+  stroke: var(--error);
+  stroke-width: 1.6;
+}
+
 .pr-node[data-role='focus'] .pr-box {
   stroke: var(--focus);
   fill: var(--focus-fill);

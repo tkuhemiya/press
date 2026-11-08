@@ -1,10 +1,11 @@
-import type { Direction, Node, Tradeoffs } from '../../model.ts';
+import type { Dependency, Direction, Node, Tradeoffs } from '../../model.ts';
 import type { Figure } from '../../parse/document.ts';
 import { view } from '../../diagrams/diagram.ts';
 import { htmlInlines } from '../blocks.ts';
 import {
   c4Graph,
   causalLoopGraph,
+  classGraph,
   decisionTreeGraph,
   directionsFor,
   erGraph,
@@ -72,6 +73,10 @@ function body(f: Figure, theme: Theme, mark: Markers, width: number): string[] {
       return graph((c) => causalLoopGraph(d, c), ['down', 'right']);
     case 'er':
       return graph((c) => erGraph(d, c), directionsFor(d.direction, true));
+    case 'class':
+      return graph((c) => classGraph(d, c), directionsFor(d.direction, true));
+    case 'dependency':
+      return drawTable(dependencyTable(d, theme, mark), width).render(theme);
     case 'sequence': {
       for (const maxLabel of LABELS) {
         const c = drawSequence(d, theme, mark, maxLabel);
@@ -159,6 +164,41 @@ function tradeoffsTable(d: Tradeoffs, theme: Theme, mark: Markers): { head: Cell
     return members.length ? [{ band: [{ text: g.label, token: 'heading' }] }, ...rowsFor(members)] : [];
   });
   return { head: [[[]], ...d.options.map(optionHead)], rows: [...rowsFor(loose), ...banded] };
+}
+
+function dependencyTable(d: Dependency, theme: Theme, mark: Markers): { head: Cell[]; rows: Row[] } {
+  const space: Seg = { text: ' ', token: 'text' };
+  const uses = new Set<string>();
+  const weak = new Set<string>();
+  for (const e of d.edges) {
+    const add = (from: string, to: string, hollow: boolean): void => {
+      const key = `${from}>${to}`;
+      if (hollow && !uses.has(key)) weak.add(key);
+      else {
+        uses.add(key);
+        weak.delete(key);
+      }
+    };
+    add(e.from, e.to, e.arrow === '-->');
+    if (e.arrow === '<->') add(e.to, e.from, false);
+  }
+  const headOf = (n: Node): Cell => [
+    [
+      { text: n.label, token: n.role === 'focus' ? 'focus-label' : n.role === 'muted' ? 'muted' : 'strong' },
+      ...mark({ type: 'node', id: n.id }).flatMap((m) => [space, m]),
+    ],
+  ];
+  const markOf = (from: Node, to: Node): Cell => {
+    const key = `${from.id}>${to.id}`;
+    if (from.id === to.id) return [[{ text: '·', token: 'note' }]];
+    if (uses.has(key)) return [[{ text: theme.ascii ? '*' : '■', token: 'label' }]];
+    if (weak.has(key)) return [[{ text: theme.ascii ? 'o' : '□', token: 'note' }]];
+    return [[{ text: '', token: 'note' }]];
+  };
+  return {
+    head: [[[{ text: '', token: 'text' }]], ...d.nodes.map(headOf)],
+    rows: d.nodes.map((row) => ({ cells: [headOf(row), ...d.nodes.map((col) => markOf(row, col))] })),
+  };
 }
 
 export function legendLines(legend: readonly Line[], width: number, theme: Theme): string[] {

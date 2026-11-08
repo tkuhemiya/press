@@ -28,8 +28,9 @@ Walk every dimension and answer: did this change it? Most changes touch one or t
 | Dimension | It changed if the PR… | Draw it as a diff in a |
 |---|---|---|
 | Ways in and out | adds, removes or reshapes a route, command, consumed or emitted event, webhook, schedule, outgoing call | `architecture` or `sequence` |
-| Dependencies | adds a dependency, removes one, or turns a soft one hard (now fails when it is down) | `architecture` |
+| Dependencies | adds a dependency, removes one, or turns a soft one hard (now fails when it is down) | `architecture` for running services; `dependency` for module imports |
 | Parts | adds, removes or rewires a service, worker, queue, cache or module | `architecture` or `c4` |
+| Published types | changes a type or method other modules call | `class` |
 | Trust | moves personal, payment or secret data somewhere new, or moves an auth check | `data-flow` |
 | Data model | changes tables, columns, keys, references, or a stored document's shape | `er` |
 | Data ownership | adds a copy of data, or changes what keeps a copy current | `data-flow` |
@@ -122,7 +123,7 @@ press check pr-123.md
 press build pr-123.md -o pr-123.webp
 ```
 
-WebP (and PNG, JPEG, SVG) need `typst` on PATH. Each figure is one image, page sized to the drawing. WebP is lossless from the Typst PNG. Then open `pr-123.webp` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf`.
+WebP (and PNG, JPEG, SVG) need `typst` on PATH. Each figure is one image, page sized to the drawing, typeset by Typst — the same marks as the PDF. **Never screenshot HTML.** Walk through exists only on the HTML page. If `typst` is missing, install it; do not open `pr-123.html` in a browser and crop. WebP is lossless from the Typst PNG. Then open `pr-123.webp` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf`.
 
 **Before you finish, walk the diff hunk by hunk.** Every hunk that changes behaviour is in the figure, in the card's text, or named in your hand-back as left out.
 
