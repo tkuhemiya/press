@@ -225,11 +225,11 @@ waiting -> end
     expect(svg).toMatch(/class="pr-svg pr-decision-tree[" ]/);
     expect(count(svg, /class="pr-box pr-question"/g)).toBe(3);
     expect(count(svg, /class="pr-box pr-outcome"/g)).toBe(4);
-    expect(count(svg, /class="pr-edge pr-dashed"/g)).toBe(1);
+    expect(count(svg, /class="pr-edge pr-dashed"/g)).toBe(0);
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
-  it('draws a tradeoffs table: a chosen column, marked cells, a category band', () => {
+  it('draws a tradeoffs table: a chosen column, role cells, a category band', () => {
     const src = readFileSync(new URL('../docs/examples/sessions.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
@@ -238,7 +238,7 @@ waiting -> end
     expect(count(svg, /class="pr-node pr-cell/g)).toBe(15);
     expect(svg).toMatch(/class="pr-node pr-col pr-option" data-node="postgres"[^>]*data-role="focus"/);
     expect(svg).toMatch(/data-node="cookie\.revoke" data-in="cookie revoke"[^>]*data-role="error"/);
-    expect(count(svg, /class="pr-good"/g)).toBe(8);
+    expect(svg).not.toContain('class="pr-good"');
     expect(count(svg, /class="pr-group pr-band"/g)).toBe(1);
     expect(count(svg, /class="pr-step-marker"/g)).toBe(4);
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);

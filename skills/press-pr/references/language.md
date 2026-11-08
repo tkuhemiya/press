@@ -111,9 +111,9 @@ paid -> end
 - **Mark every line that mentions a new node.** An unmarked line means the node was already there.
 - **Rename** with a `-` and a `+` declaration of the same id. Press shows the new label with the old one as a note. The same works for a property's value.
 - **Groups, phases and lanes** cannot be marked. Mark their members; the container follows them.
-- Added things draw green, removed things red and dashed, changed things amber. Each changed label also starts with `+`, `−` or `~`, so a diff reads in black and white.
+- On screen, structural diffs draw as aligned Before and After panels from one layout: removed red on the left, added green on the right. Print and in-place types (`er`, `tradeoffs`) stay one overlay: added green, removed red and dashed, changed amber. Overlay labels also start with `+`, `−` or `~`. Green and red are for diffs; `{role=happy}` and `{role=error}` look like ordinary nodes.
 - Steps and prose links may point at removed elements. When a removed edge and an added edge join the same pair, a prose link to that edge is ambiguous; point at a node instead.
-- One fence holds both sides. Never draw a before figure and an after figure.
+- Write one fence. Press projects the two sides. Never author a before figure and an after figure.
 
 ### Size
 

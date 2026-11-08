@@ -21,7 +21,7 @@
          ┊◀─────────────────────────┤
          ┊                          ┊
          ┊   ACK (ack = y + 1) ③    ┊
-         ├━━━━━━━━━━━━━━━━━━━━━━━━━▶┊
+         ├─────────────────────────▶┊
          ┊                          ┊
 
   ① The client picks a random starting sequence number and sends SYN.
@@ -70,9 +70,9 @@
       rcv ACK             │         ┊           │
          ╰┈┈┈┈┈┈╮  ╭──────╯         ┊           │
                 ▼  ▼                ┊           │
-           ┏━━━━━━━━━━━━━┓          ┊           │
-           ┃ established ┃       rcv ACK    timeout ⑥
-           ┗━━━━┳━━┳━━━━━┛          ┊           │
+           ┌─────────────┐          ┊           │
+           │ established │       rcv ACK    timeout ⑥
+           └────┬──┬─────┘          ┊           │
                 │  ┊                ┊           │
                 │  ┊                ┊           │
          ╭──────╯  ╰┈┈┈┈┈┈╮         ┊           │

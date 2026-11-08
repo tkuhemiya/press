@@ -38,6 +38,7 @@ export interface GraphStyle<N extends Node> {
   first?(node: N): boolean;
   kind?(node: N): string | undefined;
   svgClass?: string;
+  dashed?: boolean;
 }
 
 export interface DrawableGraph<N extends Node> {
@@ -184,7 +185,7 @@ export function renderGraph<N extends Node>(
   for (const { e, ce } of routed) {
     const route = ce.route.map((v, i) => (i % 3 === 2 ? v : v + (i % 3 === 0 ? ox : oy)));
     const both = e.arrow === '<->';
-    out.push(edgeItem(e, routePath(route, undefined, both ? TRIM : 0, TRIM), both));
+    out.push(edgeItem(e, routePath(route, undefined, both ? TRIM : 0, TRIM), both, style.dashed !== false));
     const lx = ce.labelX + ox;
     const ly = ce.labelY + oy;
     if (e.label) {

@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { hatchItems, measureLabel, textItems, type NodeShape } from './draw.ts';
+import { measureLabel, textItems, type NodeShape } from './draw.ts';
 
 export const DECISION_TREE: DiagramDef<'decision-tree'> = {
   type: 'decision-tree',
@@ -17,6 +17,7 @@ export const DECISION_TREE: DiagramDef<'decision-tree'> = {
       shape: (node) => (outcomes.has(node.id) ? outcomeShape(node) : questionShape(node)),
       first: (node) => node.id === d.root,
       svgClass: 'pr-decision-tree',
+      dashed: false,
     });
   },
   targets: (d) => nodeParts(d.nodes),
@@ -138,7 +139,6 @@ function questionShape(node: Node): NodeShape {
       attrs,
       items: [
         { type: 'rect', cls: 'pr-box pr-question', ...b, r: 6 },
-        ...hatchItems(node, b, 6),
         ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
       ],
     }),
@@ -156,11 +156,7 @@ function outcomeShape(node: Node): NodeShape {
         type: 'group',
         cls: 'pr-node pr-outcome-node',
         attrs,
-        items: [
-          { type: 'rect', cls: 'pr-box pr-outcome', ...b, r },
-          ...hatchItems(node, b, r),
-          ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
-        ],
+        items: [{ type: 'rect', cls: 'pr-box pr-outcome', ...b, r }, ...textItems(text, b.x + b.w / 2, b.y + b.h / 2)],
       };
     },
   };

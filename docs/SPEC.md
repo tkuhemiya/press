@@ -63,6 +63,8 @@ group "Name" { ... }           nesting
 | `happy` | The intended / success path      |
 | `muted` | Present for context, not central |
 
+Green and red are reserved for diffs. `happy` and `error` look like ordinary nodes, so they do not add colour. `focus` is a blue ring; `muted` is a faint line.
+
 ### Properties
 
 *New in v0.3, used by `er` and `tradeoffs`.* A property is a named value that belongs to a node:
@@ -94,8 +96,9 @@ draft -> submitted : submit
 - A `-` line and a `+` line that declare the same id, or give the same property, make one changed element. It shows the `+` side, with the `-` side's label or value as a `was "…"` note.
 - A group, phase or lane takes its status from what it holds: added when everything in it is added, removed when everything in it is removed.
 - An unmarked causal loop that runs through a removed link is a warning, since that loop no longer exists after the change.
-- Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
-- The figure holds both sides, so a diff is larger than either. Steps and prose references work as usual and may point at removed elements.
+- On screen, a structural diff (`state-machine`, `sequence`, `architecture`, `data-flow`, `c4`, `deployment`, `causal-loop`, `decision-tree`, `timeline`) draws as two aligned panels, Before and After, from one layout of the union. Added things are absent on the left, removed things on the right; a hole stays so the two sides line up. Each panel paints like a git diff: context in ink, removed things red on the left, added things green on the right. A renamed node shows its old label on the left and its new label on the right. A changed node is red on the left and green on the right.
+- Types that edit in place (`er`, `tradeoffs`, `class`, `dependency`) stay one figure. Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
+- Print and the terminal keep that single overlay for every type, so a diff does not take two pages or two terminal figures. Steps and prose references work as usual and may point at removed elements.
 
 ## Steps
 
@@ -171,7 +174,7 @@ Small multiples (several frames) are allowed only when the author asks for them 
 
 - **Every figure fits the width.** Graph types run top to bottom unless that is wider than the terminal; a timeline runs down the page; a table shrinks its widest column first. A figure that still cannot fit, such as a sequence with many participants, prints as a numbered list of its edges. Nothing is cut off. A call stack too wide for its frames prints as an indented trace of its calls and returns, and a memory layout lists its pointers under its blocks.
 - **Steps and references work as on paper.** Steps become numbered markers (①) on the figure with the captions as a legend below it, and prose references become letters ([a]) in both the prose and the figure.
-- **Roles show without colour.** `focus` draws a double border, `happy` a heavy line or a ✓, `error` a ✗, and `muted` a dotted line. Colour only repeats them.
+- **Roles show without colour.** `focus` draws a double border, `muted` a dotted line. `happy` and `error` look like ordinary nodes. Green and red are for diffs.
 - **Dark by default.** Terminals are usually dark, so colours are chosen for a dark background; `--theme light` is for light terminals. When the output is not a terminal, or `NO_COLOR` is set, it is plain text. `--ascii` draws with ASCII only.
 
 ## Diagram types in v0.1
@@ -361,8 +364,8 @@ Questions, the answers that branch from them, and the outcomes they lead to. Edg
 - There is exactly one root, the node nothing leads to. Two roots is an error that names both.
 - Branches may rejoin (two answers can lead to the same outcome), but a path may not loop back: that is an error that suggests a `state-machine`.
 - Every edge from a question with more than one answer needs a label. A missing one is an error, since the reader cannot tell the branches apart.
-- `-->` marks a weaker or rarer branch and draws dashed. `<->` is an error.
-- Roles mark the outcomes: `{role=happy}` for the recommended one, `{role=error}` for one to avoid. `steps` walk one path from the root.
+- `<->` is an error. Branches are all the same solid edge; a rarer answer is still just an answer.
+- `{role=focus}` marks the outcome to look at. `{role=happy}` and `{role=error}` are for the author, not a second colour. `steps` walk one path from the root.
 
 ```decision-tree id=cache title="Should this be cached?"
 reads: "Read far more than written?"
@@ -377,7 +380,7 @@ reads -> skip : no
 stale -> cost : yes
 stale -> skip : no
 cost -> cache : yes
-cost --> fix : no
+cost -> fix : no
 
 steps:
   reads -> stale   "Caching only pays when reads dominate."
@@ -427,7 +430,7 @@ Here every order is placed by exactly one user and a user has any number of orde
 Options compared across criteria. Each cell is a property: `option.criterion : value {attrs}`. The node on the left of the dot is an option, the key on the right a criterion; declarations give either a display name. There are no edges: an edge is an error that says so.
 
 - The value is short text: `"<1 ms"`, `yes`, `"another service"`. A cell's role says how it compares: `{role=happy}` favourable, `{role=error}` unfavourable, no role neutral, `{role=muted}` not relevant.
-- *New in v0.4.* A cell's `note` is its caveat, printed small under the value: `mongo.tx : yes {note="multi-document since 4.0"}`. A neutral cell with a note is marked with a hollow ring: neither good nor bad, but read the small print. Favourable and unfavourable cells stay distinct in grayscale: a filled mark and a hatched cell.
+- *New in v0.4.* A cell's `note` is its caveat, printed small under the value: `mongo.tx : yes {note="multi-document since 4.0"}`. A neutral cell with a note is marked with a hollow ring: neither good nor bad, but read the small print. `{role=happy}` and `{role=error}` share the same ink fill; green and red are for diffs.
 - `{role=focus}` on an option marks the recommendation, and its column is drawn as chosen.
 - Options and criteria appear in order of first use. A declared id that no cell uses is a warning. A missing cell draws as a dash and is a warning that names it, since a comparison with gaps is usually unfinished.
 - A group of criteria is a category (`group "Operations" { ops  revoke }`) and draws as a band of rows.

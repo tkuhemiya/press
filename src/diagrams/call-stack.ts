@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, edgeEnds, header, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { trusted } from '../brand.ts';
-import { edgeTargets, hatchItems, markerItems, measureLabel, nodeTargets, refMarkers, textItems } from './draw.ts';
+import { edgeTargets, markerItems, measureLabel, nodeTargets, refMarkers, textItems } from './draw.ts';
 import type { Anchor, Box } from './draw.ts';
 import { textWidth } from '../text/measure.ts';
 import { arrowhead, linesItem, n } from '../render/svg.ts';
@@ -232,7 +232,7 @@ function render(d: CallStack, context: RenderContext): Rendered {
       type: 'group',
       cls: `pr-node pr-frame${f.open ? ' pr-open' : ''}`,
       attrs: [['data-node', f.id], ['id', `${domId}-node-${f.id}`], ...markAttrs(f)],
-      items: [{ type: 'rect', cls, x: b.x, y: b.y, w: b.w, h: b.h, r: 5 }, ...hatchItems(f, b, 5), ...label],
+      items: [{ type: 'rect', cls, x: b.x, y: b.y, w: b.w, h: b.h, r: 5 }, ...label],
     });
   }
 

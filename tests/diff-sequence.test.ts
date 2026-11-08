@@ -9,8 +9,13 @@ const first = (doc: Document): Sequence => {
   return d;
 };
 const model = (body: string): Sequence => first(parseDocument(fence(body)));
-const svgOf = (body: string): string =>
-  build(fence(body), { embedFonts: false }).html.match(/<svg[\s\S]*?<\/svg>/)?.[0] ?? '';
+const pageOf = (body: string): string => build(fence(body), { embedFonts: false }).html;
+const svgOf = (body: string): string => pageOf(body).match(/<svg[\s\S]*?<\/svg>/)?.[0] ?? '';
+const paneOf = (body: string, side: 'before' | 'after'): string => {
+  const html = pageOf(body);
+  const at = html.indexOf(`data-side="${side}"`);
+  return at < 0 ? '' : html.slice(at, html.indexOf('</svg>', at) + 6);
+};
 const tagOf = (svg: string, ...parts: string[]): string =>
   svg.match(new RegExp(`<g [^>]*${parts.join('[^>]*')}[^>]*>`))?.[0] ?? '';
 
@@ -79,38 +84,47 @@ describe('sequence model', () => {
 });
 
 describe('sequence drawing', () => {
-  it('marks messages with data-change and keeps the hover hooks', () => {
-    const svg = svgOf(DIFF);
-    const added = tagOf(svg, 'class="pr-edge[ "]', 'data-edge="1"');
-    expect(added).toContain('data-from="a" data-to="b"');
-    expect(added).toContain('data-change="added"');
-    expect(tagOf(svg, 'class="pr-edge[ "]', 'data-edge="2"')).toContain('data-change="removed"');
-    expect(tagOf(svg, 'class="pr-edge[ "]', 'data-edge="0"')).not.toContain('data-change');
+  it('keeps hover hooks and puts added and removed messages on opposite panels', () => {
+    const before = paneOf(DIFF, 'before');
+    const after = paneOf(DIFF, 'after');
+    expect(tagOf(after, 'class="pr-edge[ "]', 'data-edge="1"')).toContain('data-from="a" data-to="b"');
+    expect(after).toContain('data-edge="1"');
+    expect(before).not.toContain('data-edge="1"');
+    expect(before).toContain('data-edge="2"');
+    expect(after).not.toContain('data-edge="2"');
+    expect(tagOf(before, 'class="pr-edge[ "]', 'data-edge="0"')).toContain('data-from="a" data-to="b"');
+    expect(before).toContain('data-change="removed"');
+    expect(after).toContain('data-change="added"');
+    expect(tagOf(after, 'class="pr-edge[ "]', 'data-edge="1"')).toContain('data-change="added"');
+    expect(tagOf(before, 'class="pr-edge[ "]', 'data-edge="2"')).toContain('data-change="removed"');
+    expect(tagOf(before, 'class="pr-edge[ "]', 'data-edge="0"')).not.toContain('data-change');
   });
 
-  it('marks participants, group boxes and phase frames', () => {
-    const svg = svgOf(`${DIFF}\nphase confirm "Confirm" {\n+ b --> a : ok {role=happy}\n}`);
-    expect(tagOf(svg, 'pr-participant"', 'data-node="c"')).toContain('data-change="added"');
-    expect(tagOf(svg, 'pr-participant"', 'data-node="d"')).toContain('data-change="removed"');
-    expect(svg.match(/<g class="pr-group"[^>]*>/g)).toEqual([
-      '<g class="pr-group" data-change="added">',
-      '<g class="pr-group" data-change="removed">',
-    ]);
-    expect(tagOf(svg, 'class="pr-phase"', 'data-node="confirm"')).toContain('data-change="added"');
+  it('puts added participants, groups and phases on after, removed on before', () => {
+    const src = `${DIFF}\nphase confirm "Confirm" {\n+ b --> a : ok {role=happy}\n}`;
+    const before = paneOf(src, 'before');
+    const after = paneOf(src, 'after');
+    expect(after).toContain('data-node="c"');
+    expect(before).not.toContain('data-node="c"');
+    expect(before).toContain('data-node="d"');
+    expect(after).not.toContain('data-node="d"');
+    expect(after).toContain('data-node="confirm"');
+    expect(before).not.toContain('data-node="confirm"');
   });
 
-  it('draws a changed participant with its old label, and a diff mark in place of a role', () => {
-    const svg = svgOf(`user: user "Shopper"
+  it('shows a renamed participant as the old name before and the new name after', () => {
+    const src = `user: user "Shopper"
 - api: service "Orders API"
 + api: service "Checkout API"
-+ user -> api : check {role=error}`);
-    const node = tagOf(svg, 'pr-participant"', 'data-node="api"');
-    expect(node).toContain('data-change="changed"');
-    expect(node).not.toContain('data-role');
-    expect(svg).toContain('was &quot;Orders API&quot;');
-    const message = tagOf(svg, 'class="pr-edge[ "]', 'data-edge="0"');
-    expect(message).toContain('data-change="added"');
-    expect(message).not.toContain('data-role');
++ user -> api : check {role=error}`;
+    const before = paneOf(src, 'before');
+    const after = paneOf(src, 'after');
+    expect(before).toContain('Orders API');
+    expect(before).not.toContain('Checkout API');
+    expect(after).toContain('Checkout API');
+    expect(after).not.toContain('Orders API');
+    expect(tagOf(after, 'class="pr-edge[ "]', 'data-edge="0"')).toContain('data-change="added"');
+    expect(tagOf(after, 'class="pr-edge[ "]', 'data-edge="0"')).toContain('data-role="error"');
   });
 
   it('draws an unchanged diagram with no data-change, and keeps roles', () => {

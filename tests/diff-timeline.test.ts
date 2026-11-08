@@ -11,10 +11,19 @@ const first = <T extends DiagramType>(doc: Document, type: T): Diagram<T> => {
 };
 const statuses = (items: readonly { id: string; change?: string }[]) =>
   Object.fromEntries(items.map((item) => [item.id, item.change ?? 'kept']));
-const svgOf = (body: string): string => {
+const pageOf = (body: string): string => {
   const { html, diagnostics } = build(fence(body), { embedFonts: false });
   expect(diagnostics).toEqual([]);
+  return html;
+};
+const svgOf = (body: string): string => {
+  const html = pageOf(body);
   return html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+};
+const paneOf = (body: string, side: 'before' | 'after'): string => {
+  const html = pageOf(body);
+  const at = html.indexOf(`data-side="${side}"`);
+  return at < 0 ? '' : html.slice(at, html.indexOf('</svg>', at) + 6);
 };
 const opening = (svg: string, marker: string): string => {
   const at = svg.indexOf(marker);
@@ -47,14 +56,23 @@ describe('timeline diff marks', () => {
       recovered: 'added',
       page: 'removed',
     });
-    const svg = svgOf(events);
-    expect(opening(svg, 'data-node="rollback"')).toContain('data-change="changed"');
-    expect(opening(svg, 'data-node="rollback"')).not.toContain('data-role');
-    expect(opening(svg, 'data-node="rollback"')).toMatch(/ id="[^"]*-node-rollback"/);
-    expect(opening(svg, 'data-node="page"')).toContain('data-change="removed"');
-    expect(opening(svg, 'data-node="recovered"')).toContain('data-change="added"');
-    expect(opening(svg, 'data-node="deploy"')).not.toContain('data-change');
-    expect(opening(svg, 'data-node="alerts"')).toContain('data-role="error"');
+    const before = paneOf(events, 'before');
+    const after = paneOf(events, 'after');
+    expect(before).toContain('Roll back');
+    expect(before).not.toContain('v2.2');
+    expect(after).toContain('Roll back to v2.2');
+    expect(opening(after, 'data-node="rollback"')).toMatch(/ id="[^"]*-node-rollback"/);
+    expect(opening(before, 'data-node="rollback"')).toContain('data-change="removed"');
+    expect(opening(after, 'data-node="rollback"')).toContain('data-change="added"');
+    expect(opening(after, 'data-node="rollback"')).toContain('data-role="error"');
+    expect(before).toContain('data-node="page"');
+    expect(after).not.toContain('data-node="page"');
+    expect(after).toContain('data-node="recovered"');
+    expect(before).not.toContain('data-node="recovered"');
+    expect(opening(after, 'data-node="recovered"')).toContain('data-change="added"');
+    expect(opening(before, 'data-node="page"')).toContain('data-change="removed"');
+    expect(opening(before, 'data-node="deploy"')).not.toContain('data-change');
+    expect(opening(before, 'data-node="alerts"')).toContain('data-role="error"');
   });
 
   it('shows the old time of a moved event in its note, and the old label only when the time held', () => {
@@ -96,12 +114,18 @@ browse -> submit
       pay: 'kept',
     });
     expect(shownNotes(d).get('submit')).toBe('was "Submit the form"');
-    const svg = svgOf(body);
-    expect(opening(svg, 'data-node="submit"')).toContain('data-change="changed"');
-    expect(opening(svg, 'data-node="confirm"')).toContain('data-change="removed"');
-    expect(opening(svg, 'data-node="review"')).toContain('data-change="added"');
-    expect(opening(svg, 'data-to="pay"')).toContain('data-change="added"');
-    expect(svg).not.toContain('class="pr-when"');
+    const before = paneOf(body, 'before');
+    const after = paneOf(body, 'after');
+    expect(before).toContain('Submit the form');
+    expect(after).toContain('Submit the order');
+    expect(before).toContain('data-node="confirm"');
+    expect(after).not.toContain('data-node="confirm"');
+    expect(after).toContain('data-node="review"');
+    expect(before).not.toContain('data-node="review"');
+    expect(after).toContain('data-to="pay"');
+    expect(before).not.toContain('data-to="pay"');
+    expect(before).not.toContain('class="pr-when"');
+    expect(after).not.toContain('class="pr-when"');
   });
 
   it('marks an added lane and a removed lane from their events, and leaves a mixed lane unmarked', () => {
@@ -124,11 +148,15 @@ lane "Old queue" {
       'Server B': 'added',
       'Old queue': 'removed',
     });
-    const svg = svgOf(body);
-    expect(opening(svg, '>Server A</text>')).not.toContain('data-change');
-    expect(opening(svg, '>+ Server B</text>')).toContain('data-change="added"');
-    expect(opening(svg, '>− Old queue</text>')).toContain('data-change="removed"');
-    expect(opening(svg, 'data-node="canary"')).toContain('data-change="added"');
+    const before = paneOf(body, 'before');
+    const after = paneOf(body, 'after');
+    expect(before).toContain('>Server A</text>');
+    expect(after).toContain('>Server B</text>');
+    expect(before).toContain('>Old queue</text>');
+    expect(after).not.toContain('>Old queue</text>');
+    expect(before).not.toContain('>Server B</text>');
+    expect(after).toContain('data-node="canary"');
+    expect(before).not.toContain('data-node="canary"');
   });
 
   it('marks added and removed edges, and their labels', () => {
@@ -142,11 +170,12 @@ lane "Old queue" {
       ['a', 'c', 'added'],
       ['b', 'c', 'removed'],
     ]);
-    const svg = svgOf(body);
-    expect(opening(svg, 'data-from="a"')).toContain('data-change="added"');
-    expect(opening(svg, 'data-from="b"')).toContain('data-change="removed"');
-    expect(svg).toMatch(/<g class="pr-edge-label"[^>]*data-change="added"/);
-    expect(svg).toMatch(/<g class="pr-edge-label"[^>]*data-change="removed"/);
+    const before = paneOf(body, 'before');
+    const after = paneOf(body, 'after');
+    expect(after).toContain('data-from="a"');
+    expect(before).not.toContain('data-from="a"');
+    expect(before).toContain('data-from="b"');
+    expect(after).not.toContain('data-from="b"');
   });
 
   it('marks a group window and a span where they are drawn, from their members', () => {
@@ -161,13 +190,14 @@ group "Old steps" {
 group "New retries" {
   + retry_1
 }`;
-    const svg = svgOf(body);
-    expect(opening(svg, '>− Old steps</text>')).toContain('data-change="removed"');
-    expect(opening(svg, '>+ New retries</text>')).toContain('data-change="added"');
-    const start = svg.lastIndexOf('<g ', svg.indexOf('data-node="old_1"'));
-    const oldStep = svg.slice(start, svg.indexOf('</g>', start));
-    expect(oldStep).toContain('data-change="removed"');
-    expect(oldStep).toContain('class="pr-span"');
+    const before = paneOf(body, 'before');
+    const after = paneOf(body, 'after');
+    expect(before).toContain('>Old steps</text>');
+    expect(after).toContain('>New retries</text>');
+    expect(after).not.toContain('>Old steps</text>');
+    expect(before).not.toContain('>New retries</text>');
+    expect(before).toContain('data-node="old_1"');
+    expect(before).toContain('class="pr-span"');
   });
 
   it('draws a timeline with no changes exactly as before, with no data-change anywhere', () => {
@@ -208,10 +238,13 @@ lane "release" {
       feature: 'added',
       release: 'removed',
     });
-    const svg = svgOf(body);
-    expect(opening(svg, '>main</text>')).not.toContain('data-change');
-    expect(opening(svg, '>+ feature</text>')).toContain('data-change="added"');
-    expect(opening(svg, '>− release</text>')).toContain('data-change="removed"');
-    expect(opening(svg, 'data-node="hotfix"')).toContain('data-change="removed"');
+    const before = paneOf(body, 'before');
+    const after = paneOf(body, 'after');
+    expect(before).toContain('>main</text>');
+    expect(after).toContain('>feature</text>');
+    expect(before).toContain('>release</text>');
+    expect(after).not.toContain('>release</text>');
+    expect(before).toContain('data-node="hotfix"');
+    expect(after).not.toContain('data-node="hotfix"');
   });
 });

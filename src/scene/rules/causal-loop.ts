@@ -17,7 +17,7 @@ export const causalLoop: Rule = (item, ctx) => {
   if (item.type !== 'text') return undefined;
   if (has('pr-polarity')) {
     const role = ctx.role;
-    const fill = role === 'muted' ? INK.mutedInk : role ? ROLE[role].line : INK.ink2;
+    const fill = role === 'muted' ? INK.mutedInk : role === 'focus' ? ROLE.focus.line : INK.ink2;
     return text(item.text, item.x, item.y + 0.35 * POLARITY, { size: POLARITY, weight: 600, fill });
   }
   if (has('pr-loop-label'))

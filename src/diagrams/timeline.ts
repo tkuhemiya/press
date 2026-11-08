@@ -22,7 +22,6 @@ import type { EdgePath } from '../layout/pele/route.ts';
 import { trusted } from '../brand.ts';
 import {
   edgeItem,
-  hatchItems,
   labelItem,
   markerItems,
   measureLabel,
@@ -797,7 +796,6 @@ function eventItem(e: Card, domId: string, dx: number, dy: number, stem: string,
       ...span,
       { type: 'circle', cls: 'pr-event-dot', cx: dx, cy: dy, r: DOT },
       { type: 'rect', cls: 'pr-box', x: b.x, y: b.y, w: b.w, h: b.h, r: 8 },
-      ...hatchItems(node, b, 8),
       ...when,
       ...textItems(e.text, b.x + PAD_X, top + e.text.h / 2, 'start'),
     ],

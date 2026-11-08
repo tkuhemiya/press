@@ -11,16 +11,16 @@ interface Paint {
 const LINE_BOX: Record<Role | 'none', Paint> = {
   none: {},
   focus: { fill: ROLE.focus.fill, stroke: ROLE.focus.line, sw: 2 },
-  happy: { fill: ROLE.happy.fill, stroke: ROLE.happy.line, sw: 2 },
-  error: { fill: INK.paper, stroke: ROLE.error.line, sw: 1.6 },
+  happy: {},
+  error: {},
   muted: { stroke: INK.mutedLine, sw: 1.2 },
 };
 
 const CELL_BOX: Record<Role | 'none', Paint> = {
   none: {},
   focus: { fill: ROLE.focus.fill, stroke: ROLE.focus.line, sw: 1.6 },
-  happy: { fill: ROLE.happy.fill },
-  error: { fill: ROLE.error.fill },
+  happy: {},
+  error: {},
   muted: { stroke: INK.mutedLine, sw: 1.2 },
 };
 
@@ -30,7 +30,6 @@ const headInk = (role: Role | undefined): string =>
 const rowInk = (role: Role | undefined): string => (role === 'muted' ? INK.mutedInk : INK.ink2);
 
 const valueInk = (role: Role | undefined, missing: boolean): string => {
-  if (role === 'error') return ROLE.error.line;
   if (role === 'muted') return INK.mutedInk;
   return missing ? INK.ink3 : INK.ink;
 };
@@ -52,7 +51,7 @@ export const tradeoffs: Rule = (item, ctx) => {
   if (item.type === 'path' && has('pr-rule')) return { k: 'path', segs: parsePath(item.d), stroke: INK.rule, sw: 1 };
   if (item.type === 'circle') {
     const dot = { k: 'circle' as const, cx: item.cx, cy: item.cy, r: item.r };
-    if (has('pr-good')) return { ...dot, fill: ROLE.happy.line };
+    if (has('pr-good')) return { ...dot, fill: INK.ink };
     if (has('pr-caveat')) return { ...dot, stroke: INK.ink2, sw: 1.4 };
     return undefined;
   }

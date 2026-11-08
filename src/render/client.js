@@ -13,7 +13,7 @@
 
   function walkthrough(fig) {
     const steps = JSON.parse(fig.querySelector('.pr-steps').textContent);
-    const svg = fig.querySelector('.pr-svg');
+    const svg = fig;
     const bar = fig.querySelector('.pr-walk');
     const count = bar.querySelector('.pr-count');
     const caption = bar.querySelector('.pr-caption');
