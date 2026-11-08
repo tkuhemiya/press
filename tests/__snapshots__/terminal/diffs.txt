@@ -4,10 +4,12 @@
 
   A diagram can show a change. Mark each line that changed with + if it exists
   after the change, or - if it existed before. Unmarked lines are the same on
-  both sides. Press draws added things green, removed things red and dashed, and
-  changed things amber with the old value in a note. Every changed label also
-  starts with +, − or ~, so a diff still reads in black and white and in the
-  terminal. Every diagram type takes the same marks.
+  both sides. On screen, a structural diff is two aligned panels from one
+  layout: Before and After, each a real diagram. Types that edit in place, and
+  print, keep one overlay: added things green, removed things red and dashed,
+  changed things amber with the old value in a note. Overlay labels also start
+  with +, − or ~, so a diff still reads in black and white and in the terminal.
+  Every diagram type takes the same marks.
 
   ## Order lifecycle, with a fraud check
 

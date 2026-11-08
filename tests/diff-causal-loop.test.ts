@@ -38,9 +38,11 @@ describe('diff marks in causal loops', () => {
       ['price', 'removed'],
     ]);
     const out = html(body);
-    expect(openTag(out, 'data-node="ads"')).toContain('data-change="added"');
-    expect(openTag(out, 'data-node="price"')).toContain('data-change="removed"');
-    expect(openTag(out, 'data-node="ads"')).not.toContain('data-role');
+    expect(out).toContain('data-side="after"');
+    expect(openTag(out, 'data-node="ads"')).toContain('id="press-figure-1-node-ads"');
+    expect(openTag(out, 'data-node="price"')).toContain('id="press-figure-1-node-price"');
+    expect(out).not.toMatch(/data-node="ads"[^>]*data-change/);
+    expect(out).not.toMatch(/data-node="price"[^>]*data-change/);
     expect(openTag(out, 'data-node="customers"')).not.toContain('data-change');
   });
 
@@ -57,12 +59,10 @@ describe('diff marks in causal loops', () => {
       ['a', 'c', 'removed'],
     ]);
     const out = html(body);
-    expect(openTag(out, 'data-from="b" data-to="c"')).toContain('data-change="added"');
-    expect(openTag(out, 'data-from="a" data-to="c"')).toContain('data-change="removed"');
-    expect(openTag(out, 'data-from="a" data-to="c"')).not.toContain('data-role');
-    expect(out).toContain('data-edge="1" data-change="added"');
-    expect(out).toContain('data-edge="2" data-change="removed"');
-    expect(out).not.toContain('data-edge="0" data-change');
+    expect(out).toContain('data-from="b" data-to="c"');
+    expect(out).toContain('data-from="a" data-to="c"');
+    expect(out).not.toMatch(/data-from="b" data-to="c"[^>]*data-change/);
+    expect(out).not.toMatch(/data-from="a" data-to="c"[^>]*data-change/);
   });
 
   it('marks a changed variable amber and keeps what it was called', () => {
@@ -76,8 +76,11 @@ a -> sat : +`;
     expect(sat?.change).toBe('changed');
     expect(sat?.was).toBe('Market saturation');
     expect(sat?.note).toBeUndefined();
-    expect(html(body)).toContain('was &quot;Market saturation&quot;');
-    expect(openTag(html(body), 'data-node="sat"')).toContain('data-change="changed"');
+    const out = html(body);
+    expect(out).toContain('Market saturation');
+    expect(out).toContain('Saturated market');
+    expect(out).not.toContain('was &quot;Market saturation&quot;');
+    expect(openTag(out, 'data-node="sat"')).not.toContain('data-change');
   });
 
   it('marks an added loop green and a removed loop red, keeping its name', () => {
@@ -100,13 +103,13 @@ loop wom "Word of mouth": customers -> referrals -> customers
     ]);
     const out = html(body);
     const added = wholeGroup(out, 'data-loop="R2"');
-    expect(openTag(out, 'data-loop="R2"')).toContain('data-change="added"');
-    expect(added).toContain('>+ Ads reinvest<');
+    expect(openTag(out, 'data-loop="R2"')).not.toContain('data-change');
+    expect(added).toContain('>Ads reinvest<');
     const removed = wholeGroup(out, 'data-loop="B1"');
-    expect(openTag(out, 'data-loop="B1"')).toContain('data-change="removed"');
+    expect(openTag(out, 'data-loop="B1"')).not.toContain('data-change');
     expect(removed).toContain('class="pr-loop-arc"');
     expect(removed).toContain('>B1<');
-    expect(removed).toContain('>− Price<');
+    expect(removed).toContain('>Price<');
     expect(openTag(out, 'data-loop="R1"')).not.toContain('data-change');
   });
 
@@ -143,7 +146,8 @@ loop "Cycle": a -> b -> a`;
     expect(d.loops.map((l) => [l.name, l.change, l.reinforcing])).toEqual([['Cycle', undefined, true]]);
     const out = html(body);
     expect(out).toContain('data-loop="R1"');
-    expect(out).toContain('data-change="removed"');
+    expect(out).toContain('data-from="b" data-to="a"');
+    expect(out).not.toContain('data-change="removed"');
   });
 
   it('draws an unchanged diagram with no diff marks and no key', () => {

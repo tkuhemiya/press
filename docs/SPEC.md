@@ -94,8 +94,9 @@ draft -> submitted : submit
 - A `-` line and a `+` line that declare the same id, or give the same property, make one changed element. It shows the `+` side, with the `-` side's label or value as a `was "…"` note.
 - A group, phase or lane takes its status from what it holds: added when everything in it is added, removed when everything in it is removed.
 - An unmarked causal loop that runs through a removed link is a warning, since that loop no longer exists after the change.
-- Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
-- The figure holds both sides, so a diff is larger than either. Steps and prose references work as usual and may point at removed elements.
+- On screen, a structural diff (`state-machine`, `sequence`, `architecture`, `data-flow`, `c4`, `deployment`, `causal-loop`, `decision-tree`, `timeline`) draws as two aligned panels, Before and After, from one layout of the union. Added things are absent on the left, removed things on the right; a hole stays so the two sides line up. Each panel is a normal diagram: role colour, no `+`/`−` paint. A renamed node shows its old label on the left and its new label on the right.
+- Types that edit in place (`er`, `tradeoffs`, `class`, `dependency`) stay one figure. Added things draw green, removed things red and dashed, and changed things amber. A changed element's label starts with `+`, `−` or `~`, so the change reads without colour. A changed element draws in its change colour instead of its role colour. A key under the figure names the kinds of change it shows.
+- Print and the terminal keep that single overlay for every type, so a diff does not take two pages or two terminal figures. Steps and prose references work as usual and may point at removed elements.
 
 ## Steps
 

@@ -5,6 +5,7 @@ import { view, type RenderContext, type Rendered, type View } from '../diagrams/
 import { trusted } from '../brand.ts';
 import { esc } from './svg.ts';
 import { signed } from '../diagrams/sign.ts';
+import { paneOf, splitsOnScreen } from '../diagrams/diff-view.ts';
 
 const asset = (path: string): Buffer => readFileSync(new URL(path, import.meta.url));
 
@@ -79,10 +80,11 @@ ${js}
 `;
 }
 
-function draw(v: View, f: Figure, domId: string, direction?: Direction): Rendered {
+function draw(v: View, f: Figure, domId: string, direction?: Direction, plain = false): Rendered {
   const markers = new Map(f.refs.map((r) => [targetName(r.target), r.marker]));
   const context: RenderContext = { domId, marker: (t) => markers.get(targetName(t)) };
   if (direction !== undefined) context.direction = direction;
+  if (plain) context.plain = true;
   return v.render(context);
 }
 
@@ -100,11 +102,12 @@ interface StepJson {
 
 function figure(f: Figure): string {
   const d = f.diagram;
-  const v = view(signed(d));
+  const split = splitsOnScreen(d);
+  const v = view(split ? d : signed(d));
   const figId = f.domId;
   let drawn: Rendered;
   try {
-    drawn = screenLayout(v, f);
+    drawn = screenLayout(v, f, split);
   } catch (err) {
     return `<pre class="pr-error">Press could not draw the ${d.type} on line ${d.line}: ${esc(err instanceof Error ? err.message : String(err))}</pre>\n`;
   }
@@ -130,10 +133,12 @@ function figure(f: Figure): string {
     if (trail) step.trail = trail;
     return step;
   });
-  let out = `<figure class="pr-figure" id="${figId}" data-type="${d.type}" data-anchor="${esc(anchor)}"${steps.length ? ' data-steps tabindex="0"' : ''} aria-label="${esc(label)}">\n`;
+  let out = `<figure class="pr-figure" id="${figId}" data-type="${d.type}" data-anchor="${esc(anchor)}"${split ? ' data-diff="split"' : ''}${steps.length ? ' data-steps tabindex="0"' : ''} aria-label="${esc(label)}">\n`;
   if (d.title) out += `<figcaption class="pr-title">${esc(d.title)}</figcaption>\n`;
-  const svg = drawn.svg.replace('role="img"', `role="img" aria-label="${esc(label)}"`);
-  out += `<div class="pr-body"><div class="pr-canvas">${svg}</div>`;
+  const canvas = split
+    ? splitCanvases(drawn, d, figId, label)
+    : `<div class="pr-canvas">${captionSvg(drawn.svg, label)}</div>`;
+  out += `<div class="pr-body">${canvas}`;
   if (steps.length)
     out += `<ol class="pr-legend">${steps.map((s, i) => `<li><b>${i + 1}</b><span>${s.html}</span></li>`).join('')}</ol>`;
   out += `</div>\n`;
@@ -147,16 +152,30 @@ function figure(f: Figure): string {
 const DIRECTIONS: Direction[] = ['right', 'down'];
 
 const SCREEN_W = 870;
+const PANE_W = 520;
 const SCREEN_H = 1000;
-const screenScale = (r: Rendered): number => Math.min(1, SCREEN_W / r.width, SCREEN_H / r.height);
+const screenScale = (r: Rendered, width: number): number => Math.min(1, width / r.width, SCREEN_H / r.height);
 
-function screenLayout(v: View, f: Figure): Rendered {
-  const drawn = draw(v, f, f.domId);
-  if (!v.turnable() || screenScale(drawn) >= 0.9) return drawn;
+function screenLayout(v: View, f: Figure, split: boolean): Rendered {
+  const width = split ? PANE_W : SCREEN_W;
+  const drawn = draw(v, f, f.domId, undefined, split);
+  if (!v.turnable() || screenScale(drawn, width) >= 0.9) return drawn;
   let best = drawn;
   for (const direction of DIRECTIONS) {
-    const r = draw(v, f, f.domId, direction);
-    if (screenScale(r) > screenScale(best) * 1.25) best = r;
+    const r = draw(v, f, f.domId, direction, split);
+    if (screenScale(r, width) > screenScale(best, width) * 1.25) best = r;
   }
   return best;
+}
+
+function captionSvg(svg: string, label: string): string {
+  return svg.replace('role="img"', `role="img" aria-label="${esc(label)}"`);
+}
+
+function splitCanvases(union: Rendered, d: Figure['diagram'], figId: string, label: string): string {
+  const before = paneOf(union, 'before', d, `${figId}-before`);
+  const after = paneOf(union, 'after', d, `${figId}-after`);
+  const pane = (side: string, title: string, drawn: Rendered) =>
+    `<div class="pr-pane" data-side="${side}"><div class="pr-pane-label">${title}</div><div class="pr-canvas">${captionSvg(drawn.svg, `${label} (${title.toLowerCase()})`)}</div></div>`;
+  return `<div class="pr-diff">${pane('before', 'Before', before)}${pane('after', 'After', after)}</div>`;
 }

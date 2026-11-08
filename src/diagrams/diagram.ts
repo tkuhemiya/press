@@ -36,6 +36,7 @@ interface Members {
 export interface RenderContext {
   domId: string;
   direction?: Direction;
+  plain?: boolean;
   marker(target: Target): string | undefined;
 }
 
@@ -99,7 +100,7 @@ function bind<T extends DiagramType>(d: Diagram<T> & { type: T }): View {
   const def = definition(d.type);
   return {
     name: def.name,
-    render: (context) => keyed(def.render(d, context)),
+    render: (context) => (context.plain === true ? def.render(d, context) : keyed(def.render(d, context))),
     targets: () => def.targets(d),
     ends: (edge) => def.ends?.(d, edge),
     members: (id) => def.members?.(d, id),

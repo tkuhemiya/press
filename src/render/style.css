@@ -209,6 +209,27 @@ th {
 .pr-canvas {
   overflow-x: auto;
 }
+.pr-figure[data-diff] {
+  width: min(1180px, calc(100vw - 32px));
+}
+.pr-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+  align-items: start;
+}
+.pr-pane-label {
+  font: 600 11px/1.2 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+}
+@media (max-width: 720px) {
+  .pr-diff {
+    grid-template-columns: 1fr;
+  }
+}
 .pr-svg {
   display: block;
   max-width: 100%;
