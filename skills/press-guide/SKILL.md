@@ -30,7 +30,7 @@ Paper is a budget. A guide that covers every item at full depth is a reference n
 
 1. **Survey the repo in a few minutes.** README, the top-level directories, the build and package files, the entry points (`main`, routes, handlers, CLI commands, consumers), the schema or migrations, the infra files, CI config, the `scripts/` or `bin/` directory, cron or scheduler config.
 2. **Take the core.** These are always in: purpose (1.1), glossary (1.2), the map (2.1), the edges (2.2), the data model (3.1), lifecycles (3.3, if there is any state field), and the main paths (4.1).
-3. **Add what the code shows exists.** Each item in the checklist has an "Include when" line naming the signal. A `cron` entry pulls in time-driven work. A retry library pulls in load behaviour. A `scripts/` directory pulls in scripts. A replica or cache pulls in data ownership. No signal, no section.
+3. **Add what the code shows exists.** Each item in the checklist has an "Include when" line naming the signal. A `cron` entry pulls in time-driven work. A retry library pulls in load behaviour. A `scripts/` directory pulls in scripts. A replica or cache pulls in data ownership. Fixed-offset reads and writes pull in byte layouts. No signal, no section.
 4. **Write the outline before you read deeply**: the chapters and, under each, one line per figure, each a claim. "Orders are only written after the charge succeeds." Drop any figure that does not change what the reader knows.
 
 ## 2. Explore
@@ -63,7 +63,7 @@ Use this order. Drop a section with nothing to say; keep the numbering of the qu
   ## How to read this          which chapters each reader needs
 ## Why it exists               purpose, glossary, key decisions
 ## The map {page=new}          parts, edges, dependencies, trust, code map
-## What it remembers {page=new} data model, ownership, lifecycles, invariants, other state
+## What it remembers {page=new} data model, ownership, lifecycles, invariants, other state, byte layouts
 ## What happens when it runs {page=new}   main paths, work on a clock, config, concurrency, where it runs
 ## When things go wrong {page=new}        failures, load, observability, recovery
 ## Working on it {page=new}    dev loop, scripts, path to production, migrations, tests, conventions, owners

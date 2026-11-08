@@ -41,6 +41,8 @@ Walk every dimension and answer: did this change it? Most changes touch one or t
 | Settings | adds a flag, changes a default, or changes which path a setting picks | `decision-tree` |
 | Concurrency | changes a transaction, lock, idempotency key or ordering | `sequence` or `timeline` |
 | Load and failure | changes retries, backoff, limits, fallbacks, or what happens when a dependency fails | `causal-loop` or `sequence` |
+| Call nesting | wraps a handler in new middleware, or changes which layer catches an error | `sequence` |
+| Bytes | adds, reorders or resizes a struct's fields, or changes a binary or wire format | `memory-layout` of the new layout, without `+` and `-` |
 | Where it runs | changes replicas, regions, resources, or where something runs | `deployment` |
 | Ways of working | adds or changes a script, CI step, deploy step or migration process | prose, or `sequence` when order matters |
 | Choice | was picked over alternatives the reviewer will ask about | `tradeoffs` |
@@ -69,6 +71,8 @@ The image has one figure, two at most. Pick the dimension whose change matters m
 - Five to twelve nodes. One `focus`, on the heart of the change.
 - Labels are what the reader sees or cares about, not code: "Waiting for review", not `PENDING_REVIEW`.
 - Mark every line that mentions a new node with `+`.
+- `call-stack` and `memory-layout` cannot be marked with `+` and `-`. For a layout change, draw the new layout and name the fields that moved or grew in the line under the figure.
+- On a cloud, use the vendor's icon where the kind goes (`q: aws.sqs "Payment jobs"`); `press icons aws sqs` finds the name.
 - **No `steps:` in the image.** On screen they are a walk-through the image cannot show. Put the reasons in the sentences around the figure instead.
 
 ## 4. Write the card
@@ -123,7 +127,7 @@ press check pr-123.md
 press build pr-123.md -o pr-123.webp
 ```
 
-WebP (and PNG, JPEG, SVG) need `typst` on PATH. Each figure is one image, page sized to the drawing, typeset by Typst — the same marks as the PDF. **Never screenshot HTML.** Walk through exists only on the HTML page. If `typst` is missing, install it; do not open `pr-123.html` in a browser and crop. WebP is lossless from the Typst PNG. Then open `pr-123.webp` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf`.
+WebP (and PNG, JPEG, SVG) need `typst` on PATH. Each figure is one image, page sized to the drawing, typeset by Typst — the same marks as the PDF. **Never screenshot HTML.** Walk through exists only on the HTML page. If `typst` is missing, install it; do not open `pr-123.html` in a browser and crop. WebP is lossless from the Typst PNG. Then open `pr-123.webp` and look at it. A raw id used as a label, a figure too crowded to read, a removed edge that hides an added one: fix the source and build again. Without `typst`, `press preview pr-123.md` draws the card in the terminal for a quick check of the same mistakes. If the user wants paper instead, `press build pr-123.md -o pr-123.pdf`.
 
 **Before you finish, walk the diff hunk by hunk.** Every hunk that changes behaviour is in the figure, in the card's text, or named in your hand-back as left out.
 

@@ -34,6 +34,8 @@ Who calls, sends to, or reads from whom. For each: from, to, what travels, wheth
 
 Tables, collections or message formats: the fields that matter and what refers to what, with the migration or model `file:line`. For each, whether this system is the source of truth or holds a copy, and what keeps the copy current.
 
+If the code reads or writes bytes at fixed offsets (a binary format, a `#[repr(C)]` or C struct, a page or record header), list the fields in memory order with their types and sizes, any padding, and what each pointer points at.
+
 ### States
 
 Any field or variable that moves something through a lifecycle (`status`, `phase`, an enum, a pair of booleans). The values, each move between them, what causes each move, the `file:line` where it happens. Say which values are final.
@@ -44,7 +46,7 @@ Invariants, and where each is enforced: a constraint, a check in code, or nowher
 
 ### One path in order
 
-Follow one real request or job from its trigger to its end. Number the steps: who acts, on whom, with what, at which `file:line`. Mark where it can fail and what happens then.
+Follow one real request or job from its trigger to its end. Number the steps: who acts, on whom, with what, at which `file:line`. Mark where it can fail and what happens then. If an error unwinds through several functions or layers, list the frames it passes and the one that catches it.
 
 ### Work on a clock and scripts
 
