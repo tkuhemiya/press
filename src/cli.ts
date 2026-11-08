@@ -219,11 +219,28 @@ function settleChoices(entry: string, common: string[]): { choices: Choices; rep
 }
 
 function fitReports(entry: string, common: string[], choices: Choices): Report[] {
-  const out = execFileSync(
-    'typst',
-    ['query', ...common, '--input', `choices=${JSON.stringify(choices)}`, '--field', 'value', entry, '<press-fit>'],
-    { encoding: 'utf8' },
-  );
+  let out: string;
+  try {
+    out = execFileSync(
+      'typst',
+      [
+        'eval',
+        ...common,
+        '--input',
+        `choices=${JSON.stringify(choices)}`,
+        '--in',
+        entry,
+        'query(<press-fit>).map(it => it.value)',
+      ],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+  } catch {
+    out = execFileSync(
+      'typst',
+      ['query', ...common, '--input', `choices=${JSON.stringify(choices)}`, '--field', 'value', entry, '<press-fit>'],
+      { encoding: 'utf8' },
+    );
+  }
   return parseReports(out);
 }
 

@@ -16,32 +16,54 @@
 #let serif = "Geist Serif"
 #let mono = "Geist Mono"
 #let margin-x = 24mm
+#let soft(s) = s.replace(regex("\\S{20}"), m => m.text + "\u{200B}")
 
 #set document(title: doc.at("title", default: "Press"))
-#set page(paper: "a4", margin: (top: 20mm, x: margin-x, bottom: 22mm), numbering: "1")
-#set text(font: serif, size: 10.5pt, fill: body, lang: "en", hyphenate: false)
-#set par(leading: 0.95em, spacing: 1.25em, justify: false)
-#set list(spacing: 0.7em)
-#set enum(spacing: 0.7em)
-#show strong: it => {
-  set text(fill: ink, stroke: 0.14pt + ink)
-  it
-}
-#show emph: set text(style: "italic", font: (serif, sans))
-#show raw: set text(font: mono, size: 9.2pt, fill: ink)
+#set page(
+  paper: "a4",
+  margin: (top: 20mm, x: margin-x, bottom: 22mm),
+  footer: context {
+    let i = counter(page).get().first()
+    let n = counter(page).final().first()
+    set text(font: sans, size: 8pt, fill: ink3)
+    if n > 1 {
+      grid(
+        columns: (1fr, auto),
+        align: (left, right),
+        soft(doc.at("title", default: "")),
+        [#i of #n],
+      )
+    } else {
+      align(center, str(i))
+    }
+  },
+)
+#set text(font: sans, size: 10pt, fill: body, lang: "en", hyphenate: false)
+#set par(leading: 0.68em, spacing: 1.05em, justify: false)
+#set list(spacing: 0.65em, marker: text(fill: ink3, "•"))
+#set enum(spacing: 0.65em)
+#show strong: set text(weight: 600, fill: ink)
+#show emph: set text(style: "italic")
+#show raw: set text(font: mono, size: 8.8pt, fill: ink)
 #show raw.where(block: false): it => highlight(
   fill: code-fill,
-  radius: 2.5pt,
-  extent: 0.2em,
-  top-edge: 0.72em,
-  bottom-edge: -0.18em,
+  radius: 3pt,
+  extent: 0.16em,
+  top-edge: 0.76em,
+  bottom-edge: -0.20em,
   it,
+)
+#show quote: it => block(
+  width: 100%,
+  inset: (left: 12pt, y: 3pt),
+  stroke: (left: 2pt + rule),
+  text(fill: ink2, it.body),
 )
 #show heading: set text(font: sans, fill: ink)
 #show heading: set block(sticky: true)
-#show heading.where(level: 1): it => block(below: 0.9em, text(size: 20pt, weight: 600, tracking: -0.02em, it.body))
-#show heading.where(level: 2): it => block(above: 1.7em, below: 0.75em, text(size: 13.5pt, weight: 600, tracking: -0.01em, it.body))
-#show heading.where(level: 3): it => block(above: 1.4em, below: 0.6em, text(size: 11pt, weight: 600, it.body))
+#show heading.where(level: 1): it => block(below: 0.8em, text(size: 20pt, weight: 600, tracking: -0.02em, it.body))
+#show heading.where(level: 2): it => block(above: 1.6em, below: 0.6em, text(size: 13pt, weight: 600, tracking: -0.01em, it.body))
+#show heading.where(level: 3): it => block(above: 1.3em, below: 0.5em, text(size: 10.5pt, weight: 600, it.body))
 
 // Diagram marks
 
@@ -123,15 +145,13 @@
 
 // Prose
 
-#let soft(s) = s.replace(regex("\\S{20}"), m => m.text + "\u{200B}")
-
 #let inl(xs) = xs.map(x => {
   if x.t == "text" { soft(x.s) }
   else if x.t == "strong" { strong(inl(x.c)) }
   else if x.t == "em" { emph(inl(x.c)) }
   else if x.t == "code" { raw(x.s) }
   else if x.t == "link" { link(x.href, inl(x.c)) }
-  else if x.t == "ref" { [#inl(x.c)#h(0.1em)#super(typographic: false, text(font: sans, weight: 600, style: "italic", fill: ink, x.marker))] }
+  else if x.t == "ref" { [#inl(x.c)#h(0.12em)#box(baseline: -0.32em, text(font: sans, size: 6.8pt, weight: 600, fill: ink, x.marker))] }
   else { linebreak() }
 }).join()
 
@@ -177,7 +197,14 @@
 #let figure-block(f, i: 0, k: 1.0) = {
   let variant = f.variants.at(i)
   block(breakable: false, width: 100%, above: 1.3em, below: 1.4em, {
-    if "title" in f { block(below: 6pt, text(font: sans, size: 9pt, weight: 600, fill: ink2, soft(f.title))) }
+    if "title" in f {
+      let t = text(font: sans, size: 8.5pt, weight: 600, fill: ink2, tracking: 0.01em, soft(f.title))
+      if f.steps.len() == 0 or not variant.beside {
+        align(center, block(below: 8pt, t))
+      } else {
+        block(below: 8pt, t)
+      }
+    }
     let art = drawing(variant.scene, doc.scale * variant.fit * k * 1pt)
     if f.steps.len() == 0 { align(center, art) }
     else if variant.beside { grid(columns: (auto, 1fr), column-gutter: 18pt, align: horizon, art, legend(f.steps)) }
@@ -209,7 +236,16 @@
     let items = b.items.map(item => blocks(item, fig))
     if b.ordered { enum(..items) } else { list(..items) }
   }
-  else if b.t == "code" { block(width: 100%, inset: 10pt, radius: 4pt, fill: code-fill, raw(b.s, lang: b.lang, block: true)) }
+  else if b.t == "code" {
+    block(
+      width: 100%,
+      inset: (x: 12pt, y: 10pt),
+      radius: 4pt,
+      fill: code-fill,
+      stroke: 0.5pt + rule,
+      raw(b.s, lang: b.lang, block: true),
+    )
+  }
   else if b.t == "quote" { quote(block: true, blocks(b.b, fig)) }
   else if b.t == "rule" { line(length: 100%, stroke: 0.6pt + rule) }
   else if b.t == "table" {
@@ -218,7 +254,8 @@
     table(
       columns: b.head.len(),
       stroke: (x, y) => (bottom: if y == 0 { 0.8pt + ink2 } else { 0.5pt + rule }),
-      inset: (x: 5pt, y: 4pt),
+      fill: (x, y) => if y == 0 { rgb("#f8f7f4") } else { none },
+      inset: (x: 8pt, y: 6pt),
       ..b.head.map(c => strong(inl(c))),
       ..b.rows.map(r => r.map(c => inl(c))).flatten(),
     )
