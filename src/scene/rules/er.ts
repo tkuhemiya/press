@@ -16,7 +16,7 @@ function fieldInk(role: Role | undefined): Ink {
     case 'happy':
       return { fill: ROLE.happy.fill, stroke: ROLE.happy.line, sw: 2 };
     case 'error':
-      return { fill: ROLE.error.fill, stroke: ROLE.error.line, sw: 1.6 };
+      return { fill: ROLE.error.fill, stroke: ROLE.error.line, sw: 2 };
     case 'muted':
       return { stroke: INK.mutedLine, sw: 1.2 };
     case undefined:

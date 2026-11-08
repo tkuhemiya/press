@@ -30,15 +30,6 @@ describe('html', () => {
     expect(html).not.toMatch(/<svg[\s\S]*?(fill|stroke)="#[0-9a-f]{3,6}"[\s\S]*?<\/svg>/i);
   });
 
-  it('marks happy with a check and error with a hatch', () => {
-    const out = build(
-      '# T\n\n```state-machine\nok: "Paid" {role=happy}\nbad: "Failed" {role=error}\nok -> bad\n```\n',
-      { embedFonts: false },
-    ).html;
-    expect(out).toContain('class="pr-mark-ok"');
-    expect(out).toContain('class="pr-hatch-fill"');
-  });
-
   it('prints steps as one numbered marker each, with a legend', () => {
     expect(count(html, /class="pr-step-marker"/g)).toBe(12);
     expect(count(html, /<ol class="pr-legend">/g)).toBe(2);
@@ -238,7 +229,7 @@ waiting -> end
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);
   });
 
-  it('draws a tradeoffs table: a chosen column, marked cells, a category band', () => {
+  it('draws a tradeoffs table: a chosen column, role cells, a category band', () => {
     const src = readFileSync(new URL('../docs/examples/sessions.md', import.meta.url), 'utf8');
     const { html, diagnostics } = build(src, { embedFonts: false });
     expect(diagnostics).toEqual([]);
@@ -247,7 +238,7 @@ waiting -> end
     expect(count(svg, /class="pr-node pr-cell/g)).toBe(15);
     expect(svg).toMatch(/class="pr-node pr-col pr-option" data-node="postgres"[^>]*data-role="focus"/);
     expect(svg).toMatch(/data-node="cookie\.revoke" data-in="cookie revoke"[^>]*data-role="error"/);
-    expect(count(svg, /class="pr-good"/g)).toBe(8);
+    expect(svg).not.toContain('class="pr-good"');
     expect(count(svg, /class="pr-group pr-band"/g)).toBe(1);
     expect(count(svg, /class="pr-step-marker"/g)).toBe(4);
     expect(svg).not.toMatch(/NaN|Infinity|undefined/);

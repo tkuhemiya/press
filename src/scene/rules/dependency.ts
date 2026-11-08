@@ -6,7 +6,7 @@ const LINE_BOX: Record<Role | 'none', { fill?: string; stroke?: string; sw?: num
   none: {},
   focus: { fill: ROLE.focus.fill, stroke: ROLE.focus.line, sw: 2 },
   happy: { fill: ROLE.happy.fill, stroke: ROLE.happy.line, sw: 2 },
-  error: { fill: INK.paper, stroke: ROLE.error.line, sw: 1.6 },
+  error: { fill: ROLE.error.fill, stroke: ROLE.error.line, sw: 2 },
   muted: { stroke: INK.mutedLine, sw: 1.2 },
 };
 

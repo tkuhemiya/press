@@ -63,7 +63,7 @@ group "Name" { ... }           nesting
 | `happy` | The intended / success path      |
 | `muted` | Present for context, not central |
 
-Green and red are reserved for diffs. Roles use marks and weight: `happy` is a linen fill, a heavy stroke and a check; `error` is a hatch and a dotted edge; `focus` is the one remaining colour, a blue ring; `muted` is a faint line.
+Green and red are reserved for diffs. `happy` and `error` share one quiet ink treatment so they do not compete with change. `focus` is a blue ring; `muted` is a faint line.
 
 ### Properties
 
@@ -430,7 +430,7 @@ Here every order is placed by exactly one user and a user has any number of orde
 Options compared across criteria. Each cell is a property: `option.criterion : value {attrs}`. The node on the left of the dot is an option, the key on the right a criterion; declarations give either a display name. There are no edges: an edge is an error that says so.
 
 - The value is short text: `"<1 ms"`, `yes`, `"another service"`. A cell's role says how it compares: `{role=happy}` favourable, `{role=error}` unfavourable, no role neutral, `{role=muted}` not relevant.
-- *New in v0.4.* A cell's `note` is its caveat, printed small under the value: `mongo.tx : yes {note="multi-document since 4.0"}`. A neutral cell with a note is marked with a hollow ring: neither good nor bad, but read the small print. Favourable and unfavourable cells stay distinct in grayscale: a filled mark and a hatched cell.
+- *New in v0.4.* A cell's `note` is its caveat, printed small under the value: `mongo.tx : yes {note="multi-document since 4.0"}`. A neutral cell with a note is marked with a hollow ring: neither good nor bad, but read the small print. `{role=happy}` and `{role=error}` share the same ink fill; green and red are for diffs.
 - `{role=focus}` on an option marks the recommendation, and its column is drawn as chosen.
 - Options and criteria appear in order of first use. A declared id that no cell uses is a warning. A missing cell draws as a dash and is a warning that names it, since a comparison with gaps is usually unfinished.
 - A group of criteria is a category (`group "Operations" { ops  revoke }`) and draws as a band of rows.

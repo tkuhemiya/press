@@ -150,8 +150,8 @@ export function linesMark(
 
 export function nodeBox(role: Role | undefined, outcome: boolean): { fill: string; stroke: string; sw: number } {
   const base = { fill: outcome ? INK.groupFill : INK.nodeFill, stroke: INK.nodeLine, sw: outcome ? 1.6 : 1.2 };
-  if (role === 'focus' || role === 'happy') return { fill: ROLE[role].fill, stroke: ROLE[role].line, sw: 2 };
-  if (role === 'error') return { fill: ROLE.error.fill, stroke: ROLE.error.line, sw: 1.6 };
+  if (role === 'focus' || role === 'happy' || role === 'error')
+    return { fill: ROLE[role].fill, stroke: ROLE[role].line, sw: 2 };
   if (role === 'muted') return { ...base, stroke: INK.mutedLine };
   return base;
 }

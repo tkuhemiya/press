@@ -1,7 +1,7 @@
 import type { Node } from '../model.ts';
 import { n } from '../render/svg.ts';
 import type { Item } from '../scene/scene.ts';
-import { roleMarks, measureLabel, textItems, type NodeShape } from './draw.ts';
+import { measureLabel, textItems, type NodeShape } from './draw.ts';
 import { iconSvg } from '../icons.ts';
 
 export function kindItems(kind: string | undefined, x: number, y: number, w: number, h: number): Item[] {
@@ -134,7 +134,6 @@ export function componentShape(node: Node & { kind?: string; icon?: string }): N
         attrs,
         items: [
           ...kindItems(kind, b.x, b.y, b.w, b.h),
-          ...(kind === 'database' ? [] : roleMarks(node, b, 9)),
           ...(node.icon ? iconItems(node.icon, cx - text.w / 2 - ICON_W, b.y + b.h / 2) : []),
           ...(icon && kind ? glyphItems(kind, cx - text.first / 2 - 15, b.y + pad + 9) : []),
           ...textItems(text, cx, cy),

@@ -7,7 +7,6 @@ import { trusted } from '../brand.ts';
 import { closest, list } from '../diagnostics.ts';
 import {
   edgeItem,
-  roleMarks,
   markerItems,
   measureLabel,
   refMarkers,
@@ -394,7 +393,6 @@ function render(d: CausalLoop, context: RenderContext): Rendered {
       attrs: [['data-node', node.id], ['id', `${domId}-node-${node.id}`], ...markAttrs(node)],
       items: [
         { type: 'rect', cls: 'pr-box pr-variable', ...b, r },
-        ...roleMarks(node, b, r),
         ...textItems(texts[i], b.x + b.w / 2, b.y + b.h / 2),
       ],
     };

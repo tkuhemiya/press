@@ -19,7 +19,7 @@ export function nodeLook(role: Role | undefined, outcome = false): Look {
     case 'happy':
       return { border: 'heavy', token: 'happy', label: 'happy' };
     case 'error':
-      return { border: 'light', token: 'error', label: 'error' };
+      return { border: 'heavy', token: 'error', label: 'error' };
     case 'muted':
       return { border: 'dotted', token: 'muted', label: 'muted' };
     case undefined:
@@ -35,7 +35,7 @@ export function edgeLook(role: Role | undefined, arrow: Arrow): { kind: LineKind
     case 'happy':
       return { kind: dashed ? 'dashed' : 'heavy', token: 'happy' };
     case 'error':
-      return { kind: dashed ? 'dashed' : 'dotted', token: 'error' };
+      return { kind: dashed ? 'dashed' : 'heavy', token: 'error' };
     case 'muted':
       return { kind: 'dotted', token: 'muted' };
     case undefined:

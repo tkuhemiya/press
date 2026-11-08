@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, edgeEnds, header, lean, nodeParts, resolveSteps, toNode } from '../parse/graph.ts';
 import { renderGraph } from './render-graph.ts';
-import { roleMarks, measureLabel, textItems, type NodeShape } from './draw.ts';
+import { measureLabel, textItems, type NodeShape } from './draw.ts';
 
 export const DECISION_TREE: DiagramDef<'decision-tree'> = {
   type: 'decision-tree',
@@ -138,7 +138,6 @@ function questionShape(node: Node): NodeShape {
       attrs,
       items: [
         { type: 'rect', cls: 'pr-box pr-question', ...b, r: 6 },
-        ...roleMarks(node, b, 6),
         ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
       ],
     }),
@@ -156,11 +155,7 @@ function outcomeShape(node: Node): NodeShape {
         type: 'group',
         cls: 'pr-node pr-outcome-node',
         attrs,
-        items: [
-          { type: 'rect', cls: 'pr-box pr-outcome', ...b, r },
-          ...roleMarks(node, b, r),
-          ...textItems(text, b.x + b.w / 2, b.y + b.h / 2),
-        ],
+        items: [{ type: 'rect', cls: 'pr-box pr-outcome', ...b, r }, ...textItems(text, b.x + b.w / 2, b.y + b.h / 2)],
       };
     },
   };

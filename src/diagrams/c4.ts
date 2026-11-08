@@ -4,7 +4,7 @@ import type { Fence } from '../parse/grammar.ts';
 import type { Reporter } from '../diagnostics.ts';
 import { buildGraph, header, resolveSteps, toNode } from '../parse/graph.ts';
 import { graphMethods } from './render-graph.ts';
-import { roleMarks, measureLabel, textItems, type NodeShape } from './draw.ts';
+import { measureLabel, textItems, type NodeShape } from './draw.ts';
 import { GLYPH_W, glyphItems } from './kinds.ts';
 
 export const C4: DiagramDef<'c4'> = {
@@ -63,7 +63,6 @@ function c4Shape(node: C4Node): NodeShape {
         attrs,
         items: [
           { type: 'rect', cls: node.external ? 'pr-box pr-external pr-faint' : 'pr-box', ...b, r: 9 },
-          ...roleMarks(node, b, 9),
           ...(icon ? glyphItems('user', cx - text.first / 2 - 15, b.y + PAD_Y + 9) : []),
           ...textItems(text, cx, b.y + b.h / 2),
         ],

@@ -56,21 +56,19 @@ export function graph(item: Leaf, ctx: Context): Mark {
     case 'path': {
       const segs = parsePath(item.d);
       if (within('pr-glyph')) return { k: 'path', segs, ...GLYPH_LINE };
-      if (has('pr-mark-ok')) return { k: 'path', segs, stroke: INK.ink, sw: 1.7, cap: 'round' };
       if (has('pr-box')) return { k: 'path', segs, ...nodeBox(role, false) };
       if (has('pr-box-detail')) return { k: 'path', segs, stroke: INK.nodeLine, sw: 1.2 };
       const colour = role ? ROLE[role].line : INK.edge;
       if (has('pr-head')) return { k: 'path', segs, fill: colour };
       const dashed = within('pr-dashed');
-      const broken = role === 'error' && !dashed;
-      const sw = role === 'focus' ? 2.2 : role === 'happy' ? 2.4 : role === 'error' ? 1.6 : 1.4;
+      const sw = role === 'focus' ? 2.2 : role === 'happy' || role === 'error' ? 2 : 1.4;
       return {
         k: 'path',
         segs,
         stroke: colour,
         sw,
         cap: dashed ? 'butt' : 'round',
-        ...(dashed ? { dash: [5, 4] } : broken ? { dash: [1.6, 2.4] } : {}),
+        ...(dashed ? { dash: [5, 4] } : {}),
       };
     }
     case 'text': {

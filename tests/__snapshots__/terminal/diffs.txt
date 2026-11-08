@@ -9,9 +9,8 @@
   added green on the right). Types that edit in place, and print, keep one
   overlay: added things green, removed things red and dashed, changed things
   amber with the old value in a note. Overlay labels also start with +, − or ~,
-  so a diff still reads in black and white and in the terminal. Roles keep their
-  marks (a check, a hatch) but not green or red — those colours mean change.
-  Every diagram type takes the same marks.
+  so a diff still reads in black and white and in the terminal. {role=happy} and
+  {role=error} stay in ink. Every diagram type takes the same marks.
 
   ## Order lifecycle, with a fraud check
 
@@ -37,23 +36,23 @@
                           ┌───────────┐                                 │
                           │ submitted │                                 │
                           └──┬─┬─┬────┘                                 │
-                             ┃ │ ┊ ▲                                    │
-                             ┃ │ ┊ ╰───────────────────────╮            │
-                             ┃ │ ┊                         │            │
-                             ┃ │ ┊                         │            │
-        ┏━━━━━━━━━━━━━━━━━━━━┛ │ ┊                         │            │
-        ┃                      │ ┊                         │            │
-        ┃               ╭──────╯ ┊                         │            │
-        ┃        + needs review  ┊                         │            │
-        ┃               │        ┊                         │            │
-        ┃               ▼        ┊                         │            │
-        ┃         ┌──────────┐   ╰┈┈┈┈┈┈┈┈┈┈╮              │            │
+                             ┃ │ ┃ ▲                                    │
+                             ┃ │ ┃ ╰───────────────────────╮            │
+                             ┃ │ ┃                         │            │
+                             ┃ │ ┃                         │            │
+        ┏━━━━━━━━━━━━━━━━━━━━┛ │ ┃                         │            │
+        ┃                      │ ┃                         │            │
+        ┃               ╭──────╯ ┃                         │            │
+        ┃        + needs review  ┃                         │            │
+        ┃               │        ┃                         │            │
+        ┃               ▼        ┃                         │            │
+        ┃         ┌──────────┐   ┗━━━━━━━━━━┓              │            │
   − payment ok    │ + review │       ✗ card declined    − retry    + edit cart
-        ┃         └────┬─┬───┘              ┊        ╭─────┼────────────╯
-        ┃              ┃ ┊                  ┊        │     │
-        ┃      ┏━━━━━━━┛ ╰┈┈┈┈╮             ╰┈┈┈┈┈╮  │     │
-        ┃ + approved    ✗ + rejected              ┊  │     │
-        ┃ ┏━━━━┛              ╰┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈╮ ┊ ╭┼─────╯
+        ┃         └────┬─┬───┘              ┃        ╭─────┼────────────╯
+        ┃              ┃ ┃                  ┃        │     │
+        ┃      ┏━━━━━━━┛ ┗━━━━┓             ┗━━━━━┓  │     │
+        ┃ + approved    ✗ + rejected              ┃  │     │
+        ┃ ┏━━━━┛              ┗━━━━━━━━━━━━━━━━━┓ ┃ ╭┼─────╯
         ▼ ▼                                     ▼ ▼ ││
       ┌──────┐                                ┌─────┴┴─┐
       │ paid │                                │ failed │
@@ -528,12 +527,12 @@
                 ╭────╯│ + Needs strict │    │   │
               − yes   │   freshness?   │   no   │
                 │     └─────┬───┬──────┘    │   │
-                │           │   ┊           │   │
-                │           │   ┊           │   │
-                │   ╭───────╯   ┊           │   │
+                │           │   ┃           │   │
+                │           │   ┃           │   │
+                │   ╭───────╯   ┃           │   │
                 │ + no       ✗ + yes        │   │
-                │   │           ┊           │   │
-                ▼   ▼           ╰┈┈┈┈┈┈┈┈┈╮ │   │
+                │   │           ┃           │   │
+                ▼   ▼           ┗━━━━━━━━━┓ │   │
          ┌───────────────────┐            ▼ ▼   ▼
          │ Slow or costly to │       ╭─────────────╮
          │     compute?      │       │ Don't cache │

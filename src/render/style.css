@@ -21,7 +21,7 @@
   --happy: #22211e;
   --happy-fill: #efe9d8;
   --error: #22211e;
-  --error-fill: #faf8f3;
+  --error-fill: #efe9d8;
   --added: #1a7f4c;
   --added-fill: #e6f5ec;
   --removed: #c0392b;
@@ -415,13 +415,6 @@ th {
   stroke-width: 1.4;
   opacity: 0.2;
 }
-.pr-mark-ok {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 .pr-step-marker,
 .pr-ref-marker {
   display: none;
@@ -518,20 +511,15 @@ th {
   fill: var(--focus);
   stroke: var(--focus);
 }
-.pr-node[data-role='happy'] .pr-event-dot {
+.pr-node[data-role='happy'] .pr-event-dot,
+.pr-node[data-role='error'] .pr-event-dot {
   fill: var(--happy-fill);
   stroke: var(--ink);
   stroke-width: 2;
 }
-.pr-node[data-role='happy'] .pr-span {
-  fill: var(--ink);
-}
-.pr-node[data-role='error'] .pr-event-dot {
-  fill: var(--card);
-  stroke: var(--ink);
-}
+.pr-node[data-role='happy'] .pr-span,
 .pr-node[data-role='error'] .pr-span {
-  fill: var(--ink-3);
+  fill: var(--ink);
 }
 .pr-node[data-role='muted'] .pr-event-dot {
   stroke: var(--muted-line);
@@ -882,21 +870,15 @@ th {
 .pr-node[data-role='focus'] .pr-store-fill {
   fill: var(--focus-fill);
 }
-.pr-node[data-role='happy'] .pr-store-fill {
+.pr-node[data-role='happy'] .pr-store-fill,
+.pr-node[data-role='error'] .pr-store-fill {
   fill: var(--happy-fill);
 }
-.pr-node[data-role='error'] .pr-store-fill {
-  fill: var(--error-fill);
-}
-.pr-node[data-role='happy'] .pr-box {
-  stroke: var(--happy);
+.pr-node[data-role='happy'] .pr-box,
+.pr-node[data-role='error'] .pr-box {
+  stroke: var(--ink);
   fill: var(--happy-fill);
   stroke-width: 2;
-}
-.pr-node[data-role='error'] .pr-box {
-  stroke: var(--error);
-  fill: var(--error-fill);
-  stroke-width: 1.6;
 }
 .pr-node[data-role='muted'] .pr-box {
   stroke: var(--muted-line);
@@ -914,21 +896,14 @@ th {
 .pr-edge[data-role='focus'] .pr-head {
   fill: var(--focus);
 }
-.pr-edge[data-role='happy'] .pr-line {
-  stroke: var(--happy);
-  stroke-width: 2.4;
-}
-.pr-edge[data-role='happy'] .pr-head {
-  fill: var(--happy);
-}
+.pr-edge[data-role='happy'] .pr-line,
 .pr-edge[data-role='error'] .pr-line {
-  stroke: var(--error);
-  stroke-width: 1.6;
-  stroke-dasharray: 1.6 2.4;
-  stroke-linecap: round;
+  stroke: var(--ink);
+  stroke-width: 2;
 }
+.pr-edge[data-role='happy'] .pr-head,
 .pr-edge[data-role='error'] .pr-head {
-  fill: var(--error);
+  fill: var(--ink);
 }
 .pr-edge[data-role='muted'] .pr-line {
   stroke: var(--muted-line);
@@ -974,7 +949,7 @@ th {
   stroke: var(--change);
   stroke-width: 1.6;
 }
-.pr-svg [data-change] path:not(.pr-head):not(.pr-loop-head):not(.pr-entity-head):not(.pr-mark-ok),
+.pr-svg [data-change] path:not(.pr-head):not(.pr-loop-head):not(.pr-entity-head),
 .pr-svg [data-change] line {
   stroke: var(--change);
 }
@@ -1003,7 +978,7 @@ th {
 .pr-svg [data-change] text {
   fill: var(--change);
 }
-.pr-svg [data-change='removed'] :is(rect, path):not(.pr-head):not(.pr-mark-ok) {
+.pr-svg [data-change='removed'] :is(rect, path):not(.pr-head) {
   stroke-dasharray: 4 3;
 }
 .pr-key {
